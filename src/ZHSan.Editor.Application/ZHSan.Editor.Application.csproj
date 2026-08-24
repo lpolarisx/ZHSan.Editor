@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\ZHSan.Editor.Domain\ZHSan.Editor.Domain.csproj" />
+  </ItemGroup>
+</Project>

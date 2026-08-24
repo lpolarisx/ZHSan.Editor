@@ -1,0 +1,43 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZHSan.Editor.Domain", "src\ZHSan.Editor.Domain\ZHSan.Editor.Domain.csproj", "{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156001}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZHSan.Editor.Application", "src\ZHSan.Editor.Application\ZHSan.Editor.Application.csproj", "{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156002}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZHSan.Editor.Infrastructure", "src\ZHSan.Editor.Infrastructure\ZHSan.Editor.Infrastructure.csproj", "{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156003}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZHSan.Editor.Desktop", "src\ZHSan.Editor.Desktop\ZHSan.Editor.Desktop.csproj", "{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156004}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZHSan.Editor.Infrastructure.Tests", "tests\ZHSan.Editor.Infrastructure.Tests\ZHSan.Editor.Infrastructure.Tests.csproj", "{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156005}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156001}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156001}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156001}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156001}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156002}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156002}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156002}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156002}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156003}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156003}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156003}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156003}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156004}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156004}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156004}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156004}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156005}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156005}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156005}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C54A7C5-AB5A-41CC-BDD8-BBD6B4156005}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

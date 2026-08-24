@@ -1,0 +1,122 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZHSan.Editor.Desktop.ViewModels"
+        x:Class="ZHSan.Editor.Desktop.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="ZHSan 游戏配置编辑器"
+        Width="1360" Height="860"
+        MinWidth="1024" MinHeight="640">
+  <DockPanel>
+    <Menu DockPanel.Dock="Top">
+      <MenuItem Header="文件">
+        <MenuItem Header="打开数据档案…" Command="{Binding OpenArchiveCommand}" />
+        <Separator />
+        <MenuItem Header="保存" IsEnabled="False" />
+        <MenuItem Header="全部保存" IsEnabled="False" />
+      </MenuItem>
+      <MenuItem Header="编辑" IsEnabled="False" />
+      <MenuItem Header="数据" IsEnabled="False" />
+      <MenuItem Header="工具" IsEnabled="False" />
+      <MenuItem Header="帮助" />
+    </Menu>
+
+    <Border DockPanel.Dock="Top" Padding="14,10" BorderThickness="0,0,0,1"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+      <Grid ColumnDefinitions="Auto,16,*,Auto">
+        <Button Grid.Column="0" Content="打开数据档案" Command="{Binding OpenArchiveCommand}" />
+        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+          <TextBlock Text="{Binding ProjectTitle}" FontWeight="SemiBold" />
+          <TextBlock Text="GameDataArchive · CommonData.dat" FontSize="12" Opacity="0.58" />
+        </StackPanel>
+        <TextBlock Grid.Column="3" Text="NET 9 · Avalonia" VerticalAlignment="Center" Opacity="0.58" />
+      </Grid>
+    </Border>
+
+    <Border DockPanel.Dock="Bottom" Padding="14,7" BorderThickness="0,1,0,0"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="{Binding StatusText}" />
+        <TextBlock Grid.Column="1" Text="{Binding ErrorMessage}" Foreground="#E5484D" />
+      </Grid>
+    </Border>
+
+    <Grid ColumnDefinitions="270,*,310">
+      <Border Grid.Column="0" BorderThickness="0,0,1,0"
+              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+        <Grid RowDefinitions="Auto,*">
+          <StackPanel Margin="14,14,14,10" Spacing="3">
+            <TextBlock Text="配置导航" FontSize="16" FontWeight="SemiBold" />
+            <TextBlock Text="按游戏数据分类" FontSize="12" Opacity="0.58" />
+          </StackPanel>
+          <ScrollViewer Grid.Row="1">
+            <ItemsControl ItemsSource="{Binding Categories}" Margin="8,0,8,12">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ConfigCategoryViewModel">
+                  <Expander Header="{Binding Name}" IsExpanded="True" Margin="0,2">
+                    <ItemsControl ItemsSource="{Binding Documents}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ConfigDocumentViewModel">
+                          <Button Command="{Binding SelectCommand}" HorizontalContentAlignment="Stretch"
+                                  Padding="10,7" Margin="4,1">
+                            <Grid ColumnDefinitions="*,Auto">
+                              <TextBlock Text="{Binding DisplayName}" />
+                              <Border Grid.Column="1" CornerRadius="8" Padding="7,1" Background="#223B82F6">
+                                <TextBlock Text="{Binding ItemCount}" FontSize="11" />
+                              </Border>
+                            </Grid>
+                          </Button>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </Expander>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+
+      <Grid Grid.Column="1" RowDefinitions="Auto,*">
+        <Border Padding="20,16" BorderThickness="0,0,0,1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+          <StackPanel Spacing="4">
+            <TextBlock Text="{Binding SelectedDocumentTitle}" FontSize="22" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding SelectedDocumentSummary}" Opacity="0.62" />
+          </StackPanel>
+        </Border>
+        <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Spacing="12" MaxWidth="520">
+          <Border Width="72" Height="72" CornerRadius="18" Background="#263B82F6">
+            <TextBlock Text="数" FontSize="32" FontWeight="Bold" HorizontalAlignment="Center"
+                       VerticalAlignment="Center" Foreground="#6EA8FE" />
+          </Border>
+          <TextBlock Text="配置数据表格将在下一阶段接入" FontSize="18"
+                     FontWeight="SemiBold" HorizontalAlignment="Center" />
+          <TextBlock Text="当前页面已经能够读取 GameDataArchive、识别配置分类，并展示各档案条目的记录数量和属性结构。"
+                     TextWrapping="Wrap" TextAlignment="Center" Opacity="0.62" />
+        </StackPanel>
+      </Grid>
+
+      <Border Grid.Column="2" BorderThickness="1,0,0,0"
+              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+        <Grid RowDefinitions="Auto,*">
+          <StackPanel Margin="14" Spacing="3">
+            <TextBlock Text="字段结构" FontSize="16" FontWeight="SemiBold" />
+            <TextBlock Text="选中配置的公共属性" FontSize="12" Opacity="0.58" />
+          </StackPanel>
+          <ScrollViewer Grid.Row="1">
+            <ItemsControl ItemsSource="{Binding SelectedProperties}" Margin="12,0,12,12">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Padding="10,8" Margin="0,2" CornerRadius="5" Background="#0DFFFFFF">
+                    <TextBlock Text="{Binding}" />
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+    </Grid>
+  </DockPanel>
+</Window>
