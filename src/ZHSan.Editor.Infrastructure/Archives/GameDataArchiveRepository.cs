@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 using GameDatas;
 using ZHSan.Editor.Application.Abstractions;
 using ZHSan.Editor.Domain.Configuration;
@@ -21,7 +22,65 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
         Task.Run(() => LoadProject(archivePath, definitions, cancellationToken), cancellationToken);
 
     public Task SaveAsync(EditorProject project, CancellationToken cancellationToken = default) =>
-        Task.Run(() => SaveProject(project, cancellationToken), cancellationToken);
+        Task.Run(
+            () => SaveDocuments(
+                project,
+                project.ArchivePath,
+                project.Documents.Where(document => document.IsDirty).ToArray(),
+                updateProjectPath: false,
+                markSaved: true,
+                cancellationToken),
+            cancellationToken);
+
+    public Task SaveDocumentAsync(
+        EditorProject project,
+        ConfigDocument document,
+        CancellationToken cancellationToken = default) =>
+        Task.Run(
+            () => SaveDocuments(
+                project,
+                project.ArchivePath,
+                [document],
+                updateProjectPath: false,
+                markSaved: true,
+                cancellationToken),
+            cancellationToken);
+
+    public Task SaveAsAsync(
+        EditorProject project,
+        string destinationPath,
+        CancellationToken cancellationToken = default) =>
+        Task.Run(
+            () => SaveDocuments(
+                project,
+                destinationPath,
+                project.Documents,
+                updateProjectPath: true,
+                markSaved: true,
+                cancellationToken),
+            cancellationToken);
+
+    public Task SaveCopyAsync(
+        EditorProject project,
+        string destinationPath,
+        CancellationToken cancellationToken = default) =>
+        Task.Run(
+            () =>
+            {
+                if (PathsEqual(project.ArchivePath, destinationPath))
+                {
+                    throw new ArgumentException("The copy path must differ from the current archive.", nameof(destinationPath));
+                }
+
+                SaveDocuments(
+                    project,
+                    destinationPath,
+                    project.Documents,
+                    updateProjectPath: false,
+                    markSaved: false,
+                    cancellationToken);
+            },
+            cancellationToken);
 
     private static EditorProject LoadProject(
         string archivePath,
@@ -34,9 +93,17 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
         foreach (var definition in definitions)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var items = (IList<object>)LoadMethod
-                .MakeGenericMethod(definition.ItemType)
-                .Invoke(null, [archive, definition.EntryName])!;
+            IList<object> items;
+            try
+            {
+                items = (IList<object>)LoadMethod
+                    .MakeGenericMethod(definition.ItemType)
+                    .Invoke(null, [archive, definition.EntryName])!;
+            }
+            catch (TargetInvocationException exception) when (exception.InnerException is JsonException jsonException)
+            {
+                throw CreateParseException(archivePath, definition.EntryName, jsonException);
+            }
 
             documents.Add(new ConfigDocument
             {
@@ -52,19 +119,36 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
         };
     }
 
-    private static void SaveProject(EditorProject project, CancellationToken cancellationToken)
-    {
-        var archivePath = Path.GetFullPath(project.ArchivePath);
-        var temporaryPath = archivePath + ".tmp";
-        var backupPath = archivePath + ".bak";
+    private static bool PathsEqual(string left, string right) =>
+        string.Equals(
+            Path.GetFullPath(left),
+            Path.GetFullPath(right),
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
 
-        File.Copy(archivePath, temporaryPath, true);
+    private static void SaveDocuments(
+        EditorProject project,
+        string destinationPath,
+        IReadOnlyCollection<ConfigDocument> documents,
+        bool updateProjectPath,
+        bool markSaved,
+        CancellationToken cancellationToken)
+    {
+        if (documents.Count == 0)
+        {
+            return;
+        }
+
+        var sourcePath = Path.GetFullPath(project.ArchivePath);
+        var targetPath = Path.GetFullPath(destinationPath);
+        var temporaryPath = targetPath + ".tmp";
+        var backupPath = targetPath + ".bak";
 
         try
         {
+            File.Copy(sourcePath, temporaryPath, true);
             using (var archive = GameDataArchive.Open(temporaryPath))
             {
-                foreach (var document in project.Documents.Where(x => x.IsDirty))
+                foreach (var document in documents)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     SaveMethod
@@ -73,11 +157,27 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
                 }
             }
 
-            File.Replace(temporaryPath, archivePath, backupPath, true);
-
-            foreach (var document in project.Documents)
+            cancellationToken.ThrowIfCancellationRequested();
+            if (File.Exists(targetPath))
             {
-                document.IsDirty = false;
+                File.Replace(temporaryPath, targetPath, backupPath, true);
+            }
+            else
+            {
+                File.Move(temporaryPath, targetPath);
+            }
+
+            if (markSaved)
+            {
+                foreach (var document in documents)
+                {
+                    document.IsDirty = false;
+                }
+            }
+
+            if (updateProjectPath)
+            {
+                project.ArchivePath = targetPath;
             }
         }
         finally
@@ -91,6 +191,19 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
 
     private static IList<object> LoadItems<T>(GameDataArchive archive, string entryName) =>
         archive.Load<List<T>>(entryName)?.Cast<object>().ToList() ?? [];
+
+    private static ArchiveParseException CreateParseException(
+        string archivePath,
+        string fileName,
+        JsonException exception) =>
+        new(
+            Path.GetFullPath(archivePath),
+            fileName,
+            (exception.LineNumber ?? 0) + 1,
+            (exception.BytePositionInLine ?? 0) + 1,
+            exception.Path,
+            exception.Message,
+            exception);
 
     private static void SaveItems<T>(GameDataArchive archive, string entryName, IList<object> items) =>
         archive.Save(entryName, items.Cast<T>().ToList());

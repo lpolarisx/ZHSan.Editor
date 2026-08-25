@@ -329,4 +329,24 @@ public sealed class ConfigDocumentViewModelTests
         return new ConfigDocumentViewModel(
             document, new ReflectionConfigMetadataProvider(), _ => { }, clipboard);
     }
+    [Fact]
+    public void MarkSaved_TracksDirtyStateAgainstSavedHistoryPosition()
+    {
+        var item = new TechniqueConfig { Id = 1, Name = "original" };
+        var viewModel = CreateViewModel([item]);
+        viewModel.SelectedRecord = viewModel.Records[0];
+        var editor = Assert.Single(
+            viewModel.PropertyEditors,
+            property => property.Definition.Name == "Name");
+
+        editor.ValueText = "saved";
+        viewModel.MarkSaved();
+
+        Assert.False(viewModel.IsDirty);
+        viewModel.UndoCommand.Execute(null);
+        Assert.True(viewModel.IsDirty);
+        viewModel.RedoCommand.Execute(null);
+        Assert.False(viewModel.IsDirty);
+    }
+
 }

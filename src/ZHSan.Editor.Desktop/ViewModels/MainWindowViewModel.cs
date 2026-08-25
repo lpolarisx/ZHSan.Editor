@@ -10,6 +10,7 @@ namespace ZHSan.Editor.Desktop.ViewModels;
 public sealed class MainWindowViewModel : ObservableObject
 {
     private readonly OpenArchiveService _openArchiveService;
+    private readonly SaveArchiveService _saveArchiveService;
     private readonly IConfigMetadataProvider _metadataProvider;
     private readonly IArchivePicker _archivePicker;
     private readonly EditorUiStateStore _uiStateStore;
@@ -27,16 +28,22 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public MainWindowViewModel(
         OpenArchiveService openArchiveService,
+        SaveArchiveService saveArchiveService,
         IConfigMetadataProvider metadataProvider,
         IArchivePicker archivePicker,
         EditorUiStateStore uiStateStore)
     {
         _openArchiveService = openArchiveService;
+        _saveArchiveService = saveArchiveService;
         _metadataProvider = metadataProvider;
         _archivePicker = archivePicker;
         _uiStateStore = uiStateStore;
         _uiState = uiStateStore.Load();
         OpenArchiveCommand = new AsyncCommand(OpenArchiveAsync, () => !IsBusy);
+        SaveDocumentCommand = new AsyncCommand(SaveDocumentAsync, CanSaveDocument);
+        SaveAllCommand = new AsyncCommand(SaveAllAsync, CanSaveAll);
+        SaveAsCommand = new AsyncCommand(SaveAsAsync, CanSaveProject);
+        SaveCopyCommand = new AsyncCommand(SaveCopyAsync, CanSaveProject);
         GlobalSearchCommand = new RelayCommand(SearchAllDocuments, CanSearchAllDocuments);
         ClearGlobalSearchCommand = new RelayCommand(
             ClearGlobalSearch,
@@ -46,6 +53,10 @@ public sealed class MainWindowViewModel : ObservableObject
     public ObservableCollection<ConfigCategoryViewModel> Categories { get; } = [];
     public ObservableCollection<GlobalSearchResultViewModel> GlobalSearchResults { get; } = [];
     public ICommand OpenArchiveCommand { get; }
+    public ICommand SaveDocumentCommand { get; }
+    public ICommand SaveAllCommand { get; }
+    public ICommand SaveAsCommand { get; }
+    public ICommand SaveCopyCommand { get; }
     public ICommand GlobalSearchCommand { get; }
     public ICommand ClearGlobalSearchCommand { get; }
     public EditorUiState UiState => _uiState;
@@ -81,6 +92,10 @@ public sealed class MainWindowViewModel : ObservableObject
             if (SetProperty(ref _isBusy, value))
             {
                 ((AsyncCommand)OpenArchiveCommand).RaiseCanExecuteChanged();
+                ((AsyncCommand)SaveDocumentCommand).RaiseCanExecuteChanged();
+                ((AsyncCommand)SaveAllCommand).RaiseCanExecuteChanged();
+                ((AsyncCommand)SaveAsCommand).RaiseCanExecuteChanged();
+                ((AsyncCommand)SaveCopyCommand).RaiseCanExecuteChanged();
             }
         }
     }
@@ -122,6 +137,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 OnPropertyChanged(nameof(SelectedDocumentSummary));
                 OnPropertyChanged(nameof(HasSelectedDocument));
                 OnPropertyChanged(nameof(HasNoSelectedDocument));
+                ((AsyncCommand)SaveDocumentCommand).RaiseCanExecuteChanged();
             }
         }
     }
@@ -190,6 +206,124 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             IsBusy = false;
         }
+    }
+
+    private async Task SaveDocumentAsync()
+    {
+        if (_project is null || SelectedDocument is null)
+        {
+            return;
+        }
+
+        await RunSaveAsync(
+            () => _saveArchiveService.SaveDocumentAsync(_project, SelectedDocument.Document),
+            "\u5df2\u4fdd\u5b58\u914d\u7f6e\uff1a" + SelectedDocument.DisplayName,
+            [SelectedDocument]);
+    }
+
+    private async Task SaveAllAsync()
+    {
+        if (_project is null)
+        {
+            return;
+        }
+
+        var dirtyDocuments = _documents.Where(document => document.IsDirty).ToArray();
+        await RunSaveAsync(
+            () => _saveArchiveService.SaveAllAsync(_project),
+            $"\u5df2\u4fdd\u5b58 {dirtyDocuments.Length} \u9879\u914d\u7f6e",
+            dirtyDocuments);
+    }
+
+    private async Task SaveAsAsync()
+    {
+        if (_project is null)
+        {
+            return;
+        }
+
+        var path = await _archivePicker.PickSaveArchiveAsync(Path.GetFileName(_project.ArchivePath));
+        if (path is null)
+        {
+            return;
+        }
+
+        await RunSaveAsync(
+            () => _saveArchiveService.SaveAsAsync(_project, path),
+            "\u5df2\u53e6\u5b58\u4e3a\uff1a" + Path.GetFileName(path),
+            _documents);
+    }
+
+    private async Task SaveCopyAsync()
+    {
+        if (_project is null)
+        {
+            return;
+        }
+
+        var fileName = Path.GetFileNameWithoutExtension(_project.ArchivePath) + ".copy.dat";
+        var path = await _archivePicker.PickSaveArchiveAsync(fileName);
+        if (path is null)
+        {
+            return;
+        }
+
+        await RunSaveAsync(
+            () => _saveArchiveService.SaveCopyAsync(_project, path),
+            "\u5df2\u4fdd\u5b58\u526f\u672c\uff1a" + Path.GetFileName(path),
+            []);
+    }
+
+    private async Task RunSaveAsync(
+        Func<Task> saveAction,
+        string successMessage,
+        IReadOnlyCollection<ConfigDocumentViewModel> savedDocuments)
+    {
+        IsBusy = true;
+        ErrorMessage = null;
+        StatusText = "\u6b63\u5728\u4fdd\u5b58\u6570\u636e\u6863\u6848\u2026";
+
+        try
+        {
+            await saveAction();
+            foreach (var document in savedDocuments)
+            {
+                document.MarkSaved();
+            }
+
+            StatusText = successMessage;
+            RefreshProjectState();
+        }
+        catch (Exception exception)
+        {
+            ErrorMessage = exception.GetBaseException().Message;
+            StatusText = "\u4fdd\u5b58\u5931\u8d25";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanSaveDocument() =>
+        !IsBusy && _project is not null && SelectedDocument?.IsDirty == true;
+
+    private bool CanSaveAll() =>
+        !IsBusy && _project?.Documents.Any(document => document.IsDirty) == true;
+
+    private bool CanSaveProject() => !IsBusy && _project is not null;
+
+    private void RefreshProjectState()
+    {
+        var dirtyCount = _project?.Documents.Count(document => document.IsDirty) ?? 0;
+        ProjectTitle = _project is null
+            ? "\u5c1a\u672a\u6253\u5f00\u6570\u636e\u6863\u6848"
+            : $"{Path.GetFileName(_project.ArchivePath)}{(dirtyCount > 0 ? $" \u00b7 {dirtyCount} \u9879\u672a\u4fdd\u5b58" : string.Empty)}";
+        ((AsyncCommand)SaveDocumentCommand).RaiseCanExecuteChanged();
+        ((AsyncCommand)SaveAllCommand).RaiseCanExecuteChanged();
+        ((AsyncCommand)SaveAsCommand).RaiseCanExecuteChanged();
+        ((AsyncCommand)SaveCopyCommand).RaiseCanExecuteChanged();
+        OnPropertyChanged(nameof(SelectedDocumentSummary));
     }
 
     private void SelectDocument(ConfigDocumentViewModel? document)
@@ -280,11 +414,7 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         StatusText = document.NotificationMessage ?? "就绪";
-        var dirtyCount = _project?.Documents.Count(item => item.IsDirty) ?? 0;
-        ProjectTitle = _project is null
-            ? "尚未打开数据档案"
-            : $"{Path.GetFileName(_project.ArchivePath)}{(dirtyCount > 0 ? $" · {dirtyCount} 项未保存" : string.Empty)}";
-        OnPropertyChanged(nameof(SelectedDocumentSummary));
+        RefreshProjectState();
     }
 }
 

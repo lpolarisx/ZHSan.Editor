@@ -28,6 +28,7 @@ public sealed partial class App : Avalonia.Application
             services.AddSingleton<IConfigMetadataProvider, ReflectionConfigMetadataProvider>();
             services.AddSingleton<IGameDataArchiveRepository, GameDataArchiveRepository>();
             services.AddSingleton<OpenArchiveService>();
+            services.AddSingleton<SaveArchiveService>();
             services.AddSingleton<EditorUiStateStore>();
             services.AddSingleton<IArchivePicker>(new AvaloniaArchivePicker(mainWindow));
             services.AddSingleton<MainWindowViewModel>();

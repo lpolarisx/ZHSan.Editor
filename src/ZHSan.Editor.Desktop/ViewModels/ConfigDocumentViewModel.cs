@@ -27,7 +27,8 @@ public sealed class ConfigDocumentViewModel : ObservableObject
     private readonly RecordClipboard _clipboard;
     private readonly DocumentUiState _uiState;
     private readonly UndoRedoHistory _history = new();
-    private readonly bool _wasDirtyBeforeHistory;
+    private bool _wasDirtyBeforeHistory;
+    private int _savedHistoryPosition;
     private string _searchText = string.Empty;
     private ConfigFilterFieldViewModel _selectedFilterField;
     private BatchEditFieldViewModel? _selectedBatchField;
@@ -228,6 +229,17 @@ public sealed class ConfigDocumentViewModel : ObservableObject
         SearchText = string.Empty;
         SelectedFilterField = FilterFields[0];
         SelectedRecord = record;
+    }
+
+    public void MarkSaved()
+    {
+        _wasDirtyBeforeHistory = false;
+        _savedHistoryPosition = _history.Position;
+        Document.IsDirty = false;
+        OnPropertyChanged(nameof(IsDirty));
+        OnPropertyChanged(nameof(DirtyMarker));
+        OnPropertyChanged(nameof(DisplayLabel));
+        StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void SaveColumnWidths(IEnumerable<double> widths)
@@ -681,7 +693,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject
 
     private void HistoryChanged(object? sender, EventArgs eventArgs)
     {
-        Document.IsDirty = _wasDirtyBeforeHistory || _history.Position > 0;
+        Document.IsDirty = _wasDirtyBeforeHistory || _history.Position != _savedHistoryPosition;
         ((RelayCommand)UndoCommand).RaiseCanExecuteChanged();
         ((RelayCommand)RedoCommand).RaiseCanExecuteChanged();
         OnPropertyChanged(nameof(CanUndo));

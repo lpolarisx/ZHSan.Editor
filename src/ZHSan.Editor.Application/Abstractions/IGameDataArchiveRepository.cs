@@ -13,4 +13,19 @@ public interface IGameDataArchiveRepository
     Task SaveAsync(
         EditorProject project,
         CancellationToken cancellationToken = default);
+
+    Task SaveDocumentAsync(
+        EditorProject project,
+        ConfigDocument document,
+        CancellationToken cancellationToken = default);
+
+    Task SaveAsAsync(
+        EditorProject project,
+        string destinationPath,
+        CancellationToken cancellationToken = default);
+
+    Task SaveCopyAsync(
+        EditorProject project,
+        string destinationPath,
+        CancellationToken cancellationToken = default);
 }

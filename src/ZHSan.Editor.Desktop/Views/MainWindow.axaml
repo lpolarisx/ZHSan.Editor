@@ -11,6 +11,8 @@
         KeyDown="OnWindowKeyDown">
   <Window.KeyBindings>
     <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenArchiveCommand}" />
+    <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveDocumentCommand}" />
+    <KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveAllCommand}" />
     <KeyBinding Gesture="Ctrl+Z" Command="{Binding SelectedDocument.UndoCommand}" />
     <KeyBinding Gesture="Ctrl+Y" Command="{Binding SelectedDocument.RedoCommand}" />
     <KeyBinding Gesture="Ctrl+X" Command="{Binding SelectedDocument.CutCommand}" />
@@ -25,8 +27,11 @@
       <MenuItem Header="文件">
         <MenuItem Header="打开数据档案…" Command="{Binding OpenArchiveCommand}" InputGesture="Ctrl+O" />
         <Separator />
-        <MenuItem Header="保存" IsEnabled="False" />
-        <MenuItem Header="全部保存" IsEnabled="False" />
+        <MenuItem Header="保存当前配置" Command="{Binding SaveDocumentCommand}" InputGesture="Ctrl+S" />
+        <MenuItem Header="全部保存" Command="{Binding SaveAllCommand}" InputGesture="Ctrl+Shift+S" />
+        <Separator />
+        <MenuItem Header="另存为…" Command="{Binding SaveAsCommand}" />
+        <MenuItem Header="保存副本…" Command="{Binding SaveCopyCommand}" />
       </MenuItem>
       <MenuItem Header="编辑">
         <MenuItem Header="{Binding SelectedDocument.UndoLabel}" Command="{Binding SelectedDocument.UndoCommand}" InputGesture="Ctrl+Z" />
@@ -47,15 +52,16 @@
 
     <Border DockPanel.Dock="Top" Padding="14,10" BorderThickness="0,0,0,1"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-      <Grid ColumnDefinitions="Auto,8,Auto,8,Auto,16,*,Auto">
+      <Grid ColumnDefinitions="Auto,8,Auto,8,Auto,8,Auto,16,*,Auto">
         <Button Grid.Column="0" Content="打开数据档案" Command="{Binding OpenArchiveCommand}" />
-        <Button Grid.Column="2" Content="撤销" Command="{Binding SelectedDocument.UndoCommand}" />
-        <Button Grid.Column="4" Content="重做" Command="{Binding SelectedDocument.RedoCommand}" />
-        <StackPanel Grid.Column="6" VerticalAlignment="Center">
+        <Button Grid.Column="2" Content="保存" Command="{Binding SaveDocumentCommand}" />
+        <Button Grid.Column="4" Content="撤销" Command="{Binding SelectedDocument.UndoCommand}" />
+        <Button Grid.Column="6" Content="重做" Command="{Binding SelectedDocument.RedoCommand}" />
+        <StackPanel Grid.Column="8" VerticalAlignment="Center">
           <TextBlock Text="{Binding ProjectTitle}" FontWeight="SemiBold" />
           <TextBlock Text="GameDataArchive · CommonData.dat" FontSize="12" Opacity="0.58" />
         </StackPanel>
-        <TextBlock Grid.Column="7" Text="NET 9 · Avalonia" VerticalAlignment="Center" Opacity="0.58" />
+        <TextBlock Grid.Column="9" Text="NET 9 · Avalonia" VerticalAlignment="Center" Opacity="0.58" />
       </Grid>
     </Border>
 
