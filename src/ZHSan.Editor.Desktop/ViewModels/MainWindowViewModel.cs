@@ -31,8 +31,10 @@ public sealed class MainWindowViewModel : ObservableObject
     }
 
     public ObservableCollection<ConfigCategoryViewModel> Categories { get; } = [];
-    public ObservableCollection<string> SelectedProperties { get; } = [];
     public ICommand OpenArchiveCommand { get; }
+
+    public bool HasSelectedDocument => SelectedDocument is not null;
+    public bool HasNoSelectedDocument => SelectedDocument is null;
 
     public bool IsBusy
     {
@@ -61,8 +63,16 @@ public sealed class MainWindowViewModel : ObservableObject
     public string? ErrorMessage
     {
         get => _errorMessage;
-        private set => SetProperty(ref _errorMessage, value);
+        private set
+        {
+            if (SetProperty(ref _errorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasError));
+            }
+        }
     }
+
+    public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
 
     public ConfigDocumentViewModel? SelectedDocument
     {
@@ -73,6 +83,8 @@ public sealed class MainWindowViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(SelectedDocumentTitle));
                 OnPropertyChanged(nameof(SelectedDocumentSummary));
+                OnPropertyChanged(nameof(HasSelectedDocument));
+                OnPropertyChanged(nameof(HasNoSelectedDocument));
             }
         }
     }
@@ -100,8 +112,13 @@ public sealed class MainWindowViewModel : ObservableObject
             var project = await _openArchiveService.OpenAsync(path);
             _project = project;
             var documents = project.Documents
-                .Select(document => new ConfigDocumentViewModel(document, SelectDocument))
+                .Select(document => new ConfigDocumentViewModel(document, _metadataProvider, SelectDocument))
                 .ToArray();
+
+            foreach (var document in documents)
+            {
+                document.StateChanged += DocumentStateChanged;
+            }
 
             Categories.Clear();
             foreach (var group in documents.GroupBy(x => x.Document.Definition.Category))
@@ -111,7 +128,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
             ProjectTitle = Path.GetFileName(path);
             StatusText = $"已加载 {documents.Length} 项配置，共 {documents.Sum(x => x.ItemCount)} 条记录";
-            SelectDocument(documents.FirstOrDefault()!);
+            SelectDocument(documents.FirstOrDefault());
         }
         catch (Exception exception)
         {
@@ -132,33 +149,24 @@ public sealed class MainWindowViewModel : ObservableObject
             _project.ActiveDocument = document?.Document;
         }
 
-        SelectedProperties.Clear();
-
         if (document is null)
         {
             return;
         }
-
-        foreach (var property in _metadataProvider.GetProperties(document.Document.Definition.ItemType))
-        {
-            SelectedProperties.Add($"{property.DisplayName}  ·  {GetFriendlyTypeName(property.PropertyType)}");
-        }
     }
 
-    private static string GetFriendlyTypeName(Type type)
+    private void DocumentStateChanged(object? sender, EventArgs eventArgs)
     {
-        if (type.IsArray)
+        if (sender is not ConfigDocumentViewModel document)
         {
-            return $"{GetFriendlyTypeName(type.GetElementType()!)}[]";
+            return;
         }
 
-        return type.Name switch
-        {
-            "Int32" => "整数",
-            "Single" => "小数",
-            "Boolean" => "是/否",
-            "String" => "文本",
-            _ => type.Name
-        };
+        StatusText = document.NotificationMessage ?? "就绪";
+        var dirtyCount = _project?.Documents.Count(item => item.IsDirty) ?? 0;
+        ProjectTitle = _project is null
+            ? "尚未打开数据档案"
+            : $"{Path.GetFileName(_project.ArchivePath)}{(dirtyCount > 0 ? $" · {dirtyCount} 项未保存" : string.Empty)}";
+        OnPropertyChanged(nameof(SelectedDocumentSummary));
     }
 }

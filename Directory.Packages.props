@@ -4,6 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Avalonia.Desktop" Version="12.1.1" />
+    <PackageVersion Include="Avalonia.Controls.DataGrid" Version="12.1.1" />
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.1" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="9.0.8" />
     <PackageVersion Include="MonoGame.Framework.DesktopGL" Version="3.8.5.1" />

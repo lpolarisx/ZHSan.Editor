@@ -11,6 +11,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <ProjectReference Include="..\..\src\ZHSan.Editor.Infrastructure\ZHSan.Editor.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\ZHSan.Editor.Desktop\ZHSan.Editor.Desktop.csproj" />
     <Reference Include="ZHSan.Data">
       <HintPath>..\..\libs\ZHSan.Data.dll</HintPath>
       <Private>true</Private>

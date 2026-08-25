@@ -1,11 +1,13 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:ZHSan.Editor.Desktop.ViewModels"
+        xmlns:domain="using:ZHSan.Editor.Domain.Configuration"
         x:Class="ZHSan.Editor.Desktop.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="ZHSan 游戏配置编辑器"
-        Width="1360" Height="860"
-        MinWidth="1024" MinHeight="640">
+        Width="1480" Height="900"
+        MinWidth="1100" MinHeight="680"
+        DataContextChanged="OnDataContextChanged">
   <DockPanel>
     <Menu DockPanel.Dock="Top">
       <MenuItem Header="文件">
@@ -14,7 +16,11 @@
         <MenuItem Header="保存" IsEnabled="False" />
         <MenuItem Header="全部保存" IsEnabled="False" />
       </MenuItem>
-      <MenuItem Header="编辑" IsEnabled="False" />
+      <MenuItem Header="编辑">
+        <MenuItem Header="新增记录" Command="{Binding SelectedDocument.AddCommand}" />
+        <MenuItem Header="复制记录" Command="{Binding SelectedDocument.CopyCommand}" />
+        <MenuItem Header="删除记录" Command="{Binding SelectedDocument.DeleteCommand}" />
+      </MenuItem>
       <MenuItem Header="数据" IsEnabled="False" />
       <MenuItem Header="工具" IsEnabled="False" />
       <MenuItem Header="帮助" />
@@ -36,86 +42,184 @@
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
       <Grid ColumnDefinitions="*,Auto">
         <TextBlock Text="{Binding StatusText}" />
-        <TextBlock Grid.Column="1" Text="{Binding ErrorMessage}" Foreground="#E5484D" />
+        <TextBlock Grid.Column="1" Text="{Binding SelectedDocument.SelectionSummary}" Opacity="0.62" />
       </Grid>
     </Border>
 
-    <Grid ColumnDefinitions="270,*,310">
-      <Border Grid.Column="0" BorderThickness="0,0,1,0"
-              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-        <Grid RowDefinitions="Auto,*">
-          <StackPanel Margin="14,14,14,10" Spacing="3">
-            <TextBlock Text="配置导航" FontSize="16" FontWeight="SemiBold" />
-            <TextBlock Text="按游戏数据分类" FontSize="12" Opacity="0.58" />
-          </StackPanel>
-          <ScrollViewer Grid.Row="1">
-            <ItemsControl ItemsSource="{Binding Categories}" Margin="8,0,8,12">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:ConfigCategoryViewModel">
-                  <Expander Header="{Binding Name}" IsExpanded="True" Margin="0,2">
-                    <ItemsControl ItemsSource="{Binding Documents}">
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:ConfigDocumentViewModel">
-                          <Button Command="{Binding SelectCommand}" HorizontalContentAlignment="Stretch"
-                                  Padding="10,7" Margin="4,1">
-                            <Grid ColumnDefinitions="*,Auto">
-                              <TextBlock Text="{Binding DisplayName}" />
-                              <Border Grid.Column="1" CornerRadius="8" Padding="7,1" Background="#223B82F6">
-                                <TextBlock Text="{Binding ItemCount}" FontSize="11" />
-                              </Border>
-                            </Grid>
-                          </Button>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </Expander>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </ScrollViewer>
-        </Grid>
-      </Border>
-
-      <Grid Grid.Column="1" RowDefinitions="Auto,*">
-        <Border Padding="20,16" BorderThickness="0,0,0,1"
+    <Grid>
+      <Grid ColumnDefinitions="250,*,380">
+        <Border Grid.Column="0" BorderThickness="0,0,1,0"
                 BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-          <StackPanel Spacing="4">
-            <TextBlock Text="{Binding SelectedDocumentTitle}" FontSize="22" FontWeight="SemiBold" />
-            <TextBlock Text="{Binding SelectedDocumentSummary}" Opacity="0.62" />
-          </StackPanel>
+          <Grid RowDefinitions="Auto,*">
+            <StackPanel Margin="14,14,14,10" Spacing="3">
+              <TextBlock Text="配置导航" FontSize="16" FontWeight="SemiBold" />
+              <TextBlock Text="按游戏数据分类" FontSize="12" Opacity="0.58" />
+            </StackPanel>
+            <ScrollViewer Grid.Row="1">
+              <ItemsControl ItemsSource="{Binding Categories}" Margin="8,0,8,12">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ConfigCategoryViewModel">
+                    <Expander Header="{Binding Name}" IsExpanded="True" Margin="0,2">
+                      <ItemsControl ItemsSource="{Binding Documents}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:ConfigDocumentViewModel">
+                            <Button Command="{Binding SelectCommand}" HorizontalContentAlignment="Stretch"
+                                    Padding="10,7" Margin="4,1">
+                              <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="{Binding DisplayLabel}" />
+                                <Border Grid.Column="1" CornerRadius="8" Padding="7,1" Background="#223B82F6">
+                                  <TextBlock Text="{Binding ItemCount}" FontSize="11" />
+                                </Border>
+                              </Grid>
+                            </Button>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </Expander>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Grid>
         </Border>
-        <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Spacing="12" MaxWidth="520">
-          <Border Width="72" Height="72" CornerRadius="18" Background="#263B82F6">
-            <TextBlock Text="数" FontSize="32" FontWeight="Bold" HorizontalAlignment="Center"
-                       VerticalAlignment="Center" Foreground="#6EA8FE" />
+
+        <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*">
+          <Border Padding="18,13" BorderThickness="0,0,0,1"
+                  BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Spacing="3">
+                <TextBlock Text="{Binding SelectedDocumentTitle}" FontSize="21" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding SelectedDocumentSummary}" Opacity="0.62" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"
+                          IsVisible="{Binding HasSelectedDocument}">
+                <Button Content="新增" Command="{Binding SelectedDocument.AddCommand}" />
+                <Button Content="复制" Command="{Binding SelectedDocument.CopyCommand}" />
+                <Button Content="删除" Command="{Binding SelectedDocument.DeleteCommand}" />
+              </StackPanel>
+            </Grid>
           </Border>
-          <TextBlock Text="配置数据表格将在下一阶段接入" FontSize="18"
-                     FontWeight="SemiBold" HorizontalAlignment="Center" />
-          <TextBlock Text="当前页面已经能够读取 GameDataArchive、识别配置分类，并展示各档案条目的记录数量和属性结构。"
-                     TextWrapping="Wrap" TextAlignment="Center" Opacity="0.62" />
-        </StackPanel>
+
+          <Border Grid.Row="1" Padding="12,9" BorderThickness="0,0,0,1"
+                  BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                  IsVisible="{Binding HasSelectedDocument}">
+            <Grid ColumnDefinitions="Auto,140,8,*,8,Auto">
+              <TextBlock Text="筛选" VerticalAlignment="Center" Margin="0,0,8,0" />
+              <ComboBox Grid.Column="1"
+                        ItemsSource="{Binding SelectedDocument.FilterFields}"
+                        SelectedItem="{Binding SelectedDocument.SelectedFilterField, Mode=TwoWay}">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ConfigFilterFieldViewModel">
+                    <TextBlock Text="{Binding DisplayName}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <TextBox Grid.Column="3" PlaceholderText="搜索当前配置…"
+                       Text="{Binding SelectedDocument.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+              <Button Grid.Column="5" Content="清除" Command="{Binding SelectedDocument.ClearSearchCommand}" />
+            </Grid>
+          </Border>
+
+          <Grid Grid.Row="2">
+            <DataGrid x:Name="RecordsGrid"
+                      ItemsSource="{Binding SelectedDocument.FilteredRecords}"
+                      SelectedItem="{Binding SelectedDocument.SelectedRecord, Mode=TwoWay}"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      CanUserSortColumns="True"
+                      CanUserResizeColumns="True"
+                      GridLinesVisibility="Horizontal"
+                      SelectionMode="Extended"
+                      SelectionChanged="RecordsGrid_OnSelectionChanged"
+                      IsVisible="{Binding HasSelectedDocument}" />
+
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" MaxWidth="520"
+                        IsVisible="{Binding HasNoSelectedDocument}">
+              <Border Width="72" Height="72" CornerRadius="18" Background="#263B82F6">
+                <TextBlock Text="数" FontSize="32" FontWeight="Bold" HorizontalAlignment="Center"
+                           VerticalAlignment="Center" Foreground="#6EA8FE" />
+              </Border>
+              <TextBlock Text="打开数据档案开始编辑" FontSize="18" FontWeight="SemiBold"
+                         HorizontalAlignment="Center" />
+              <TextBlock Text="选择 CommonData.dat 后，可在此搜索、排序、多选和管理配置记录。"
+                         TextWrapping="Wrap" TextAlignment="Center" Opacity="0.62" />
+            </StackPanel>
+          </Grid>
+        </Grid>
+
+        <Border Grid.Column="2" BorderThickness="1,0,0,0"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+          <TabControl IsVisible="{Binding HasSelectedDocument}">
+            <TabItem Header="属性">
+              <ScrollViewer>
+                <ItemsControl ItemsSource="{Binding SelectedDocument.PropertyEditors}" Margin="12">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PropertyEditorViewModel">
+                      <Border Padding="10" Margin="0,0,0,8" CornerRadius="5" Background="#0DFFFFFF">
+                        <StackPanel Spacing="6">
+                          <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="1" Text="{Binding TypeName}" FontSize="11" Opacity="0.55" />
+                          </Grid>
+
+                          <TextBox Text="{Binding ValueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                   IsVisible="{Binding ShowString}" />
+                          <NumericUpDown Value="{Binding NumericValue, Mode=TwoWay}"
+                                         Increment="1" IsVisible="{Binding ShowNumber}" />
+                          <CheckBox IsChecked="{Binding BooleanValue, Mode=TwoWay}"
+                                    Content="启用" IsVisible="{Binding ShowBoolean}" />
+                          <ComboBox ItemsSource="{Binding Options}"
+                                    SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
+                                    IsVisible="{Binding ShowEnum}" />
+
+                          <StackPanel IsVisible="{Binding ShowCollection}" Spacing="5">
+                            <ItemsControl ItemsSource="{Binding CollectionItems}">
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:CollectionItemViewModel">
+                                  <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                                    <TextBox Text="{Binding ValueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Grid.Column="1" Content="移除" Command="{Binding RemoveCommand}" Margin="5,0,0,0" />
+                                  </Grid>
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Content="添加一项" Command="{Binding AddCollectionItemCommand}"
+                                    HorizontalAlignment="Left" />
+                          </StackPanel>
+
+                          <TextBox Text="{Binding ReadOnlyValue}" IsReadOnly="True"
+                                   IsVisible="{Binding IsReadOnly}" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="原始 JSON">
+              <TextBox Text="{Binding SelectedDocument.RawJson}"
+                       IsReadOnly="True" AcceptsReturn="True"
+                       TextWrapping="NoWrap" FontFamily="Consolas, Cascadia Mono, monospace"
+                       ScrollViewer.VerticalScrollBarVisibility="Auto"
+                       ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                       Margin="8" />
+            </TabItem>
+          </TabControl>
+        </Border>
       </Grid>
 
-      <Border Grid.Column="2" BorderThickness="1,0,0,0"
-              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-        <Grid RowDefinitions="Auto,*">
-          <StackPanel Margin="14" Spacing="3">
-            <TextBlock Text="字段结构" FontSize="16" FontWeight="SemiBold" />
-            <TextBlock Text="选中配置的公共属性" FontSize="12" Opacity="0.58" />
-          </StackPanel>
-          <ScrollViewer Grid.Row="1">
-            <ItemsControl ItemsSource="{Binding SelectedProperties}" Margin="12,0,12,12">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Border Padding="10,8" Margin="0,2" CornerRadius="5" Background="#0DFFFFFF">
-                    <TextBlock Text="{Binding}" />
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </ScrollViewer>
-        </Grid>
+      <Border Background="#D9222222" IsVisible="{Binding IsBusy}">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+          <ProgressBar IsIndeterminate="True" Width="260" />
+          <TextBlock Text="正在加载数据档案…" FontSize="16" />
+        </StackPanel>
+      </Border>
+
+      <Border VerticalAlignment="Top" HorizontalAlignment="Center" Margin="20"
+              Background="#E5484D" CornerRadius="6" Padding="14,9"
+              IsVisible="{Binding HasError}">
+        <TextBlock Text="{Binding ErrorMessage}" Foreground="White" TextWrapping="Wrap" MaxWidth="760" />
       </Border>
     </Grid>
   </DockPanel>

@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-基础设施和初始页面已经建立，可以通过 `GameDataArchive` 打开 `CommonData.dat`，识别其中 39 项配置并显示分类、记录数量和字段结构。后续开发以 [docs/TASKS.md](docs/TASKS.md) 为唯一任务台账。
+M3 通用编辑器已经完成，可以通过 `GameDataArchive` 打开 `CommonData.dat`，识别其中 39 项配置，并在动态表格中搜索、排序、多选、新增、复制和删除记录；右侧属性面板支持常用标量、枚举和集合编辑，并提供原始 JSON 预览及未保存状态提示。后续开发以 [docs/TASKS.md](docs/TASKS.md) 为唯一任务台账。
 
 ## 环境
 

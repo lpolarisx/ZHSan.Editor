@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <ProjectReference Include="..\ZHSan.Editor.Application\ZHSan.Editor.Application.csproj" />
