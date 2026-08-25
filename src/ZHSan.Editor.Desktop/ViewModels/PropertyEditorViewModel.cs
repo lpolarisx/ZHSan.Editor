@@ -11,13 +11,13 @@ public sealed class PropertyEditorViewModel : ObservableObject
 {
     private readonly object _owner;
     private readonly PropertyInfo _property;
-    private readonly Action _changed;
+    private readonly Action<PropertyEditorViewModel, object?, object?> _changed;
     private bool _isSynchronizing;
 
     public PropertyEditorViewModel(
         object owner,
         ConfigPropertyDefinition definition,
-        Action changed)
+        Action<PropertyEditorViewModel, object?, object?> changed)
     {
         _owner = owner;
         Definition = definition;
@@ -131,13 +131,24 @@ public sealed class PropertyEditorViewModel : ObservableObject
             return;
         }
 
+        ApplyValue(value, false);
+        _changed(this, current, value);
+    }
+
+    internal void ApplyHistoryValue(object? value) => ApplyValue(value, true);
+
+    private void ApplyValue(object? value, bool reloadCollection)
+    {
         _property.SetValue(_owner, value);
         OnPropertyChanged(nameof(ValueText));
         OnPropertyChanged(nameof(NumericValue));
         OnPropertyChanged(nameof(BooleanValue));
         OnPropertyChanged(nameof(SelectedOption));
         OnPropertyChanged(nameof(ReadOnlyValue));
-        _changed();
+        if (reloadCollection)
+        {
+            ReloadCollectionItems();
+        }
     }
 
     private void ReloadCollectionItems()
@@ -223,9 +234,9 @@ public sealed class PropertyEditorViewModel : ObservableObject
             collection = list;
         }
 
-        _property.SetValue(_owner, collection);
-        OnPropertyChanged(nameof(ReadOnlyValue));
-        _changed();
+        var current = _property.GetValue(_owner);
+        ApplyValue(collection, false);
+        _changed(this, current, collection);
     }
 
     private Type GetCollectionElementType() => Definition.PropertyType.IsArray

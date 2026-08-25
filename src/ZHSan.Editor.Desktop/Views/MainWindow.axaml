@@ -7,19 +7,38 @@
         Title="ZHSan 游戏配置编辑器"
         Width="1480" Height="900"
         MinWidth="1100" MinHeight="680"
-        DataContextChanged="OnDataContextChanged">
+        DataContextChanged="OnDataContextChanged"
+        KeyDown="OnWindowKeyDown">
+  <Window.KeyBindings>
+    <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenArchiveCommand}" />
+    <KeyBinding Gesture="Ctrl+Z" Command="{Binding SelectedDocument.UndoCommand}" />
+    <KeyBinding Gesture="Ctrl+Y" Command="{Binding SelectedDocument.RedoCommand}" />
+    <KeyBinding Gesture="Ctrl+X" Command="{Binding SelectedDocument.CutCommand}" />
+    <KeyBinding Gesture="Ctrl+C" Command="{Binding SelectedDocument.CopyToClipboardCommand}" />
+    <KeyBinding Gesture="Ctrl+V" Command="{Binding SelectedDocument.PasteCommand}" />
+    <KeyBinding Gesture="Insert" Command="{Binding SelectedDocument.AddCommand}" />
+    <KeyBinding Gesture="Ctrl+D" Command="{Binding SelectedDocument.CopyCommand}" />
+    <KeyBinding Gesture="Ctrl+Delete" Command="{Binding SelectedDocument.DeleteCommand}" />
+  </Window.KeyBindings>
   <DockPanel>
     <Menu DockPanel.Dock="Top">
       <MenuItem Header="文件">
-        <MenuItem Header="打开数据档案…" Command="{Binding OpenArchiveCommand}" />
+        <MenuItem Header="打开数据档案…" Command="{Binding OpenArchiveCommand}" InputGesture="Ctrl+O" />
         <Separator />
         <MenuItem Header="保存" IsEnabled="False" />
         <MenuItem Header="全部保存" IsEnabled="False" />
       </MenuItem>
       <MenuItem Header="编辑">
-        <MenuItem Header="新增记录" Command="{Binding SelectedDocument.AddCommand}" />
-        <MenuItem Header="复制记录" Command="{Binding SelectedDocument.CopyCommand}" />
-        <MenuItem Header="删除记录" Command="{Binding SelectedDocument.DeleteCommand}" />
+        <MenuItem Header="{Binding SelectedDocument.UndoLabel}" Command="{Binding SelectedDocument.UndoCommand}" InputGesture="Ctrl+Z" />
+        <MenuItem Header="{Binding SelectedDocument.RedoLabel}" Command="{Binding SelectedDocument.RedoCommand}" InputGesture="Ctrl+Y" />
+        <Separator />
+        <MenuItem Header="剪切记录" Command="{Binding SelectedDocument.CutCommand}" InputGesture="Ctrl+X" />
+        <MenuItem Header="复制记录" Command="{Binding SelectedDocument.CopyToClipboardCommand}" InputGesture="Ctrl+C" />
+        <MenuItem Header="粘贴记录" Command="{Binding SelectedDocument.PasteCommand}" InputGesture="Ctrl+V" />
+        <Separator />
+        <MenuItem Header="新增记录" Command="{Binding SelectedDocument.AddCommand}" InputGesture="Insert" />
+        <MenuItem Header="创建记录副本" Command="{Binding SelectedDocument.CopyCommand}" InputGesture="Ctrl+D" />
+        <MenuItem Header="删除记录" Command="{Binding SelectedDocument.DeleteCommand}" InputGesture="Ctrl+Delete" />
       </MenuItem>
       <MenuItem Header="数据" IsEnabled="False" />
       <MenuItem Header="工具" IsEnabled="False" />
@@ -28,13 +47,15 @@
 
     <Border DockPanel.Dock="Top" Padding="14,10" BorderThickness="0,0,0,1"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-      <Grid ColumnDefinitions="Auto,16,*,Auto">
+      <Grid ColumnDefinitions="Auto,8,Auto,8,Auto,16,*,Auto">
         <Button Grid.Column="0" Content="打开数据档案" Command="{Binding OpenArchiveCommand}" />
-        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+        <Button Grid.Column="2" Content="撤销" Command="{Binding SelectedDocument.UndoCommand}" />
+        <Button Grid.Column="4" Content="重做" Command="{Binding SelectedDocument.RedoCommand}" />
+        <StackPanel Grid.Column="6" VerticalAlignment="Center">
           <TextBlock Text="{Binding ProjectTitle}" FontWeight="SemiBold" />
           <TextBlock Text="GameDataArchive · CommonData.dat" FontSize="12" Opacity="0.58" />
         </StackPanel>
-        <TextBlock Grid.Column="3" Text="NET 9 · Avalonia" VerticalAlignment="Center" Opacity="0.58" />
+        <TextBlock Grid.Column="7" Text="NET 9 · Avalonia" VerticalAlignment="Center" Opacity="0.58" />
       </Grid>
     </Border>
 
@@ -94,7 +115,8 @@
               <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"
                           IsVisible="{Binding HasSelectedDocument}">
                 <Button Content="新增" Command="{Binding SelectedDocument.AddCommand}" />
-                <Button Content="复制" Command="{Binding SelectedDocument.CopyCommand}" />
+                <Button Content="创建副本" Command="{Binding SelectedDocument.CopyCommand}" />
+                <Button Content="粘贴" Command="{Binding SelectedDocument.PasteCommand}" />
                 <Button Content="删除" Command="{Binding SelectedDocument.DeleteCommand}" />
               </StackPanel>
             </Grid>
@@ -115,6 +137,7 @@
                 </ComboBox.ItemTemplate>
               </ComboBox>
               <TextBox Grid.Column="3" PlaceholderText="搜索当前配置…"
+                       x:Name="CurrentSearchBox"
                        Text="{Binding SelectedDocument.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
               <Button Grid.Column="5" Content="清除" Command="{Binding SelectedDocument.ClearSearchCommand}" />
             </Grid>
@@ -149,7 +172,7 @@
 
         <Border Grid.Column="2" BorderThickness="1,0,0,0"
                 BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-          <TabControl IsVisible="{Binding HasSelectedDocument}">
+          <TabControl x:Name="DetailsTabs" IsVisible="{Binding HasSelectedDocument}">
             <TabItem Header="属性">
               <ScrollViewer>
                 <ItemsControl ItemsSource="{Binding SelectedDocument.PropertyEditors}" Margin="12">
@@ -195,6 +218,65 @@
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
               </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="全局搜索">
+              <Grid RowDefinitions="Auto,Auto,*" Margin="12">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                  <TextBox Text="{Binding GlobalSearchText, Mode=TwoWay}"
+                           x:Name="GlobalSearchBox"
+                           PlaceholderText="搜索全部配置字段…" />
+                  <Button Grid.Column="1" Content="搜索" Command="{Binding GlobalSearchCommand}"
+                          Margin="6,0,0,0" />
+                  <Button Grid.Column="2" Content="清除" Command="{Binding ClearGlobalSearchCommand}"
+                          Margin="6,0,0,0" />
+                </Grid>
+                <TextBlock Grid.Row="1" Text="{Binding GlobalSearchSummary}"
+                           Margin="2,10,2,8" Opacity="0.62" />
+                <ListBox Grid.Row="2" ItemsSource="{Binding GlobalSearchResults}">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:GlobalSearchResultViewModel">
+                      <Button Command="{Binding NavigateCommand}"
+                              HorizontalContentAlignment="Stretch"
+                              Padding="10,8" Margin="0,1">
+                        <StackPanel Spacing="3">
+                          <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="{Binding DocumentName}" FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="1" Text="{Binding FieldName}"
+                                       FontSize="11" Opacity="0.58" />
+                          </Grid>
+                          <TextBlock Text="{Binding ValuePreview}"
+                                     TextWrapping="Wrap" MaxLines="2" Opacity="0.78" />
+                        </StackPanel>
+                      </Button>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </Grid>
+            </TabItem>
+
+            <TabItem Header="批量修改" IsVisible="{Binding SelectedDocument.HasMultipleSelection}">
+              <StackPanel Margin="16" Spacing="10">
+                <TextBlock Text="{Binding SelectedDocument.SelectionSummary}"
+                           FontSize="16" FontWeight="SemiBold" />
+                <TextBlock Text="为当前选中的全部记录设置同一个字段值。整次操作可一次撤销。"
+                           TextWrapping="Wrap" Opacity="0.62" />
+                <TextBlock Text="字段" Margin="0,8,0,0" />
+                <ComboBox ItemsSource="{Binding SelectedDocument.BatchEditFields}"
+                          SelectedItem="{Binding SelectedDocument.SelectedBatchField, Mode=TwoWay}">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:BatchEditFieldViewModel">
+                      <TextBlock Text="{Binding DisplayName}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock Text="新值" />
+                <TextBox Text="{Binding SelectedDocument.BatchValueText, Mode=TwoWay}"
+                         PlaceholderText="输入文本、数字、布尔值或枚举名称" />
+                <Button Content="应用到所选记录"
+                        Command="{Binding SelectedDocument.ApplyBatchEditCommand}"
+                        HorizontalAlignment="Left" />
+              </StackPanel>
             </TabItem>
 
             <TabItem Header="原始 JSON">

@@ -12,7 +12,13 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly OpenArchiveService _openArchiveService;
     private readonly IConfigMetadataProvider _metadataProvider;
     private readonly IArchivePicker _archivePicker;
+    private readonly EditorUiStateStore _uiStateStore;
+    private readonly EditorUiState _uiState;
+    private readonly RecordClipboard _recordClipboard = new();
+    private readonly List<ConfigDocumentViewModel> _documents = [];
     private bool _isBusy;
+    private string _globalSearchText = string.Empty;
+    private string _globalSearchSummary = "输入内容以搜索全部配置";
     private string _projectTitle = "尚未打开数据档案";
     private string _statusText = "就绪";
     private string? _errorMessage;
@@ -22,19 +28,50 @@ public sealed class MainWindowViewModel : ObservableObject
     public MainWindowViewModel(
         OpenArchiveService openArchiveService,
         IConfigMetadataProvider metadataProvider,
-        IArchivePicker archivePicker)
+        IArchivePicker archivePicker,
+        EditorUiStateStore uiStateStore)
     {
         _openArchiveService = openArchiveService;
         _metadataProvider = metadataProvider;
         _archivePicker = archivePicker;
+        _uiStateStore = uiStateStore;
+        _uiState = uiStateStore.Load();
         OpenArchiveCommand = new AsyncCommand(OpenArchiveAsync, () => !IsBusy);
+        GlobalSearchCommand = new RelayCommand(SearchAllDocuments, CanSearchAllDocuments);
+        ClearGlobalSearchCommand = new RelayCommand(
+            ClearGlobalSearch,
+            () => GlobalSearchText.Length > 0 || GlobalSearchResults.Count > 0);
     }
 
     public ObservableCollection<ConfigCategoryViewModel> Categories { get; } = [];
+    public ObservableCollection<GlobalSearchResultViewModel> GlobalSearchResults { get; } = [];
     public ICommand OpenArchiveCommand { get; }
+    public ICommand GlobalSearchCommand { get; }
+    public ICommand ClearGlobalSearchCommand { get; }
+    public EditorUiState UiState => _uiState;
 
     public bool HasSelectedDocument => SelectedDocument is not null;
     public bool HasNoSelectedDocument => SelectedDocument is null;
+    public bool HasGlobalSearchResults => GlobalSearchResults.Count > 0;
+
+    public string GlobalSearchText
+    {
+        get => _globalSearchText;
+        set
+        {
+            if (SetProperty(ref _globalSearchText, value ?? string.Empty))
+            {
+                ((RelayCommand)GlobalSearchCommand).RaiseCanExecuteChanged();
+                ((RelayCommand)ClearGlobalSearchCommand).RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string GlobalSearchSummary
+    {
+        get => _globalSearchSummary;
+        private set => SetProperty(ref _globalSearchSummary, value);
+    }
 
     public bool IsBusy
     {
@@ -109,10 +146,20 @@ public sealed class MainWindowViewModel : ObservableObject
 
         try
         {
+            foreach (var previousDocument in _documents)
+            {
+                previousDocument.StateChanged -= DocumentStateChanged;
+            }
+
             var project = await _openArchiveService.OpenAsync(path);
             _project = project;
             var documents = project.Documents
-                .Select(document => new ConfigDocumentViewModel(document, _metadataProvider, SelectDocument))
+                .Select(document => new ConfigDocumentViewModel(
+                    document,
+                    _metadataProvider,
+                    SelectDocument,
+                    _recordClipboard,
+                    _uiState.GetDocument(document.Definition.Key)))
                 .ToArray();
 
             foreach (var document in documents)
@@ -120,6 +167,8 @@ public sealed class MainWindowViewModel : ObservableObject
                 document.StateChanged += DocumentStateChanged;
             }
 
+            _documents.Clear();
+            _documents.AddRange(documents);
             Categories.Clear();
             foreach (var group in documents.GroupBy(x => x.Document.Definition.Category))
             {
@@ -128,6 +177,8 @@ public sealed class MainWindowViewModel : ObservableObject
 
             ProjectTitle = Path.GetFileName(path);
             StatusText = $"已加载 {documents.Length} 项配置，共 {documents.Sum(x => x.ItemCount)} 条记录";
+            ClearGlobalSearch();
+            ((RelayCommand)GlobalSearchCommand).RaiseCanExecuteChanged();
             SelectDocument(documents.FirstOrDefault());
         }
         catch (Exception exception)
@@ -155,6 +206,72 @@ public sealed class MainWindowViewModel : ObservableObject
         }
     }
 
+    private bool CanSearchAllDocuments() =>
+        _documents.Count > 0 && !string.IsNullOrWhiteSpace(GlobalSearchText);
+
+    private void SearchAllDocuments()
+    {
+        var matches = GlobalSearchEngine.Search(_documents, GlobalSearchText);
+        GlobalSearchResults.Clear();
+        foreach (var match in matches)
+        {
+            GlobalSearchResults.Add(new GlobalSearchResultViewModel(match, NavigateToSearchResult));
+        }
+
+        GlobalSearchSummary = matches.Count switch
+        {
+            0 => "没有找到匹配记录",
+            500 => "显示前 500 项结果，请输入更精确的关键词",
+            _ => $"找到 {matches.Count} 项匹配"
+        };
+        ((RelayCommand)ClearGlobalSearchCommand).RaiseCanExecuteChanged();
+        OnPropertyChanged(nameof(HasGlobalSearchResults));
+    }
+
+    private void ClearGlobalSearch()
+    {
+        GlobalSearchText = string.Empty;
+        GlobalSearchResults.Clear();
+        GlobalSearchSummary = "输入内容以搜索全部配置";
+        ((RelayCommand)ClearGlobalSearchCommand).RaiseCanExecuteChanged();
+        OnPropertyChanged(nameof(HasGlobalSearchResults));
+    }
+
+    private void NavigateToSearchResult(GlobalSearchMatch match)
+    {
+        SelectDocument(match.Document);
+        match.Document.NavigateTo(match.Record);
+        StatusText = $"已定位到 {match.Document.DisplayName} · {match.Property.DisplayName}";
+    }
+
+    public void UpdateWindowLayout(double width, double height, int x, int y)
+    {
+        if (double.IsFinite(width) && width >= 1100)
+        {
+            _uiState.WindowWidth = width;
+        }
+
+        if (double.IsFinite(height) && height >= 680)
+        {
+            _uiState.WindowHeight = height;
+        }
+
+        _uiState.WindowX = x;
+        _uiState.WindowY = y;
+    }
+
+    public void SaveUiState()
+    {
+        try
+        {
+            _uiStateStore.Save(_uiState);
+        }
+        catch (Exception exception)
+        {
+            StatusText = $"界面状态保存失败：{exception.GetBaseException().Message}";
+        }
+    }
+
     private void DocumentStateChanged(object? sender, EventArgs eventArgs)
     {
         if (sender is not ConfigDocumentViewModel document)
@@ -169,4 +286,23 @@ public sealed class MainWindowViewModel : ObservableObject
             : $"{Path.GetFileName(_project.ArchivePath)}{(dirtyCount > 0 ? $" · {dirtyCount} 项未保存" : string.Empty)}";
         OnPropertyChanged(nameof(SelectedDocumentSummary));
     }
+}
+
+public sealed class GlobalSearchResultViewModel
+{
+    public GlobalSearchResultViewModel(
+        GlobalSearchMatch match,
+        Action<GlobalSearchMatch> navigate)
+    {
+        Match = match;
+        NavigateCommand = new RelayCommand(() => navigate(match));
+    }
+
+    public GlobalSearchMatch Match { get; }
+    public string DocumentName => Match.Document.DisplayName;
+    public string FieldName => Match.Property.DisplayName;
+    public string ValuePreview => Match.ValuePreview.Length <= 120
+        ? Match.ValuePreview
+        : Match.ValuePreview[..117] + "...";
+    public ICommand NavigateCommand { get; }
 }
