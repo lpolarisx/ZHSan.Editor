@@ -9,6 +9,7 @@ using ZHSan.Editor.Desktop.ViewModels;
 using ZHSan.Editor.Desktop.Views;
 using ZHSan.Editor.Infrastructure.Archives;
 using ZHSan.Editor.Infrastructure.Configuration;
+using ZHSan.Editor.Infrastructure.Settings;
 
 namespace ZHSan.Editor.Desktop;
 
@@ -27,10 +28,13 @@ public sealed partial class App : Avalonia.Application
             services.AddSingleton<IConfigRegistry, GameDataConfigRegistry>();
             services.AddSingleton<IConfigMetadataProvider, ReflectionConfigMetadataProvider>();
             services.AddSingleton<IGameDataArchiveRepository, GameDataArchiveRepository>();
+            services.AddSingleton<IArchiveChangeMonitor, FileSystemArchiveChangeMonitor>();
+            services.AddSingleton<IEditorSettingsStore, JsonEditorSettingsStore>();
             services.AddSingleton<OpenArchiveService>();
             services.AddSingleton<SaveArchiveService>();
             services.AddSingleton<EditorUiStateStore>();
             services.AddSingleton<IArchivePicker>(new AvaloniaArchivePicker(mainWindow));
+            services.AddSingleton<IUnsavedChangesPrompt>(new AvaloniaUnsavedChangesPrompt(mainWindow));
             services.AddSingleton<MainWindowViewModel>();
 
             _services = services.BuildServiceProvider();

@@ -87,34 +87,36 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
         IReadOnlyList<ConfigDefinition> definitions,
         CancellationToken cancellationToken)
     {
-        using var archive = GameDataArchive.Open(archivePath);
         var documents = new List<ConfigDocument>(definitions.Count);
-
-        foreach (var definition in definitions)
+        using (var archive = GameDataArchive.Open(archivePath))
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            IList<object> items;
-            try
+            foreach (var definition in definitions)
             {
-                items = (IList<object>)LoadMethod
-                    .MakeGenericMethod(definition.ItemType)
-                    .Invoke(null, [archive, definition.EntryName])!;
-            }
-            catch (TargetInvocationException exception) when (exception.InnerException is JsonException jsonException)
-            {
-                throw CreateParseException(archivePath, definition.EntryName, jsonException);
-            }
+                cancellationToken.ThrowIfCancellationRequested();
+                IList<object> items;
+                try
+                {
+                    items = (IList<object>)LoadMethod
+                        .MakeGenericMethod(definition.ItemType)
+                        .Invoke(null, [archive, definition.EntryName])!;
+                }
+                catch (TargetInvocationException exception) when (exception.InnerException is JsonException jsonException)
+                {
+                    throw CreateParseException(archivePath, definition.EntryName, jsonException);
+                }
 
-            documents.Add(new ConfigDocument
-            {
-                Definition = definition,
-                Items = items
-            });
+                documents.Add(new ConfigDocument
+                {
+                    Definition = definition,
+                    Items = items
+                });
+            }
         }
 
         return new EditorProject
         {
             ArchivePath = Path.GetFullPath(archivePath),
+            ArchiveRevision = ArchiveFileRevision.Read(archivePath),
             Documents = documents
         };
     }
@@ -142,9 +144,15 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
         var targetPath = Path.GetFullPath(destinationPath);
         var temporaryPath = targetPath + ".tmp";
         var backupPath = targetPath + ".bak";
+        var replacesCurrentArchive = PathsEqual(sourcePath, targetPath);
 
         try
         {
+            if (replacesCurrentArchive && HasRevisionConflict(project, sourcePath))
+            {
+                throw new ArchiveConflictException(sourcePath);
+            }
+
             File.Copy(sourcePath, temporaryPath, true);
             using (var archive = GameDataArchive.Open(temporaryPath))
             {
@@ -158,6 +166,11 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
             }
 
             cancellationToken.ThrowIfCancellationRequested();
+            if (replacesCurrentArchive && HasRevisionConflict(project, sourcePath))
+            {
+                throw new ArchiveConflictException(sourcePath);
+            }
+
             if (File.Exists(targetPath))
             {
                 File.Replace(temporaryPath, targetPath, backupPath, true);
@@ -166,6 +179,10 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
             {
                 File.Move(temporaryPath, targetPath);
             }
+
+            var savedRevision = replacesCurrentArchive || updateProjectPath
+                ? ArchiveFileRevision.Read(targetPath)
+                : null;
 
             if (markSaved)
             {
@@ -178,6 +195,11 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
             if (updateProjectPath)
             {
                 project.ArchivePath = targetPath;
+            }
+
+            if (replacesCurrentArchive || updateProjectPath)
+            {
+                project.ArchiveRevision = savedRevision;
             }
         }
         finally
@@ -207,4 +229,19 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
 
     private static void SaveItems<T>(GameDataArchive archive, string entryName, IList<object> items) =>
         archive.Save(entryName, items.Cast<T>().ToList());
+
+    private static bool HasRevisionConflict(EditorProject project, string archivePath)
+    {
+        try
+        {
+            return !string.Equals(
+                project.ArchiveRevision,
+                ArchiveFileRevision.Read(archivePath),
+                StringComparison.Ordinal);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return true;
+        }
+    }
 }

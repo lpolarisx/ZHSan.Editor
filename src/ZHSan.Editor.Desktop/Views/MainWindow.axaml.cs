@@ -17,6 +17,8 @@ public sealed partial class MainWindow : Window
 
     private MainWindowViewModel? _viewModel;
     private ConfigDocumentViewModel? _columnsDocument;
+    private bool _allowWindowClose;
+    private bool _isClosePending;
 
     private void OnDataContextChanged(object? sender, EventArgs eventArgs)
     {
@@ -114,9 +116,38 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void OnWindowClosing(object? sender, WindowClosingEventArgs eventArgs)
+    private async void OnWindowClosing(object? sender, WindowClosingEventArgs eventArgs)
     {
-        SaveCurrentColumnWidths();
+        if (_allowWindowClose || _viewModel is null)
+        {
+            SaveCurrentColumnWidths();
+            SaveWindowState();
+            return;
+        }
+
+        eventArgs.Cancel = true;
+        if (_isClosePending)
+        {
+            return;
+        }
+
+        _isClosePending = true;
+        try
+        {
+            if (await _viewModel.TryCloseProjectAsync())
+            {
+                _allowWindowClose = true;
+                Close();
+            }
+        }
+        finally
+        {
+            _isClosePending = false;
+        }
+    }
+
+    private void SaveWindowState()
+    {
         if (_viewModel is null)
         {
             return;

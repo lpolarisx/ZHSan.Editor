@@ -19,4 +19,11 @@ public sealed class RecordClipboard
         _items = items;
         Changed?.Invoke(this, EventArgs.Empty);
     }
+
+    public void Clear()
+    {
+        ItemType = null;
+        _items = [];
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
 }

@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using Avalonia.Threading;
 using ZHSan.Editor.Application.Abstractions;
 using ZHSan.Editor.Application.Projects;
+using ZHSan.Editor.Application.Settings;
 using ZHSan.Editor.Desktop.Services;
 using ZHSan.Editor.Domain.Documents;
 
@@ -11,8 +13,12 @@ public sealed class MainWindowViewModel : ObservableObject
 {
     private readonly OpenArchiveService _openArchiveService;
     private readonly SaveArchiveService _saveArchiveService;
+    private readonly IArchiveChangeMonitor _archiveChangeMonitor;
     private readonly IConfigMetadataProvider _metadataProvider;
     private readonly IArchivePicker _archivePicker;
+    private readonly IUnsavedChangesPrompt _unsavedChangesPrompt;
+    private readonly IEditorSettingsStore _editorSettingsStore;
+    private readonly EditorSettings _editorSettings;
     private readonly EditorUiStateStore _uiStateStore;
     private readonly EditorUiState _uiState;
     private readonly RecordClipboard _recordClipboard = new();
@@ -23,23 +29,33 @@ public sealed class MainWindowViewModel : ObservableObject
     private string _projectTitle = "尚未打开数据档案";
     private string _statusText = "就绪";
     private string? _errorMessage;
+    private string? _externalChangeMessage;
     private ConfigDocumentViewModel? _selectedDocument;
     private EditorProject? _project;
 
     public MainWindowViewModel(
         OpenArchiveService openArchiveService,
         SaveArchiveService saveArchiveService,
+        IArchiveChangeMonitor archiveChangeMonitor,
         IConfigMetadataProvider metadataProvider,
         IArchivePicker archivePicker,
+        IUnsavedChangesPrompt unsavedChangesPrompt,
+        IEditorSettingsStore editorSettingsStore,
         EditorUiStateStore uiStateStore)
     {
         _openArchiveService = openArchiveService;
         _saveArchiveService = saveArchiveService;
+        _archiveChangeMonitor = archiveChangeMonitor;
+        _archiveChangeMonitor.ExternalChangeDetected += OnExternalChangeDetected;
         _metadataProvider = metadataProvider;
         _archivePicker = archivePicker;
+        _unsavedChangesPrompt = unsavedChangesPrompt;
+        _editorSettingsStore = editorSettingsStore;
+        _editorSettings = editorSettingsStore.Load();
         _uiStateStore = uiStateStore;
         _uiState = uiStateStore.Load();
         OpenArchiveCommand = new AsyncCommand(OpenArchiveAsync, () => !IsBusy);
+        CloseProjectCommand = new AsyncCommand(CloseProjectAsync, () => !IsBusy && _project is not null);
         SaveDocumentCommand = new AsyncCommand(SaveDocumentAsync, CanSaveDocument);
         SaveAllCommand = new AsyncCommand(SaveAllAsync, CanSaveAll);
         SaveAsCommand = new AsyncCommand(SaveAsAsync, CanSaveProject);
@@ -48,22 +64,48 @@ public sealed class MainWindowViewModel : ObservableObject
         ClearGlobalSearchCommand = new RelayCommand(
             ClearGlobalSearch,
             () => GlobalSearchText.Length > 0 || GlobalSearchResults.Count > 0);
+        DismissExternalChangeCommand = new RelayCommand(DismissExternalChange);
+        ClearRecentProjectsCommand = new RelayCommand(ClearRecentProjects, () => RecentProjects.Count > 0);
+        RefreshRecentProjects();
     }
 
     public ObservableCollection<ConfigCategoryViewModel> Categories { get; } = [];
     public ObservableCollection<GlobalSearchResultViewModel> GlobalSearchResults { get; } = [];
+    public ObservableCollection<RecentProjectViewModel> RecentProjects { get; } = [];
     public ICommand OpenArchiveCommand { get; }
+    public ICommand CloseProjectCommand { get; }
     public ICommand SaveDocumentCommand { get; }
     public ICommand SaveAllCommand { get; }
     public ICommand SaveAsCommand { get; }
     public ICommand SaveCopyCommand { get; }
     public ICommand GlobalSearchCommand { get; }
     public ICommand ClearGlobalSearchCommand { get; }
+    public ICommand DismissExternalChangeCommand { get; }
+    public ICommand ClearRecentProjectsCommand { get; }
     public EditorUiState UiState => _uiState;
 
+    public bool HasProject => _project is not null;
+    public bool HasNoProject => _project is null;
+    public bool HasRecentProjects => RecentProjects.Count > 0;
     public bool HasSelectedDocument => SelectedDocument is not null;
     public bool HasNoSelectedDocument => SelectedDocument is null;
     public bool HasGlobalSearchResults => GlobalSearchResults.Count > 0;
+
+    public bool ConfirmUnsavedChanges
+    {
+        get => _editorSettings.ConfirmUnsavedChanges;
+        set
+        {
+            if (_editorSettings.ConfirmUnsavedChanges == value)
+            {
+                return;
+            }
+
+            _editorSettings.ConfirmUnsavedChanges = value;
+            OnPropertyChanged();
+            SaveEditorSettings();
+        }
+    }
 
     public string GlobalSearchText
     {
@@ -92,6 +134,7 @@ public sealed class MainWindowViewModel : ObservableObject
             if (SetProperty(ref _isBusy, value))
             {
                 ((AsyncCommand)OpenArchiveCommand).RaiseCanExecuteChanged();
+                ((AsyncCommand)CloseProjectCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)SaveDocumentCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)SaveAllCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)SaveAsCommand).RaiseCanExecuteChanged();
@@ -126,6 +169,20 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
 
+    public string? ExternalChangeMessage
+    {
+        get => _externalChangeMessage;
+        private set
+        {
+            if (SetProperty(ref _externalChangeMessage, value))
+            {
+                OnPropertyChanged(nameof(HasExternalChange));
+            }
+        }
+    }
+
+    public bool HasExternalChange => !string.IsNullOrWhiteSpace(ExternalChangeMessage);
+
     public ConfigDocumentViewModel? SelectedDocument
     {
         get => _selectedDocument;
@@ -156,19 +213,23 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
+        await OpenArchivePathAsync(path);
+    }
+
+    private async Task OpenArchivePathAsync(string path)
+    {
+        if (!await ConfirmProjectCanCloseAsync())
+        {
+            return;
+        }
+
         IsBusy = true;
         ErrorMessage = null;
         StatusText = "正在加载数据档案…";
 
         try
         {
-            foreach (var previousDocument in _documents)
-            {
-                previousDocument.StateChanged -= DocumentStateChanged;
-            }
-
             var project = await _openArchiveService.OpenAsync(path);
-            _project = project;
             var documents = project.Documents
                 .Select(document => new ConfigDocumentViewModel(
                     document,
@@ -183,6 +244,10 @@ public sealed class MainWindowViewModel : ObservableObject
                 document.StateChanged += DocumentStateChanged;
             }
 
+            DetachCurrentDocuments();
+            _project = project;
+            _archiveChangeMonitor.Watch(project);
+            ExternalChangeMessage = null;
             _documents.Clear();
             _documents.AddRange(documents);
             Categories.Clear();
@@ -191,14 +256,21 @@ public sealed class MainWindowViewModel : ObservableObject
                 Categories.Add(new ConfigCategoryViewModel(group.Key, group.ToArray()));
             }
 
-            ProjectTitle = Path.GetFileName(path);
+            AddRecentProject(project.ArchivePath);
+            ProjectTitle = Path.GetFileName(project.ArchivePath);
             StatusText = $"已加载 {documents.Length} 项配置，共 {documents.Sum(x => x.ItemCount)} 条记录";
             ClearGlobalSearch();
             ((RelayCommand)GlobalSearchCommand).RaiseCanExecuteChanged();
             SelectDocument(documents.FirstOrDefault());
+            NotifyProjectChanged();
         }
         catch (Exception exception)
         {
+            if (!File.Exists(path))
+            {
+                RemoveRecentProject(path);
+            }
+
             ErrorMessage = exception.GetBaseException().Message;
             StatusText = "加载失败";
         }
@@ -248,10 +320,14 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
-        await RunSaveAsync(
+        if (await RunSaveAsync(
             () => _saveArchiveService.SaveAsAsync(_project, path),
             "\u5df2\u53e6\u5b58\u4e3a\uff1a" + Path.GetFileName(path),
-            _documents);
+            _documents))
+        {
+            AddRecentProject(_project.ArchivePath);
+            RefreshProjectState();
+        }
     }
 
     private async Task SaveCopyAsync()
@@ -274,7 +350,7 @@ public sealed class MainWindowViewModel : ObservableObject
             []);
     }
 
-    private async Task RunSaveAsync(
+    private async Task<bool> RunSaveAsync(
         Func<Task> saveAction,
         string successMessage,
         IReadOnlyCollection<ConfigDocumentViewModel> savedDocuments)
@@ -292,17 +368,110 @@ public sealed class MainWindowViewModel : ObservableObject
             }
 
             StatusText = successMessage;
+            ExternalChangeMessage = null;
+            if (_project is not null)
+            {
+                _archiveChangeMonitor.Watch(_project);
+            }
+
             RefreshProjectState();
+            return true;
+        }
+        catch (ArchiveConflictException exception)
+        {
+            ShowExternalChange(exception.ArchivePath);
+            StatusText = "检测到保存冲突";
+            return false;
         }
         catch (Exception exception)
         {
             ErrorMessage = exception.GetBaseException().Message;
             StatusText = "\u4fdd\u5b58\u5931\u8d25";
+            return false;
         }
         finally
         {
             IsBusy = false;
         }
+    }
+
+    private async Task CloseProjectAsync() => await TryCloseProjectAsync();
+
+    public async Task<bool> TryCloseProjectAsync()
+    {
+        if (IsBusy)
+        {
+            return false;
+        }
+
+        if (!await ConfirmProjectCanCloseAsync())
+        {
+            return false;
+        }
+
+        CloseCurrentProject();
+        return true;
+    }
+
+    private async Task<bool> ConfirmProjectCanCloseAsync()
+    {
+        if (_project is null || !_project.HasUnsavedChanges || !ConfirmUnsavedChanges)
+        {
+            return true;
+        }
+
+        var dirtyDocuments = _documents
+            .Where(document => document.IsDirty)
+            .Select(document => document.DisplayName)
+            .ToArray();
+        var choice = await _unsavedChangesPrompt.ShowAsync(
+            Path.GetFileName(_project.ArchivePath),
+            dirtyDocuments);
+
+        return choice switch
+        {
+            UnsavedChangesChoice.Discard => true,
+            UnsavedChangesChoice.Save => await RunSaveAsync(
+                () => _saveArchiveService.SaveAllAsync(_project),
+                $"已保存 {dirtyDocuments.Length} 项配置",
+                _documents.Where(document => document.IsDirty).ToArray()),
+            _ => false
+        };
+    }
+
+    private void CloseCurrentProject()
+    {
+        DetachCurrentDocuments();
+        _archiveChangeMonitor.Stop();
+        _project = null;
+        _documents.Clear();
+        Categories.Clear();
+        SelectedDocument = null;
+        ExternalChangeMessage = null;
+        ErrorMessage = null;
+        ClearGlobalSearch();
+        ProjectTitle = "尚未打开数据档案";
+        StatusText = "项目已关闭";
+        _recordClipboard.Clear();
+        NotifyProjectChanged();
+        RefreshProjectState();
+    }
+
+    private void DetachCurrentDocuments()
+    {
+        foreach (var document in _documents)
+        {
+            document.StateChanged -= DocumentStateChanged;
+        }
+    }
+
+    private void NotifyProjectChanged()
+    {
+        OnPropertyChanged(nameof(HasProject));
+        OnPropertyChanged(nameof(HasNoProject));
+        ((AsyncCommand)CloseProjectCommand).RaiseCanExecuteChanged();
+        ((AsyncCommand)SaveAsCommand).RaiseCanExecuteChanged();
+        ((AsyncCommand)SaveCopyCommand).RaiseCanExecuteChanged();
     }
 
     private bool CanSaveDocument() =>
@@ -406,6 +575,84 @@ public sealed class MainWindowViewModel : ObservableObject
         }
     }
 
+    private void AddRecentProject(string archivePath)
+    {
+        var fullPath = Path.GetFullPath(archivePath);
+        _editorSettings.RecentProjects.RemoveAll(entry => PathsEqual(entry.ArchivePath, fullPath));
+        _editorSettings.RecentProjects.Insert(0, new RecentProjectEntry
+        {
+            ArchivePath = fullPath,
+            LastOpenedAt = DateTimeOffset.UtcNow
+        });
+
+        if (_editorSettings.RecentProjects.Count > _editorSettings.RecentProjectLimit)
+        {
+            _editorSettings.RecentProjects.RemoveRange(
+                _editorSettings.RecentProjectLimit,
+                _editorSettings.RecentProjects.Count - _editorSettings.RecentProjectLimit);
+        }
+
+        SaveEditorSettings();
+        RefreshRecentProjects();
+    }
+
+    private void RemoveRecentProject(string archivePath)
+    {
+        _editorSettings.RecentProjects.RemoveAll(entry => PathsEqual(entry.ArchivePath, archivePath));
+        SaveEditorSettings();
+        RefreshRecentProjects();
+    }
+
+    private void ClearRecentProjects()
+    {
+        _editorSettings.RecentProjects.Clear();
+        SaveEditorSettings();
+        RefreshRecentProjects();
+        StatusText = "最近打开的项目已清除";
+    }
+
+    private void RefreshRecentProjects()
+    {
+        RecentProjects.Clear();
+        foreach (var entry in _editorSettings.RecentProjects
+                     .Where(entry => !string.IsNullOrWhiteSpace(entry.ArchivePath))
+                     .Take(_editorSettings.RecentProjectLimit))
+        {
+            var path = entry.ArchivePath;
+            RecentProjects.Add(new RecentProjectViewModel(path, () => OpenArchivePathAsync(path)));
+        }
+
+        OnPropertyChanged(nameof(HasRecentProjects));
+        ((RelayCommand)ClearRecentProjectsCommand).RaiseCanExecuteChanged();
+    }
+
+    private void SaveEditorSettings()
+    {
+        try
+        {
+            _editorSettingsStore.Save(_editorSettings);
+        }
+        catch (Exception exception)
+        {
+            StatusText = $"编辑器设置保存失败：{exception.GetBaseException().Message}";
+        }
+    }
+
+    private static bool PathsEqual(string left, string right)
+    {
+        try
+        {
+            return string.Equals(
+                Path.GetFullPath(left),
+                Path.GetFullPath(right),
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        }
+        catch
+        {
+            return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
     private void DocumentStateChanged(object? sender, EventArgs eventArgs)
     {
         if (sender is not ConfigDocumentViewModel document)
@@ -416,6 +663,18 @@ public sealed class MainWindowViewModel : ObservableObject
         StatusText = document.NotificationMessage ?? "就绪";
         RefreshProjectState();
     }
+
+    private void OnExternalChangeDetected(object? sender, ArchiveExternalChangeEventArgs eventArgs) =>
+        Dispatcher.UIThread.Post(() => ShowExternalChange(eventArgs.ArchivePath));
+
+    private void ShowExternalChange(string archivePath)
+    {
+        ExternalChangeMessage =
+            $"{Path.GetFileName(archivePath)} 已被外部程序修改。为避免覆盖，保存到原档案将被阻止；可先另存为保留当前编辑，再重新打开外部版本。";
+        StatusText = "检测到数据档案的外部变更";
+    }
+
+    private void DismissExternalChange() => ExternalChangeMessage = null;
 }
 
 public sealed class GlobalSearchResultViewModel
@@ -435,4 +694,19 @@ public sealed class GlobalSearchResultViewModel
         ? Match.ValuePreview
         : Match.ValuePreview[..117] + "...";
     public ICommand NavigateCommand { get; }
+}
+
+public sealed class RecentProjectViewModel
+{
+    public RecentProjectViewModel(string archivePath, Func<Task> open)
+    {
+        ArchivePath = archivePath;
+        OpenCommand = new AsyncCommand(open);
+    }
+
+    public string ArchivePath { get; }
+    public string DisplayName => Path.GetFileName(ArchivePath);
+    public string DirectoryName => Path.GetDirectoryName(ArchivePath) ?? ArchivePath;
+    public bool Exists => File.Exists(ArchivePath);
+    public ICommand OpenCommand { get; }
 }

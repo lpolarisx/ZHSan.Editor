@@ -11,6 +11,7 @@
         KeyDown="OnWindowKeyDown">
   <Window.KeyBindings>
     <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenArchiveCommand}" />
+    <KeyBinding Gesture="Ctrl+W" Command="{Binding CloseProjectCommand}" />
     <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveDocumentCommand}" />
     <KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveAllCommand}" />
     <KeyBinding Gesture="Ctrl+Z" Command="{Binding SelectedDocument.UndoCommand}" />
@@ -26,6 +27,7 @@
     <Menu DockPanel.Dock="Top">
       <MenuItem Header="文件">
         <MenuItem Header="打开数据档案…" Command="{Binding OpenArchiveCommand}" InputGesture="Ctrl+O" />
+        <MenuItem Header="关闭项目" Command="{Binding CloseProjectCommand}" InputGesture="Ctrl+W" />
         <Separator />
         <MenuItem Header="保存当前配置" Command="{Binding SaveDocumentCommand}" InputGesture="Ctrl+S" />
         <MenuItem Header="全部保存" Command="{Binding SaveAllCommand}" InputGesture="Ctrl+Shift+S" />
@@ -46,7 +48,11 @@
         <MenuItem Header="删除记录" Command="{Binding SelectedDocument.DeleteCommand}" InputGesture="Ctrl+Delete" />
       </MenuItem>
       <MenuItem Header="数据" IsEnabled="False" />
-      <MenuItem Header="工具" IsEnabled="False" />
+      <MenuItem Header="工具">
+        <MenuItem Header="关闭项目前确认未保存内容"
+                  ToggleType="CheckBox"
+                  IsChecked="{Binding ConfirmUnsavedChanges, Mode=TwoWay}" />
+      </MenuItem>
       <MenuItem Header="帮助" />
     </Menu>
 
@@ -62,6 +68,18 @@
           <TextBlock Text="GameDataArchive · CommonData.dat" FontSize="12" Opacity="0.58" />
         </StackPanel>
         <TextBlock Grid.Column="9" Text="NET 9 · Avalonia" VerticalAlignment="Center" Opacity="0.58" />
+      </Grid>
+    </Border>
+
+    <Border DockPanel.Dock="Top" Padding="14,10" Background="#FFF4CE"
+            IsVisible="{Binding HasExternalChange}">
+      <Grid ColumnDefinitions="Auto,*,Auto,8,Auto">
+        <TextBlock Text="!" FontSize="18" FontWeight="Bold" Foreground="#7A4D00"
+                   VerticalAlignment="Center" Margin="0,0,10,0" />
+        <TextBlock Grid.Column="1" Text="{Binding ExternalChangeMessage}" Foreground="#5C3A00"
+                   TextWrapping="Wrap" VerticalAlignment="Center" />
+        <Button Grid.Column="2" Content="另存为…" Command="{Binding SaveAsCommand}" />
+        <Button Grid.Column="4" Content="关闭提示" Command="{Binding DismissExternalChangeCommand}" />
       </Grid>
     </Border>
 
@@ -162,8 +180,8 @@
                       SelectionChanged="RecordsGrid_OnSelectionChanged"
                       IsVisible="{Binding HasSelectedDocument}" />
 
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" MaxWidth="520"
-                        IsVisible="{Binding HasNoSelectedDocument}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" Width="520"
+                        IsVisible="{Binding HasNoProject}">
               <Border Width="72" Height="72" CornerRadius="18" Background="#263B82F6">
                 <TextBlock Text="数" FontSize="32" FontWeight="Bold" HorizontalAlignment="Center"
                            VerticalAlignment="Center" Foreground="#6EA8FE" />
@@ -172,6 +190,32 @@
                          HorizontalAlignment="Center" />
               <TextBlock Text="选择 CommonData.dat 后，可在此搜索、排序、多选和管理配置记录。"
                          TextWrapping="Wrap" TextAlignment="Center" Opacity="0.62" />
+              <Button Content="打开数据档案…" Command="{Binding OpenArchiveCommand}"
+                      HorizontalAlignment="Center" />
+              <Grid ColumnDefinitions="*,Auto" Margin="0,14,0,0"
+                    IsVisible="{Binding HasRecentProjects}">
+                <TextBlock Text="最近打开" FontSize="16" FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <Button Grid.Column="1" Content="清除" Command="{Binding ClearRecentProjectsCommand}" />
+              </Grid>
+              <ItemsControl ItemsSource="{Binding RecentProjects}"
+                            IsVisible="{Binding HasRecentProjects}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:RecentProjectViewModel">
+                    <Button Command="{Binding OpenCommand}" HorizontalContentAlignment="Stretch"
+                            Padding="12,8" Margin="0,2">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="2">
+                          <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding DirectoryName}" FontSize="11" Opacity="0.58"
+                                     TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="1" Text="打开" VerticalAlignment="Center" Opacity="0.65" />
+                      </Grid>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
             </StackPanel>
           </Grid>
         </Grid>

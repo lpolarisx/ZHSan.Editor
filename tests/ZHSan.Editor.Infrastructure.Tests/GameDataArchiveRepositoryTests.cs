@@ -3,6 +3,7 @@ using ZHSan.Editor.Application.Abstractions;
 using GameDatas;
 using ZHSan.Editor.Domain.Configuration;
 using ZHSan.Editor.Infrastructure.Archives;
+using ZHSan.Editor.Infrastructure.Configuration;
 
 namespace ZHSan.Editor.Infrastructure.Tests;
 
@@ -212,6 +213,155 @@ public sealed class GameDataArchiveRepositoryTests
             using var copyArchive = GameDataArchive.Open(copyPath);
             Assert.Equal("original", sourceArchive.Load<List<TechniqueConfig>>("Techniques.json")![0].Name);
             Assert.Equal("copy", copyArchive.Load<List<TechniqueConfig>>("Techniques.json")![0].Name);
+        }
+        finally
+        {
+            Directory.Delete(testDirectory, true);
+        }
+    }
+
+    [Fact]
+    public async Task SaveAsync_WhenSourceChangedExternally_RejectsOverwriteAndAllowsSaveAs()
+    {
+        var testDirectory = Path.Combine(Path.GetTempPath(), "ZHSan.Editor.Tests", Guid.NewGuid().ToString("N"));
+        var archivePath = Path.Combine(testDirectory, "CommonData.dat");
+        var recoveryPath = Path.Combine(testDirectory, "Recovered.dat");
+        Directory.CreateDirectory(testDirectory);
+
+        try
+        {
+            using (var archive = GameDataArchive.Open(archivePath))
+            {
+                archive.Save("Techniques.json", new List<TechniqueConfig>
+                {
+                    new() { Id = 1, Name = "original" }
+                });
+            }
+
+            var repository = new GameDataArchiveRepository();
+            var definition = new ConfigDefinition(
+                "techniques", "Techniques", "Test", "Techniques.json", typeof(TechniqueConfig));
+            var project = await repository.LoadAsync(archivePath, [definition]);
+            ((TechniqueConfig)project.Documents[0].Items[0]).Name = "editor-change";
+            project.Documents[0].IsDirty = true;
+
+            using (var archive = GameDataArchive.Open(archivePath))
+            {
+                archive.Save("Techniques.json", new List<TechniqueConfig>
+                {
+                    new() { Id = 1, Name = "external-change" }
+                });
+            }
+
+            var exception = await Assert.ThrowsAsync<ArchiveConflictException>(
+                () => repository.SaveAsync(project));
+
+            Assert.Equal(Path.GetFullPath(archivePath), exception.ArchivePath);
+            Assert.True(project.Documents[0].IsDirty);
+            Assert.False(File.Exists(archivePath + ".tmp"));
+            using (var archive = GameDataArchive.Open(archivePath))
+            {
+                Assert.Equal("external-change", archive.Load<List<TechniqueConfig>>("Techniques.json")![0].Name);
+            }
+
+            await repository.SaveAsAsync(project, recoveryPath);
+
+            using var recoveredArchive = GameDataArchive.Open(recoveryPath);
+            Assert.Equal("editor-change", recoveredArchive.Load<List<TechniqueConfig>>("Techniques.json")![0].Name);
+            Assert.Equal(Path.GetFullPath(recoveryPath), project.ArchivePath);
+        }
+        finally
+        {
+            Directory.Delete(testDirectory, true);
+        }
+    }
+
+    [Fact]
+    public async Task ChangeMonitor_RaisesEventForExternalContentChange()
+    {
+        var testDirectory = Path.Combine(Path.GetTempPath(), "ZHSan.Editor.Tests", Guid.NewGuid().ToString("N"));
+        var archivePath = Path.Combine(testDirectory, "CommonData.dat");
+        Directory.CreateDirectory(testDirectory);
+
+        try
+        {
+            using (var archive = GameDataArchive.Open(archivePath))
+            {
+                archive.Save("Techniques.json", new List<TechniqueConfig>());
+            }
+
+            var repository = new GameDataArchiveRepository();
+            var definition = new ConfigDefinition(
+                "techniques", "Techniques", "Test", "Techniques.json", typeof(TechniqueConfig));
+            var project = await repository.LoadAsync(archivePath, [definition]);
+            using var monitor = new FileSystemArchiveChangeMonitor();
+            var detected = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+            monitor.ExternalChangeDetected += (_, eventArgs) => detected.TrySetResult(eventArgs.ArchivePath);
+            monitor.Watch(project);
+
+            await File.AppendAllTextAsync(archivePath, "external-change");
+
+            Assert.True(monitor.HasChanged(project));
+            Assert.Equal(Path.GetFullPath(archivePath), await detected.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+        }
+        finally
+        {
+            Directory.Delete(testDirectory, true);
+        }
+    }
+
+    [Fact]
+    public async Task RegisteredGameJson_RoundTripsBidirectionallyWithGameDataArchive()
+    {
+        var testDirectory = Path.Combine(Path.GetTempPath(), "ZHSan.Editor.Tests", Guid.NewGuid().ToString("N"));
+        var archivePath = Path.Combine(testDirectory, "CommonData.dat");
+        Directory.CreateDirectory(testDirectory);
+
+        try
+        {
+            var registry = new GameDataConfigRegistry();
+            using (var zip = ZipFile.Open(archivePath, ZipArchiveMode.Create))
+            {
+                foreach (var definition in registry.Definitions)
+                {
+                    await using var stream = zip.CreateEntry(definition.EntryName).Open();
+                    await using var writer = new StreamWriter(stream);
+                    var json = definition.Key == "techniques"
+                        ? "[{\"Id\":7,\"Name\":\"现有游戏格式\"}]"
+                        : "[]";
+                    await writer.WriteAsync(json);
+                }
+            }
+
+            var repository = new GameDataArchiveRepository();
+            var project = await repository.LoadAsync(archivePath, registry.Definitions);
+
+            Assert.Equal(39, project.Documents.Count);
+            var techniques = Assert.Single(project.Documents, document => document.Definition.Key == "techniques");
+            var technique = Assert.IsType<TechniqueConfig>(Assert.Single(techniques.Items));
+            Assert.Equal(7, technique.Id);
+            Assert.Equal("现有游戏格式", technique.Name);
+
+            technique.Name = "编辑器写回格式";
+            techniques.IsDirty = true;
+            await repository.SaveAsync(project);
+
+            using (var gameArchive = GameDataArchive.Open(archivePath))
+            {
+                var gameItems = gameArchive.Load<List<TechniqueConfig>>("Techniques.json");
+                Assert.Equal("编辑器写回格式", Assert.Single(gameItems!).Name);
+                gameArchive.Save("TreasureCreationSettings.json", new List<TreasureCreationSettingConfig>
+                {
+                    new() { EligibleInfluenceIDs = [3, 5, 8] }
+                });
+            }
+
+            var gameProducedProject = await repository.LoadAsync(archivePath, registry.Definitions);
+            var treasureSettings = Assert.Single(
+                gameProducedProject.Documents,
+                document => document.Definition.Key == "treasure-creation-settings");
+            var treasureSetting = Assert.IsType<TreasureCreationSettingConfig>(Assert.Single(treasureSettings.Items));
+            Assert.Equal([3, 5, 8], treasureSetting.EligibleInfluenceIDs);
         }
         finally
         {
