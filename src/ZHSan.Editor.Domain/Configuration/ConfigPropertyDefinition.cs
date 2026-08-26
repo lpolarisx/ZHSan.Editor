@@ -5,4 +5,9 @@ public sealed record ConfigPropertyDefinition(
     string DisplayName,
     Type PropertyType,
     bool CanWrite,
-    int Order);
+    int Order)
+{
+    public ConfigPropertyValidation Validation { get; init; } = ConfigPropertyValidation.None;
+
+    public ConfigReferenceDefinition? Reference { get; init; }
+}

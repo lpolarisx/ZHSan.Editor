@@ -3,6 +3,7 @@ using System.Windows.Input;
 using Avalonia.Threading;
 using ZHSan.Editor.Application.Abstractions;
 using ZHSan.Editor.Application.Projects;
+using ZHSan.Editor.Application.References;
 using ZHSan.Editor.Application.Settings;
 using ZHSan.Editor.Desktop.Services;
 using ZHSan.Editor.Domain.Documents;
@@ -23,6 +24,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly EditorUiState _uiState;
     private readonly RecordClipboard _recordClipboard = new();
     private readonly List<ConfigDocumentViewModel> _documents = [];
+    private ConfigReferenceIndex? _referenceIndex;
     private bool _isBusy;
     private string _globalSearchText = string.Empty;
     private string _globalSearchSummary = "输入内容以搜索全部配置";
@@ -230,13 +232,16 @@ public sealed class MainWindowViewModel : ObservableObject
         try
         {
             var project = await _openArchiveService.OpenAsync(path);
+            var referenceIndex = new ConfigReferenceIndex(_metadataProvider);
+            referenceIndex.Rebuild(project);
             var documents = project.Documents
                 .Select(document => new ConfigDocumentViewModel(
                     document,
                     _metadataProvider,
                     SelectDocument,
                     _recordClipboard,
-                    _uiState.GetDocument(document.Definition.Key)))
+                    _uiState.GetDocument(document.Definition.Key),
+                    referenceIndex))
                 .ToArray();
 
             foreach (var document in documents)
@@ -246,6 +251,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
             DetachCurrentDocuments();
             _project = project;
+            _referenceIndex = referenceIndex;
             _archiveChangeMonitor.Watch(project);
             ExternalChangeMessage = null;
             _documents.Clear();
@@ -444,6 +450,7 @@ public sealed class MainWindowViewModel : ObservableObject
         DetachCurrentDocuments();
         _archiveChangeMonitor.Stop();
         _project = null;
+        _referenceIndex = null;
         _documents.Clear();
         Categories.Clear();
         SelectedDocument = null;
@@ -661,6 +668,15 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         StatusText = document.NotificationMessage ?? "就绪";
+        if (_project is not null && _referenceIndex is not null)
+        {
+            _referenceIndex.Rebuild(_project);
+            foreach (var projectDocument in _documents)
+            {
+                projectDocument.RefreshReferenceOptions();
+            }
+        }
+
         RefreshProjectState();
     }
 

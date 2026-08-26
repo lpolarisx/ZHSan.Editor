@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows.Input;
 using ZHSan.Editor.Application.Abstractions;
+using ZHSan.Editor.Application.References;
 using ZHSan.Editor.Desktop.Services;
 using ZHSan.Editor.Domain.Configuration;
 using ZHSan.Editor.Domain.Documents;
@@ -27,6 +28,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject
     private readonly RecordClipboard _clipboard;
     private readonly DocumentUiState _uiState;
     private readonly UndoRedoHistory _history = new();
+    private readonly ConfigReferenceIndex? _referenceIndex;
     private bool _wasDirtyBeforeHistory;
     private int _savedHistoryPosition;
     private string _searchText = string.Empty;
@@ -42,11 +44,13 @@ public sealed class ConfigDocumentViewModel : ObservableObject
         IConfigMetadataProvider metadataProvider,
         Action<ConfigDocumentViewModel> selectDocument,
         RecordClipboard? clipboard = null,
-        DocumentUiState? uiState = null)
+        DocumentUiState? uiState = null,
+        ConfigReferenceIndex? referenceIndex = null)
     {
         Document = document;
         _clipboard = clipboard ?? new RecordClipboard();
         _uiState = uiState ?? new DocumentUiState();
+        _referenceIndex = referenceIndex;
         _wasDirtyBeforeHistory = document.IsDirty;
         _properties = metadataProvider.GetProperties(document.Definition.ItemType);
         FilterFields = [
@@ -216,6 +220,14 @@ public sealed class ConfigDocumentViewModel : ObservableObject
         }
 
         RaiseSelectionStateChanged();
+    }
+
+    public void RefreshReferenceOptions()
+    {
+        foreach (var editor in PropertyEditors.Where(editor => editor.IsReference))
+        {
+            editor.ReloadReferenceOptions(GetReferenceTargets(editor.Definition));
+        }
     }
 
     public void NavigateTo(ConfigRecordViewModel record)
@@ -565,11 +577,18 @@ public sealed class ConfigDocumentViewModel : ObservableObject
                 record.Item,
                 property,
                 (editor, oldValue, newValue) =>
-                    RecordPropertyChanged(record, editor, oldValue, newValue)));
+                    RecordPropertyChanged(record, editor, oldValue, newValue),
+                GetReferenceTargets(property)));
         }
 
         RefreshRawJson();
     }
+
+    private IReadOnlyList<ConfigReferenceTarget> GetReferenceTargets(
+        ConfigPropertyDefinition property) =>
+        property.Reference is null || _referenceIndex is null
+            ? []
+            : _referenceIndex.GetTargets(property.Reference.TargetConfigKey);
 
     private void RecordPropertyChanged(
         ConfigRecordViewModel record,

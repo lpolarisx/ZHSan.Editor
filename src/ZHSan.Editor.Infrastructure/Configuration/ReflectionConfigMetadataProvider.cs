@@ -22,7 +22,11 @@ public sealed class ReflectionConfigMetadataProvider : IConfigMetadataProvider
                 property.Name,
                 property.PropertyType,
                 property.CanWrite,
-                property.GetCustomAttribute<JsonPropertyOrderAttribute>()?.Order ?? index))
+                property.GetCustomAttribute<JsonPropertyOrderAttribute>()?.Order ?? index)
+            {
+                Validation = GameDataPropertyValidationMetadata.Get(property),
+                Reference = GameDataPropertyReferenceMetadata.Get(itemType, property),
+            })
             .OrderBy(property => property.Order)
             .ThenBy(property => property.Name, StringComparer.Ordinal)
             .ToArray();

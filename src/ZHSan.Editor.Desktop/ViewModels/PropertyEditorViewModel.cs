@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Reflection;
 using System.Windows.Input;
+using ZHSan.Editor.Application.References;
 using ZHSan.Editor.Domain.Configuration;
 
 namespace ZHSan.Editor.Desktop.ViewModels;
@@ -17,7 +18,8 @@ public sealed class PropertyEditorViewModel : ObservableObject
     public PropertyEditorViewModel(
         object owner,
         ConfigPropertyDefinition definition,
-        Action<PropertyEditorViewModel, object?, object?> changed)
+        Action<PropertyEditorViewModel, object?, object?> changed,
+        IReadOnlyList<ConfigReferenceTarget>? referenceTargets = null)
     {
         _owner = owner;
         Definition = definition;
@@ -31,6 +33,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
         IsNumber = IsNumeric(valueType);
         IsString = valueType == typeof(string);
         IsCollection = valueType != typeof(string) && typeof(IEnumerable).IsAssignableFrom(valueType);
+        IsReference = definition.Reference is not null;
         IsReadOnly = !definition.CanWrite || (!IsBoolean && !IsEnum && !IsNumber && !IsString && !IsCollection);
 
         if (IsEnum)
@@ -40,6 +43,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
 
         AddCollectionItemCommand = new RelayCommand(AddCollectionItem, () => Definition.CanWrite);
         ReloadCollectionItems();
+        ReloadReferenceOptions(referenceTargets ?? []);
     }
 
     public ConfigPropertyDefinition Definition { get; }
@@ -50,14 +54,17 @@ public sealed class PropertyEditorViewModel : ObservableObject
     public bool IsNumber { get; }
     public bool IsString { get; }
     public bool IsCollection { get; }
+    public bool IsReference { get; }
     public bool IsReadOnly { get; }
     public bool ShowBoolean => IsBoolean && !IsReadOnly;
     public bool ShowEnum => IsEnum && !IsReadOnly;
-    public bool ShowNumber => IsNumber && !IsReadOnly;
+    public bool ShowNumber => IsNumber && !IsReference && !IsReadOnly;
+    public bool ShowReference => IsReference && IsNumber && !IsCollection && !IsReadOnly;
     public bool ShowString => IsString && !IsReadOnly;
     public bool ShowCollection => IsCollection && !IsReadOnly;
     public IReadOnlyList<string> Options { get; } = [];
     public ObservableCollection<CollectionItemViewModel> CollectionItems { get; } = [];
+    public ObservableCollection<ReferenceOptionViewModel> ReferenceOptions { get; } = [];
     public ICommand AddCollectionItemCommand { get; }
 
     public string ValueText
@@ -119,6 +126,32 @@ public sealed class PropertyEditorViewModel : ObservableObject
         }
     }
 
+    public ReferenceOptionViewModel? SelectedReference
+    {
+        get
+        {
+            var value = _property.GetValue(_owner);
+            if (value is null)
+            {
+                return null;
+            }
+
+            var id = Convert.ToInt32(value, CultureInfo.InvariantCulture);
+            return ReferenceOptions.FirstOrDefault(option => option.Id == id);
+        }
+        set
+        {
+            if (IsReadOnly || value is null)
+            {
+                return;
+            }
+
+            SetValue(ConvertToType(
+                value.Id.ToString(CultureInfo.InvariantCulture),
+                Definition.PropertyType));
+        }
+    }
+
     public string ReadOnlyValue => IsCollection
         ? $"{CollectionItems.Count} 项"
         : FormatScalar(_property.GetValue(_owner));
@@ -144,11 +177,75 @@ public sealed class PropertyEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(NumericValue));
         OnPropertyChanged(nameof(BooleanValue));
         OnPropertyChanged(nameof(SelectedOption));
+        OnPropertyChanged(nameof(SelectedReference));
         OnPropertyChanged(nameof(ReadOnlyValue));
         if (reloadCollection)
         {
             ReloadCollectionItems();
         }
+    }
+
+    public void ReloadReferenceOptions(IReadOnlyList<ConfigReferenceTarget> targets)
+    {
+        if (!IsReference)
+        {
+            return;
+        }
+
+        var currentIds = GetCurrentReferenceIds();
+        ReferenceOptions.Clear();
+
+        if (Definition.Reference!.EmptyValue is { } emptyValue)
+        {
+            ReferenceOptions.Add(new ReferenceOptionViewModel(emptyValue, "（无）", false));
+        }
+
+        foreach (var target in targets
+                     .Where(target => !Definition.Reference.IsEmpty(target.Id))
+                     .GroupBy(target => target.Id)
+                     .Select(group => group.First())
+                     .OrderBy(target => target.Id))
+        {
+            ReferenceOptions.Add(new ReferenceOptionViewModel(
+                target.Id,
+                $"#{target.Id} · {target.DisplayName}",
+                false));
+        }
+
+        foreach (var currentId in currentIds.Where(currentId =>
+                     ReferenceOptions.All(option => option.Id != currentId)))
+        {
+            ReferenceOptions.Add(new ReferenceOptionViewModel(
+                currentId,
+                $"#{currentId} · [目标不存在]",
+                true));
+        }
+
+        OnPropertyChanged(nameof(SelectedReference));
+        foreach (var item in CollectionItems)
+        {
+            item.RefreshReferenceSelection();
+        }
+    }
+
+    private IReadOnlyList<int> GetCurrentReferenceIds()
+    {
+        var value = _property.GetValue(_owner);
+        if (value is null)
+        {
+            return [];
+        }
+
+        if (value is IEnumerable values and not string)
+        {
+            return values.Cast<object?>()
+                .Where(element => element is not null)
+                .Select(element => Convert.ToInt32(element, CultureInfo.InvariantCulture))
+                .Distinct()
+                .ToArray();
+        }
+
+        return [Convert.ToInt32(value, CultureInfo.InvariantCulture)];
     }
 
     private void ReloadCollectionItems()
@@ -179,7 +276,9 @@ public sealed class PropertyEditorViewModel : ObservableObject
             value,
             GetCollectionElementType(),
             CommitCollection,
-            () => RemoveCollectionItem(item!));
+            () => RemoveCollectionItem(item!),
+            IsReference,
+            ReferenceOptions);
         return item;
     }
 
@@ -303,23 +402,57 @@ public sealed class PropertyEditorViewModel : ObservableObject
     }
 }
 
+public sealed record ReferenceOptionViewModel(int Id, string Label, bool IsMissing);
+
 public sealed class CollectionItemViewModel : ObservableObject
 {
     private readonly Action _changed;
     private string _valueText;
 
-    public CollectionItemViewModel(object? value, Type valueType, Action changed, Action remove)
+    public CollectionItemViewModel(
+        object? value,
+        Type valueType,
+        Action changed,
+        Action remove,
+        bool isReference = false,
+        IReadOnlyList<ReferenceOptionViewModel>? referenceOptions = null)
     {
         _valueText = value is IFormattable formattable
             ? formattable.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty
             : value?.ToString() ?? string.Empty;
         _changed = changed;
         ValueType = valueType;
+        IsReference = isReference;
+        ReferenceOptions = referenceOptions ?? [];
         RemoveCommand = new RelayCommand(remove);
     }
 
     public Type ValueType { get; }
+    public bool IsReference { get; }
+    public bool ShowText => !IsReference;
+    public bool ShowReference => IsReference;
+    public IReadOnlyList<ReferenceOptionViewModel> ReferenceOptions { get; }
     public ICommand RemoveCommand { get; }
+
+    public ReferenceOptionViewModel? SelectedReference
+    {
+        get
+        {
+            if (!int.TryParse(ValueText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
+            {
+                return null;
+            }
+
+            return ReferenceOptions.FirstOrDefault(option => option.Id == id);
+        }
+        set
+        {
+            if (value is not null)
+            {
+                ValueText = value.Id.ToString(CultureInfo.InvariantCulture);
+            }
+        }
+    }
 
     public string ValueText
     {
@@ -328,8 +461,12 @@ public sealed class CollectionItemViewModel : ObservableObject
         {
             if (SetProperty(ref _valueText, value))
             {
+                OnPropertyChanged(nameof(SelectedReference));
                 _changed();
             }
         }
     }
+
+    public void RefreshReferenceSelection() =>
+        OnPropertyChanged(nameof(SelectedReference));
 }

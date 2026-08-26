@@ -4,6 +4,7 @@ using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
 using ZHSan.Editor.Application.Abstractions;
 using ZHSan.Editor.Application.Projects;
+using ZHSan.Editor.Application.Validation;
 using ZHSan.Editor.Desktop.Services;
 using ZHSan.Editor.Desktop.ViewModels;
 using ZHSan.Editor.Desktop.Views;
@@ -32,6 +33,10 @@ public sealed partial class App : Avalonia.Application
             services.AddSingleton<IEditorSettingsStore, JsonEditorSettingsStore>();
             services.AddSingleton<OpenArchiveService>();
             services.AddSingleton<SaveArchiveService>();
+            services.AddSingleton<IFieldValidationRule, PropertyConstraintValidationRule>();
+            services.AddSingleton<ITableValidationRule, UniqueIdValidationRule>();
+            services.AddSingleton<ICrossTableValidationRule, ReferenceExistenceValidationRule>();
+            services.AddSingleton<ConfigValidationService>();
             services.AddSingleton<EditorUiStateStore>();
             services.AddSingleton<IArchivePicker>(new AvaloniaArchivePicker(mainWindow));
             services.AddSingleton<IUnsavedChangesPrompt>(new AvaloniaUnsavedChangesPrompt(mainWindow));

@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using ZHSan.Editor.Application.Abstractions;
 using ZHSan.Editor.Domain.Documents;
 using ZHSan.Editor.Domain.Validation;
+using ZHSan.Editor.Application.References;
 
 namespace ZHSan.Editor.Application.Validation;
 
@@ -53,7 +54,9 @@ public sealed class ConfigValidationService
 
         if (scope.HasFlag(ValidationScope.CrossTable))
         {
-            var context = new CrossTableValidationContext(project, tables);
+            var referenceIndex = new ConfigReferenceIndex(_metadataProvider);
+            referenceIndex.Rebuild(project, cancellationToken);
+            var context = new CrossTableValidationContext(project, tables, referenceIndex);
             foreach (var rule in _crossTableRules)
             {
                 cancellationToken.ThrowIfCancellationRequested();

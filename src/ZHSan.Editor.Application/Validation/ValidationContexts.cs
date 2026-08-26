@@ -1,5 +1,6 @@
 using ZHSan.Editor.Domain.Configuration;
 using ZHSan.Editor.Domain.Documents;
+using ZHSan.Editor.Application.References;
 
 namespace ZHSan.Editor.Application.Validation;
 
@@ -19,4 +20,5 @@ public sealed record TableValidationContext(
 
 public sealed record CrossTableValidationContext(
     EditorProject Project,
-    IReadOnlyDictionary<string, TableValidationContext> Tables);
+    IReadOnlyDictionary<string, TableValidationContext> Tables,
+    ConfigReferenceIndex ReferenceIndex);

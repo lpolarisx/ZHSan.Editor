@@ -1,4 +1,5 @@
 using GameDatas;
+using ZHSan.Editor.Application.References;
 using ZHSan.Editor.Desktop.Services;
 using ZHSan.Editor.Desktop.ViewModels;
 using ZHSan.Editor.Domain.Configuration;
@@ -314,6 +315,115 @@ public sealed class ConfigDocumentViewModelTests
         Assert.Equal("基础", state.SearchText);
         Assert.Null(state.FilterPropertyName);
         Assert.Equal([150, 300], state.ColumnWidths);
+    }
+
+    [Fact]
+    public void ReferenceEditor_UsesIndexedTargetsAndParticipatesInUndo()
+    {
+        var first = new TechniqueConfig { Id = 1, Name = "基础技术" };
+        var second = new TechniqueConfig { Id = 2, Name = "进阶技术", PreID = 1 };
+        var document = new ConfigDocument
+        {
+            Definition = new ConfigDefinition(
+                "techniques", "技术", "测试", "Techniques.json", typeof(TechniqueConfig)),
+            Items = [first, second],
+        };
+        var project = new EditorProject
+        {
+            ArchivePath = "test.dat",
+            Documents = [document],
+            ActiveDocument = document,
+        };
+        var metadata = new ReflectionConfigMetadataProvider();
+        var index = new ConfigReferenceIndex(metadata);
+        index.Rebuild(project);
+        var viewModel = new ConfigDocumentViewModel(
+            document,
+            metadata,
+            _ => { },
+            referenceIndex: index);
+        viewModel.SelectedRecord = viewModel.Records[1];
+        var editor = Assert.Single(
+            viewModel.PropertyEditors,
+            property => property.Definition.Name == nameof(TechniqueConfig.PreID));
+
+        Assert.True(editor.ShowReference);
+        Assert.False(editor.ShowNumber);
+        Assert.Equal(3, editor.ReferenceOptions.Count);
+        Assert.Contains("基础技术", editor.SelectedReference?.Label);
+
+        editor.SelectedReference = Assert.Single(
+            editor.ReferenceOptions,
+            option => option.Id == 2);
+
+        Assert.Equal(2, second.PreID);
+        Assert.True(document.IsDirty);
+
+        viewModel.UndoCommand.Execute(null);
+
+        Assert.Equal(1, second.PreID);
+        Assert.False(document.IsDirty);
+    }
+
+    [Fact]
+    public void CollectionReferenceEditor_UsesReferenceChoiceForEachId()
+    {
+        var treasure = new TreasureCreationSettingConfig
+        {
+            Id = 1,
+            Name = "宝物",
+            EligibleInfluenceIDs = [10],
+        };
+        var treasureDocument = new ConfigDocument
+        {
+            Definition = new ConfigDefinition(
+                "treasure-creation-settings",
+                "宝物生成设置",
+                "测试",
+                "TreasureCreationSettings.json",
+                typeof(TreasureCreationSettingConfig)),
+            Items = [treasure],
+        };
+        var influenceDocument = new ConfigDocument
+        {
+            Definition = new ConfigDefinition(
+                "influences", "影响", "测试", "Influences.json", typeof(InfluenceConfig)),
+            Items =
+            [
+                new InfluenceConfig { Id = 10, Name = "影响一" },
+                new InfluenceConfig { Id = 20, Name = "影响二" },
+            ],
+        };
+        var project = new EditorProject
+        {
+            ArchivePath = "test.dat",
+            Documents = [treasureDocument, influenceDocument],
+            ActiveDocument = treasureDocument,
+        };
+        var metadata = new ReflectionConfigMetadataProvider();
+        var index = new ConfigReferenceIndex(metadata);
+        index.Rebuild(project);
+        var viewModel = new ConfigDocumentViewModel(
+            treasureDocument,
+            metadata,
+            _ => { },
+            referenceIndex: index);
+        viewModel.SelectedRecord = viewModel.Records[0];
+        var editor = Assert.Single(
+            viewModel.PropertyEditors,
+            property => property.Definition.Name == nameof(TreasureCreationSettingConfig.EligibleInfluenceIDs));
+        var itemEditor = Assert.Single(editor.CollectionItems);
+
+        Assert.True(itemEditor.ShowReference);
+        Assert.Contains("影响一", itemEditor.SelectedReference?.Label);
+
+        itemEditor.SelectedReference = Assert.Single(
+            itemEditor.ReferenceOptions,
+            option => option.Id == 20);
+
+        Assert.Equal([20], treasure.EligibleInfluenceIDs);
+        viewModel.UndoCommand.Execute(null);
+        Assert.Equal([10], treasure.EligibleInfluenceIDs);
     }
 
     private static ConfigDocumentViewModel CreateViewModel(
