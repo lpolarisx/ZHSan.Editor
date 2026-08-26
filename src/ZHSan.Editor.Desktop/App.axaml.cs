@@ -34,8 +34,10 @@ public sealed partial class App : Avalonia.Application
             services.AddSingleton<OpenArchiveService>();
             services.AddSingleton<SaveArchiveService>();
             services.AddSingleton<IFieldValidationRule, PropertyConstraintValidationRule>();
+            services.AddSingleton<IFieldValidationRule, FixedLengthCollectionValidationRule>();
             services.AddSingleton<ITableValidationRule, UniqueIdValidationRule>();
             services.AddSingleton<ICrossTableValidationRule, ReferenceExistenceValidationRule>();
+            services.AddSingleton<ICrossTableValidationRule, TechniqueRelationshipValidationRule>();
             services.AddSingleton<ConfigValidationService>();
             services.AddSingleton<EditorUiStateStore>();
             services.AddSingleton<IArchivePicker>(new AvaloniaArchivePicker(mainWindow));

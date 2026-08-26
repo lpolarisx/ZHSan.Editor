@@ -63,4 +63,20 @@ public sealed class ReflectionConfigMetadataProviderTests
         Assert.Equal("military-kinds", levelUps.Reference?.TargetConfigKey);
         Assert.Null(ordinaryField.Reference);
     }
+
+    [Theory]
+    [InlineData(typeof(CharacterKindConfig))]
+    [InlineData(typeof(SkillConfig))]
+    [InlineData(typeof(StuntConfig))]
+    [InlineData(typeof(TitleConfig))]
+    public void GetProperties_IncludesFixedGenerationChanceLength(Type itemType)
+    {
+        var provider = new ReflectionConfigMetadataProvider();
+
+        var generationChance = Assert.Single(
+            provider.GetProperties(itemType),
+            property => property.Name == "GenerationChance");
+
+        Assert.Equal(10, generationChance.Validation.ExpectedCollectionLength);
+    }
 }

@@ -1,4 +1,5 @@
 using System.Reflection;
+using GameDatas;
 using ZHSan.Editor.Domain.Configuration;
 
 namespace ZHSan.Editor.Infrastructure.Configuration;
@@ -20,18 +21,32 @@ internal static class GameDataPropertyValidationMetadata
         "Chance",
     };
 
+    private static readonly IReadOnlyDictionary<(Type ItemType, string PropertyName), int>
+        FixedCollectionLengths = new Dictionary<(Type, string), int>
+        {
+            [(typeof(CharacterKindConfig), nameof(CharacterKindConfig.GenerationChance))] = 10,
+            [(typeof(SkillConfig), nameof(SkillConfig.GenerationChance))] = 10,
+            [(typeof(StuntConfig), nameof(StuntConfig.GenerationChance))] = 10,
+            [(typeof(TitleConfig), nameof(TitleConfig.GenerationChance))] = 10,
+        };
+
     public static ConfigPropertyValidation Get(PropertyInfo property)
     {
         var isRequired = property.PropertyType == typeof(string)
             && property.Name == "Name";
         var hasPercentageRange = IsNumeric(property.PropertyType)
             && PercentagePropertyNames.Contains(property.Name);
+        var expectedCollectionLength = FixedCollectionLengths.GetValueOrDefault(
+            (property.DeclaringType!, property.Name));
+        var hasFixedCollectionLength = FixedCollectionLengths.ContainsKey(
+            (property.DeclaringType!, property.Name));
 
-        return isRequired || hasPercentageRange
+        return isRequired || hasPercentageRange || hasFixedCollectionLength
             ? new ConfigPropertyValidation(
                 isRequired,
                 hasPercentageRange ? 0 : null,
-                hasPercentageRange ? 100 : null)
+                hasPercentageRange ? 100 : null,
+                hasFixedCollectionLength ? expectedCollectionLength : null)
             : ConfigPropertyValidation.None;
     }
 
