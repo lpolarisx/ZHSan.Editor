@@ -40,6 +40,7 @@ public sealed partial class App : Avalonia.Application
             services.AddSingleton<EditorUiStateStore>();
             services.AddSingleton<IArchivePicker>(new AvaloniaArchivePicker(mainWindow));
             services.AddSingleton<IUnsavedChangesPrompt>(new AvaloniaUnsavedChangesPrompt(mainWindow));
+            services.AddSingleton<IReferenceDeletionPrompt>(new AvaloniaReferenceDeletionPrompt(mainWindow));
             services.AddSingleton<MainWindowViewModel>();
 
             _services = services.BuildServiceProvider();

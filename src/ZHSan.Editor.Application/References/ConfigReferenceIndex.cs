@@ -9,13 +9,16 @@ namespace ZHSan.Editor.Application.References;
 
 public sealed record ConfigReferenceTarget(
     string ConfigKey,
+    string ConfigDisplayName,
     int Id,
     string DisplayName,
     object Item);
 
 public sealed record ConfigReferenceSource(
     string ConfigKey,
+    string ConfigDisplayName,
     int? RecordId,
+    string RecordDisplayName,
     int RecordIndex,
     object Item,
     ConfigPropertyDefinition Property,
@@ -25,6 +28,10 @@ public sealed record ConfigReferenceSource(
 
     public string TargetConfigKey => Definition.TargetConfigKey;
 }
+
+public sealed record ConfigReferenceImpact(
+    ConfigReferenceTarget Target,
+    IReadOnlyList<ConfigReferenceSource> References);
 
 public sealed class ConfigReferenceIndex
 {
@@ -58,7 +65,10 @@ public sealed class ConfigReferenceIndex
         {
             cancellationToken.ThrowIfCancellationRequested();
             targets[document.Definition.Key] = document.Items
-                .Select(item => CreateTarget(document.Definition.Key, item))
+                .Select(item => CreateTarget(
+                    document.Definition.Key,
+                    document.Definition.DisplayName,
+                    item))
                 .OfType<ConfigReferenceTarget>()
                 .ToArray();
         }
@@ -89,7 +99,9 @@ public sealed class ConfigReferenceIndex
                         {
                             references.Add(new ConfigReferenceSource(
                                 document.Definition.Key,
+                                document.Definition.DisplayName,
                                 recordId,
+                                GetRecordDisplayName(item, recordId),
                                 itemIndex,
                                 item,
                                 property,
@@ -136,7 +148,32 @@ public sealed class ConfigReferenceIndex
             : [];
     }
 
-    private static ConfigReferenceTarget? CreateTarget(string configKey, object item)
+    public IReadOnlyList<ConfigReferenceImpact> GetDeletionImpacts(
+        string configKey,
+        IEnumerable<object> items)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(configKey);
+        ArgumentNullException.ThrowIfNull(items);
+
+        var selectedItems = items.ToArray();
+        return GetTargets(configKey)
+            .Where(target => selectedItems.Any(item => ReferenceEquals(item, target.Item)))
+            .GroupBy(target => target.Id)
+            .Select(group =>
+            {
+                var references = GetReferencesTo(configKey, group.Key)
+                    .Where(reference => selectedItems.All(item => !ReferenceEquals(item, reference.Item)))
+                    .ToArray();
+                return new ConfigReferenceImpact(group.First(), references);
+            })
+            .Where(impact => impact.References.Count > 0)
+            .ToArray();
+    }
+
+    private static ConfigReferenceTarget? CreateTarget(
+        string configKey,
+        string configDisplayName,
+        object item)
     {
         var id = GetIntProperty(item, "Id");
         if (!id.HasValue)
@@ -149,9 +186,20 @@ public sealed class ConfigReferenceIndex
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase)?.GetValue(item)?.ToString();
         return new ConfigReferenceTarget(
             configKey,
+            configDisplayName,
             id.Value,
             string.IsNullOrWhiteSpace(name) ? $"#{id.Value}" : name,
             item);
+    }
+
+    private static string GetRecordDisplayName(object item, int? id)
+    {
+        var name = item.GetType().GetProperty(
+            "Name",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase)?.GetValue(item)?.ToString();
+        return string.IsNullOrWhiteSpace(name)
+            ? id.HasValue ? $"#{id.Value}" : "未命名记录"
+            : name;
     }
 
     private static int? GetIntProperty(object item, string propertyName)

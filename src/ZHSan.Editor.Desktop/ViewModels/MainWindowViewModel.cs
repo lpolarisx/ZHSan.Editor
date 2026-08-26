@@ -18,6 +18,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly IConfigMetadataProvider _metadataProvider;
     private readonly IArchivePicker _archivePicker;
     private readonly IUnsavedChangesPrompt _unsavedChangesPrompt;
+    private readonly IReferenceDeletionPrompt? _referenceDeletionPrompt;
     private readonly IEditorSettingsStore _editorSettingsStore;
     private readonly EditorSettings _editorSettings;
     private readonly EditorUiStateStore _uiStateStore;
@@ -43,7 +44,8 @@ public sealed class MainWindowViewModel : ObservableObject
         IArchivePicker archivePicker,
         IUnsavedChangesPrompt unsavedChangesPrompt,
         IEditorSettingsStore editorSettingsStore,
-        EditorUiStateStore uiStateStore)
+        EditorUiStateStore uiStateStore,
+        IReferenceDeletionPrompt? referenceDeletionPrompt = null)
     {
         _openArchiveService = openArchiveService;
         _saveArchiveService = saveArchiveService;
@@ -52,6 +54,7 @@ public sealed class MainWindowViewModel : ObservableObject
         _metadataProvider = metadataProvider;
         _archivePicker = archivePicker;
         _unsavedChangesPrompt = unsavedChangesPrompt;
+        _referenceDeletionPrompt = referenceDeletionPrompt;
         _editorSettingsStore = editorSettingsStore;
         _editorSettings = editorSettingsStore.Load();
         _uiStateStore = uiStateStore;
@@ -241,7 +244,8 @@ public sealed class MainWindowViewModel : ObservableObject
                     SelectDocument,
                     _recordClipboard,
                     _uiState.GetDocument(document.Definition.Key),
-                    referenceIndex))
+                    referenceIndex,
+                    _referenceDeletionPrompt))
                 .ToArray();
 
             foreach (var document in documents)

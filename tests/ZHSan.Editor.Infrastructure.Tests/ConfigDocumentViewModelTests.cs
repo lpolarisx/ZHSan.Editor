@@ -426,6 +426,90 @@ public sealed class ConfigDocumentViewModelTests
         Assert.Equal([10], treasure.EligibleInfluenceIDs);
     }
 
+    [Fact]
+    public void Delete_WithIncomingReference_ShowsImpactAndRequiresConfirmation()
+    {
+        var first = new TechniqueConfig { Id = 1, Name = "基础技术" };
+        var second = new TechniqueConfig
+        {
+            Id = 2,
+            Name = "进阶技术",
+            PreID = 1,
+        };
+        var prompt = new FakeReferenceDeletionPrompt { Confirmed = false };
+        var viewModel = CreateReferenceAwareViewModel([first, second], prompt);
+        viewModel.SelectedRecord = viewModel.Records[0];
+
+        viewModel.DeleteCommand.Execute(null);
+
+        Assert.Equal(2, viewModel.Records.Count);
+        Assert.Equal("删除", prompt.OperationName);
+        Assert.Equal(1, prompt.SelectedRecordCount);
+        var impact = Assert.Single(prompt.Impacts);
+        Assert.Equal(1, impact.Target.Id);
+        Assert.Equal(2, Assert.Single(impact.References).RecordId);
+        Assert.Equal("已取消删除", viewModel.NotificationMessage);
+
+        prompt.Confirmed = true;
+        viewModel.DeleteCommand.Execute(null);
+
+        Assert.Single(viewModel.Records);
+        Assert.Same(second, viewModel.Records[0].Item);
+        viewModel.UndoCommand.Execute(null);
+        Assert.Equal(2, viewModel.Records.Count);
+    }
+
+    [Fact]
+    public void Cut_WithIncomingReference_IsBlockedWhenImpactIsNotConfirmed()
+    {
+        var clipboard = new RecordClipboard();
+        var first = new TechniqueConfig { Id = 1, Name = "基础技术" };
+        var second = new TechniqueConfig
+        {
+            Id = 2,
+            Name = "进阶技术",
+            PreID = 1,
+        };
+        var prompt = new FakeReferenceDeletionPrompt { Confirmed = false };
+        var viewModel = CreateReferenceAwareViewModel([first, second], prompt, clipboard);
+        viewModel.SelectedRecord = viewModel.Records[0];
+
+        viewModel.CutCommand.Execute(null);
+
+        Assert.Equal(2, viewModel.Records.Count);
+        Assert.False(clipboard.Contains(typeof(TechniqueConfig)));
+        Assert.Equal("剪切", prompt.OperationName);
+    }
+
+    private static ConfigDocumentViewModel CreateReferenceAwareViewModel(
+        IList<object> items,
+        IReferenceDeletionPrompt prompt,
+        RecordClipboard? clipboard = null)
+    {
+        var document = new ConfigDocument
+        {
+            Definition = new ConfigDefinition(
+                "techniques", "技术", "测试", "Techniques.json", typeof(TechniqueConfig)),
+            Items = items,
+        };
+        var project = new EditorProject
+        {
+            ArchivePath = "test.dat",
+            Documents = [document],
+            ActiveDocument = document,
+        };
+        var metadata = new ReflectionConfigMetadataProvider();
+        var index = new ConfigReferenceIndex(metadata);
+        index.Rebuild(project);
+        return new ConfigDocumentViewModel(
+            document,
+            metadata,
+            _ => { },
+            clipboard,
+            referenceIndex: index,
+            referenceDeletionPrompt: prompt);
+    }
+
     private static ConfigDocumentViewModel CreateViewModel(
         IList<object> items,
         RecordClipboard? clipboard = null)
@@ -438,6 +522,25 @@ public sealed class ConfigDocumentViewModelTests
         };
         return new ConfigDocumentViewModel(
             document, new ReflectionConfigMetadataProvider(), _ => { }, clipboard);
+    }
+
+    private sealed class FakeReferenceDeletionPrompt : IReferenceDeletionPrompt
+    {
+        public bool Confirmed { get; set; }
+        public string? OperationName { get; private set; }
+        public int SelectedRecordCount { get; private set; }
+        public IReadOnlyList<ConfigReferenceImpact> Impacts { get; private set; } = [];
+
+        public Task<bool> ConfirmAsync(
+            string operationName,
+            int selectedRecordCount,
+            IReadOnlyList<ConfigReferenceImpact> impacts)
+        {
+            OperationName = operationName;
+            SelectedRecordCount = selectedRecordCount;
+            Impacts = impacts;
+            return Task.FromResult(Confirmed);
+        }
     }
     [Fact]
     public void MarkSaved_TracksDirtyStateAgainstSavedHistoryPosition()

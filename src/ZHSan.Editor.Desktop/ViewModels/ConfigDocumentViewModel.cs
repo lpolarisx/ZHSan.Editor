@@ -29,6 +29,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject
     private readonly DocumentUiState _uiState;
     private readonly UndoRedoHistory _history = new();
     private readonly ConfigReferenceIndex? _referenceIndex;
+    private readonly IReferenceDeletionPrompt? _referenceDeletionPrompt;
     private bool _wasDirtyBeforeHistory;
     private int _savedHistoryPosition;
     private string _searchText = string.Empty;
@@ -45,12 +46,14 @@ public sealed class ConfigDocumentViewModel : ObservableObject
         Action<ConfigDocumentViewModel> selectDocument,
         RecordClipboard? clipboard = null,
         DocumentUiState? uiState = null,
-        ConfigReferenceIndex? referenceIndex = null)
+        ConfigReferenceIndex? referenceIndex = null,
+        IReferenceDeletionPrompt? referenceDeletionPrompt = null)
     {
         Document = document;
         _clipboard = clipboard ?? new RecordClipboard();
         _uiState = uiState ?? new DocumentUiState();
         _referenceIndex = referenceIndex;
+        _referenceDeletionPrompt = referenceDeletionPrompt;
         _wasDirtyBeforeHistory = document.IsDirty;
         _properties = metadataProvider.GetProperties(document.Definition.ItemType);
         FilterFields = [
@@ -76,8 +79,8 @@ public sealed class ConfigDocumentViewModel : ObservableObject
         SelectCommand = new RelayCommand(() => selectDocument(this));
         AddCommand = new RelayCommand(AddRecord, CanCreateRecord);
         CopyCommand = new RelayCommand(CopySelectedRecords, () => SelectedRecord is not null);
-        DeleteCommand = new RelayCommand(DeleteSelectedRecords, () => SelectedRecord is not null);
-        CutCommand = new RelayCommand(CutSelectedRecords, () => SelectedRecord is not null);
+        DeleteCommand = new AsyncCommand(DeleteSelectedRecordsAsync, () => SelectedRecord is not null);
+        CutCommand = new AsyncCommand(CutSelectedRecordsAsync, () => SelectedRecord is not null);
         CopyToClipboardCommand = new RelayCommand(CopySelectionToClipboard, () => SelectedRecord is not null);
         PasteCommand = new RelayCommand(PasteRecords, CanPasteRecords);
         ApplyBatchEditCommand = new RelayCommand(ApplyBatchEdit, CanApplyBatchEdit);
@@ -347,12 +350,17 @@ public sealed class ConfigDocumentViewModel : ObservableObject
         }
     }
 
-    private void DeleteSelectedRecords()
+    private async Task DeleteSelectedRecordsAsync()
     {
         var records = _selectedRecords.Count > 0
             ? _selectedRecords.ToArray()
             : SelectedRecord is null ? [] : [SelectedRecord];
         if (records.Length == 0)
+        {
+            return;
+        }
+
+        if (!await ConfirmRemovalAsync("删除", records))
         {
             return;
         }
@@ -383,10 +391,15 @@ public sealed class ConfigDocumentViewModel : ObservableObject
         SetNotification($"已复制 {copies.Length} 条记录到剪贴板");
     }
 
-    private void CutSelectedRecords()
+    private async Task CutSelectedRecordsAsync()
     {
         var records = GetSelectedRecords();
         if (records.Length == 0)
+        {
+            return;
+        }
+
+        if (!await ConfirmRemovalAsync("剪切", records))
         {
             return;
         }
@@ -407,6 +420,51 @@ public sealed class ConfigDocumentViewModel : ObservableObject
     }
 
     private bool CanPasteRecords() => _clipboard.Contains(Document.Definition.ItemType);
+
+    private async Task<bool> ConfirmRemovalAsync(
+        string operationName,
+        IReadOnlyList<ConfigRecordViewModel> records)
+    {
+        if (_referenceIndex is null)
+        {
+            return true;
+        }
+
+        var impacts = _referenceIndex.GetDeletionImpacts(
+            Document.Definition.Key,
+            records.Select(record => record.Item));
+        if (impacts.Count == 0)
+        {
+            return true;
+        }
+
+        if (_referenceDeletionPrompt is null)
+        {
+            SetNotification(
+                $"已阻止{operationName}：所选记录仍被 {impacts.Sum(impact => impact.References.Count)} 处引用");
+            return false;
+        }
+
+        try
+        {
+            var confirmed = await _referenceDeletionPrompt.ConfirmAsync(
+                operationName,
+                records.Count,
+                impacts);
+            if (!confirmed)
+            {
+                SetNotification($"已取消{operationName}");
+            }
+
+            return confirmed;
+        }
+        catch (Exception exception)
+        {
+            SetNotification(
+                $"无法确认引用影响：{exception.GetBaseException().Message}");
+            return false;
+        }
+    }
 
     private void PasteRecords()
     {
@@ -734,8 +792,8 @@ public sealed class ConfigDocumentViewModel : ObservableObject
     private void RaiseSelectionStateChanged()
     {
         ((RelayCommand)CopyCommand).RaiseCanExecuteChanged();
-        ((RelayCommand)DeleteCommand).RaiseCanExecuteChanged();
-        ((RelayCommand)CutCommand).RaiseCanExecuteChanged();
+        ((AsyncCommand)DeleteCommand).RaiseCanExecuteChanged();
+        ((AsyncCommand)CutCommand).RaiseCanExecuteChanged();
         ((RelayCommand)CopyToClipboardCommand).RaiseCanExecuteChanged();
         ((RelayCommand)ApplyBatchEditCommand).RaiseCanExecuteChanged();
         OnPropertyChanged(nameof(SelectionSummary));

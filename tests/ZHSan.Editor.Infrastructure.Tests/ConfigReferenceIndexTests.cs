@@ -48,6 +48,31 @@ public sealed class ConfigReferenceIndexTests
         Assert.Equal(2, index.GetReferencesTo("techniques", 1).Count);
     }
 
+    [Fact]
+    public void GetDeletionImpacts_GroupsIncomingReferencesAndExcludesSelectedSources()
+    {
+        var first = new TechniqueConfig { Id = 1, Name = "基础技术" };
+        var second = new TechniqueConfig
+        {
+            Id = 2,
+            Name = "进阶技术",
+            PreID = 1,
+        };
+        var document = CreateDocument("techniques", typeof(TechniqueConfig), first, second);
+        var index = new ConfigReferenceIndex(new ReflectionConfigMetadataProvider());
+        index.Rebuild(CreateProject(document));
+
+        var impact = Assert.Single(index.GetDeletionImpacts("techniques", [first]));
+
+        Assert.Equal(1, impact.Target.Id);
+        var reference = Assert.Single(impact.References);
+        Assert.Equal(2, reference.RecordId);
+        Assert.Equal("进阶技术", reference.RecordDisplayName);
+        Assert.Equal(nameof(TechniqueConfig.PreID), reference.Property.Name);
+
+        Assert.Empty(index.GetDeletionImpacts("techniques", [first, second]));
+    }
+
     private static ConfigDocument CreateDocument(string key, Type itemType, params object[] items) =>
         new()
         {
