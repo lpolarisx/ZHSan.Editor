@@ -14,6 +14,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
     private readonly PropertyInfo _property;
     private readonly Action<PropertyEditorViewModel, object?, object?> _changed;
     private bool _isSynchronizing;
+    private bool _isValidationTarget;
 
     public PropertyEditorViewModel(
         object owner,
@@ -62,10 +63,17 @@ public sealed class PropertyEditorViewModel : ObservableObject
     public bool ShowReference => IsReference && IsNumber && !IsCollection && !IsReadOnly;
     public bool ShowString => IsString && !IsReadOnly;
     public bool ShowCollection => IsCollection && !IsReadOnly;
+    public bool IsValidationTarget
+    {
+        get => _isValidationTarget;
+        private set => SetProperty(ref _isValidationTarget, value);
+    }
     public IReadOnlyList<string> Options { get; } = [];
     public ObservableCollection<CollectionItemViewModel> CollectionItems { get; } = [];
     public ObservableCollection<ReferenceOptionViewModel> ReferenceOptions { get; } = [];
     public ICommand AddCollectionItemCommand { get; }
+
+    internal void SetValidationTarget(bool isTarget) => IsValidationTarget = isTarget;
 
     public string ValueText
     {

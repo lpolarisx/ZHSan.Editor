@@ -22,6 +22,7 @@
     <KeyBinding Gesture="Insert" Command="{Binding SelectedDocument.AddCommand}" />
     <KeyBinding Gesture="Ctrl+D" Command="{Binding SelectedDocument.CopyCommand}" />
     <KeyBinding Gesture="Ctrl+Delete" Command="{Binding SelectedDocument.DeleteCommand}" />
+    <KeyBinding Gesture="F8" Command="{Binding ValidateCommand}" />
   </Window.KeyBindings>
   <DockPanel>
     <Menu DockPanel.Dock="Top">
@@ -47,7 +48,9 @@
         <MenuItem Header="创建记录副本" Command="{Binding SelectedDocument.CopyCommand}" InputGesture="Ctrl+D" />
         <MenuItem Header="删除记录" Command="{Binding SelectedDocument.DeleteCommand}" InputGesture="Ctrl+Delete" />
       </MenuItem>
-      <MenuItem Header="数据" IsEnabled="False" />
+      <MenuItem Header="数据">
+        <MenuItem Header="校验项目" Command="{Binding ValidateCommand}" InputGesture="F8" />
+      </MenuItem>
       <MenuItem Header="工具">
         <MenuItem Header="关闭项目前确认未保存内容"
                   ToggleType="CheckBox"
@@ -58,16 +61,17 @@
 
     <Border DockPanel.Dock="Top" Padding="14,10" BorderThickness="0,0,0,1"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-      <Grid ColumnDefinitions="Auto,8,Auto,8,Auto,8,Auto,16,*,Auto">
+      <Grid ColumnDefinitions="Auto,8,Auto,8,Auto,8,Auto,8,Auto,16,*,Auto">
         <Button Grid.Column="0" Content="打开数据档案" Command="{Binding OpenArchiveCommand}" />
         <Button Grid.Column="2" Content="保存" Command="{Binding SaveDocumentCommand}" />
         <Button Grid.Column="4" Content="撤销" Command="{Binding SelectedDocument.UndoCommand}" />
         <Button Grid.Column="6" Content="重做" Command="{Binding SelectedDocument.RedoCommand}" />
-        <StackPanel Grid.Column="8" VerticalAlignment="Center">
+        <Button Grid.Column="8" Content="校验" Command="{Binding ValidateCommand}" />
+        <StackPanel Grid.Column="10" VerticalAlignment="Center">
           <TextBlock Text="{Binding ProjectTitle}" FontWeight="SemiBold" />
           <TextBlock Text="GameDataArchive · CommonData.dat" FontSize="12" Opacity="0.58" />
         </StackPanel>
-        <TextBlock Grid.Column="9" Text="NET 9 · Avalonia" VerticalAlignment="Center" Opacity="0.58" />
+        <TextBlock Grid.Column="11" Text="NET 9 · Avalonia" VerticalAlignment="Center" Opacity="0.58" />
       </Grid>
     </Border>
 
@@ -222,7 +226,9 @@
 
         <Border Grid.Column="2" BorderThickness="1,0,0,0"
                 BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-          <TabControl x:Name="DetailsTabs" IsVisible="{Binding HasSelectedDocument}">
+          <TabControl x:Name="DetailsTabs"
+                      SelectedIndex="{Binding SelectedDetailsTabIndex, Mode=TwoWay}"
+                      IsVisible="{Binding HasSelectedDocument}">
             <TabItem Header="属性">
               <ScrollViewer>
                 <ItemsControl ItemsSource="{Binding SelectedDocument.PropertyEditors}" Margin="12">
@@ -230,9 +236,12 @@
                     <DataTemplate x:DataType="vm:PropertyEditorViewModel">
                       <Border Padding="10" Margin="0,0,0,8" CornerRadius="5" Background="#0DFFFFFF">
                         <StackPanel Spacing="6">
-                          <Grid ColumnDefinitions="*,Auto">
+                          <Grid ColumnDefinitions="*,Auto,Auto">
                             <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                            <TextBlock Grid.Column="1" Text="{Binding TypeName}" FontSize="11" Opacity="0.55" />
+                            <TextBlock Grid.Column="1" Text="校验定位" FontSize="11"
+                                       Foreground="#E5484D" FontWeight="SemiBold"
+                                       IsVisible="{Binding IsValidationTarget}" Margin="0,0,8,0" />
+                            <TextBlock Grid.Column="2" Text="{Binding TypeName}" FontSize="11" Opacity="0.55" />
                           </Grid>
 
                           <TextBox Text="{Binding ValueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -287,6 +296,48 @@
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
               </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="{Binding ValidationTabHeader}">
+              <Grid RowDefinitions="Auto,Auto,*" Margin="12">
+                <Grid ColumnDefinitions="150,8,*">
+                  <ComboBox ItemsSource="{Binding ValidationSeverityFilters}"
+                            SelectedItem="{Binding SelectedValidationSeverityFilter, Mode=TwoWay}">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ValidationSeverityFilterViewModel">
+                        <TextBlock Text="{Binding DisplayName}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                  <TextBox Grid.Column="2"
+                           Text="{Binding ValidationSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                           PlaceholderText="筛选配置、ID、字段或消息…" />
+                </Grid>
+                <TextBlock Grid.Row="1" Text="{Binding ValidationSummary}"
+                           Margin="2,10,2,8" Opacity="0.68" TextWrapping="Wrap" />
+                <ListBox Grid.Row="2"
+                         ItemsSource="{Binding ValidationIssues}"
+                         DoubleTapped="ValidationIssues_OnDoubleTapped">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ValidationIssueViewModel">
+                      <Border Padding="10,8" Margin="0,1" CornerRadius="4" Background="#0DFFFFFF">
+                        <StackPanel Spacing="4">
+                          <Grid ColumnDefinitions="Auto,8,*">
+                            <Border Padding="7,2" CornerRadius="8" Background="#26E5484D">
+                              <TextBlock Text="{Binding SeverityText}" FontSize="11" FontWeight="SemiBold" />
+                            </Border>
+                            <TextBlock Grid.Column="2" Text="{Binding Location}"
+                                       FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                          </Grid>
+                          <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Opacity="0.78" />
+                          <TextBlock Text="双击定位" FontSize="10" Opacity="0.42"
+                                     HorizontalAlignment="Right" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </Grid>
             </TabItem>
 
             <TabItem Header="全局搜索">

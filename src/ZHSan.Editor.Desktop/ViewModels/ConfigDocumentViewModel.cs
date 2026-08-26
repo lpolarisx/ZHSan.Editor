@@ -246,6 +246,28 @@ public sealed class ConfigDocumentViewModel : ObservableObject
         SelectedRecord = record;
     }
 
+    public void NavigateTo(int? itemId, string? propertyName)
+    {
+        if (itemId is { } id)
+        {
+            var record = Records.FirstOrDefault(candidate =>
+                candidate.Item.GetType().GetProperty("Id")?.GetValue(candidate.Item) is int candidateId &&
+                candidateId == id);
+            if (record is not null)
+            {
+                NavigateTo(record);
+            }
+        }
+
+        foreach (var editor in PropertyEditors)
+        {
+            editor.SetValidationTarget(string.Equals(
+                editor.Definition.Name,
+                propertyName,
+                StringComparison.Ordinal));
+        }
+    }
+
     public void MarkSaved()
     {
         _wasDirtyBeforeHistory = false;

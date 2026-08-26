@@ -164,6 +164,17 @@ public sealed partial class MainWindow : Window
             document.SetSelectedRecords(dataGrid.SelectedItems);
         }
     }
+
+    private void ValidationIssues_OnDoubleTapped(object? sender, TappedEventArgs eventArgs)
+    {
+        if (sender is ListBox { SelectedItem: ValidationIssueViewModel issue } &&
+            issue.NavigateCommand.CanExecute(null))
+        {
+            issue.NavigateCommand.Execute(null);
+            eventArgs.Handled = true;
+        }
+    }
+
     private void OnWindowKeyDown(object? sender, KeyEventArgs eventArgs)
     {
         if (eventArgs.Key != Key.F ||
@@ -174,7 +185,7 @@ public sealed partial class MainWindow : Window
 
         if (eventArgs.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {
-            DetailsTabs.SelectedIndex = 1;
+            DetailsTabs.SelectedIndex = 2;
             GlobalSearchBox.Focus();
             GlobalSearchBox.SelectAll();
         }

@@ -2,6 +2,7 @@ using GameDatas;
 using ZHSan.Editor.Application.Abstractions;
 using ZHSan.Editor.Application.Projects;
 using ZHSan.Editor.Application.Settings;
+using ZHSan.Editor.Application.Validation;
 using ZHSan.Editor.Desktop.Services;
 using ZHSan.Editor.Desktop.ViewModels;
 using ZHSan.Editor.Domain.Configuration;
@@ -66,6 +67,56 @@ public sealed class MainWindowProjectLifecycleTests
         Assert.Single(context.Settings.Settings.RecentProjects);
     }
 
+    [Fact]
+    public void ValidateProject_FiltersIssuesAndNavigatesToField()
+    {
+        using var context = new TestContext();
+        var viewModel = context.CreateViewModel();
+        viewModel.OpenArchiveCommand.Execute(null);
+        var technique = Assert.IsType<TechniqueConfig>(viewModel.SelectedDocument!.Document.Items[0]);
+        technique.Name = string.Empty;
+
+        viewModel.ValidateCommand.Execute(null);
+
+        var issue = Assert.Single(viewModel.ValidationIssues);
+        Assert.Equal("错误", issue.SeverityText);
+        Assert.Contains("必填", issue.Message);
+        Assert.Equal(1, viewModel.SelectedDetailsTabIndex);
+
+        viewModel.SelectedValidationSeverityFilter = Assert.Single(
+            viewModel.ValidationSeverityFilters,
+            filter => filter.DisplayName == "仅警告");
+        Assert.Empty(viewModel.ValidationIssues);
+
+        viewModel.SelectedValidationSeverityFilter = viewModel.ValidationSeverityFilters[0];
+        viewModel.ValidationSearchText = "必填";
+        issue = Assert.Single(viewModel.ValidationIssues);
+        issue.NavigateCommand.Execute(null);
+
+        Assert.Equal(0, viewModel.SelectedDetailsTabIndex);
+        Assert.True(Assert.Single(
+            viewModel.SelectedDocument.PropertyEditors,
+            editor => editor.Definition.Name == nameof(TechniqueConfig.Name)).IsValidationTarget);
+    }
+
+    [Fact]
+    public void SaveDocument_ValidatesButAllowsIncompleteData()
+    {
+        using var context = new TestContext();
+        var viewModel = context.CreateViewModel();
+        viewModel.OpenArchiveCommand.Execute(null);
+        var technique = Assert.IsType<TechniqueConfig>(viewModel.SelectedDocument!.Document.Items[0]);
+        technique.Name = string.Empty;
+        viewModel.SelectedDocument.Document.IsDirty = true;
+
+        viewModel.SaveDocumentCommand.Execute(null);
+
+        Assert.Equal(1, context.Repository.SaveCount);
+        Assert.Single(viewModel.ValidationIssues);
+        Assert.Contains("1 个错误", viewModel.StatusText);
+        Assert.DoesNotContain("过期", viewModel.ValidationSummary);
+    }
+
     private sealed class TestContext : IDisposable
     {
         private readonly string _directory = Directory.CreateTempSubdirectory("zhsan-lifecycle-").FullName;
@@ -88,11 +139,19 @@ public sealed class MainWindowProjectLifecycleTests
             var definition = new ConfigDefinition(
                 "techniques", "技术", "测试", "Techniques.json", typeof(TechniqueConfig));
             var registry = new FakeConfigRegistry(definition);
+            var metadataProvider = new ReflectionConfigMetadataProvider();
+            var validationService = new ConfigValidationService(
+                metadataProvider,
+                [new PropertyConstraintValidationRule(), new FixedLengthCollectionValidationRule()],
+                [new UniqueIdValidationRule()],
+                [new ReferenceExistenceValidationRule(), new TechniqueRelationshipValidationRule()]);
+            var validationPreflightService = new ValidationPreflightService(validationService);
             return new MainWindowViewModel(
                 new OpenArchiveService(registry, Repository),
-                new SaveArchiveService(Repository),
+                new SaveArchiveService(Repository, validationPreflightService),
+                validationPreflightService,
                 Monitor,
-                new ReflectionConfigMetadataProvider(),
+                metadataProvider,
                 new FakeArchivePicker(ArchivePath),
                 Prompt,
                 Settings,

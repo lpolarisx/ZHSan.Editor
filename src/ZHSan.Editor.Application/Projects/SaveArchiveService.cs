@@ -1,32 +1,55 @@
 using ZHSan.Editor.Application.Abstractions;
+using ZHSan.Editor.Application.Validation;
 using ZHSan.Editor.Domain.Documents;
+using ZHSan.Editor.Domain.Validation;
 
 namespace ZHSan.Editor.Application.Projects;
 
-public sealed class SaveArchiveService(IGameDataArchiveRepository repository)
+public sealed class SaveArchiveService(
+    IGameDataArchiveRepository repository,
+    ValidationPreflightService validationPreflightService)
 {
-    public Task SaveDocumentAsync(
+    public async Task<ValidationReport> SaveDocumentAsync(
         EditorProject project,
         ConfigDocument document,
         CancellationToken cancellationToken = default)
     {
         ValidateDocument(project, document);
-        return repository.SaveDocumentAsync(project, document, cancellationToken);
+        var preflight = validationPreflightService.Evaluate(
+            project,
+            ValidationOperation.Save,
+            cancellationToken);
+        await repository.SaveDocumentAsync(project, document, cancellationToken);
+        return preflight.Report;
     }
 
-    public Task SaveAllAsync(EditorProject project, CancellationToken cancellationToken = default) =>
-        repository.SaveAsync(project, cancellationToken);
+    public async Task<ValidationReport> SaveAllAsync(
+        EditorProject project,
+        CancellationToken cancellationToken = default)
+    {
+        var preflight = validationPreflightService.Evaluate(
+            project,
+            ValidationOperation.Save,
+            cancellationToken);
+        await repository.SaveAsync(project, cancellationToken);
+        return preflight.Report;
+    }
 
-    public Task SaveAsAsync(
+    public async Task<ValidationReport> SaveAsAsync(
         EditorProject project,
         string destinationPath,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
-        return repository.SaveAsAsync(project, destinationPath, cancellationToken);
+        var preflight = validationPreflightService.Evaluate(
+            project,
+            ValidationOperation.Save,
+            cancellationToken);
+        await repository.SaveAsAsync(project, destinationPath, cancellationToken);
+        return preflight.Report;
     }
 
-    public Task SaveCopyAsync(
+    public async Task<ValidationReport> SaveCopyAsync(
         EditorProject project,
         string destinationPath,
         CancellationToken cancellationToken = default)
@@ -37,7 +60,12 @@ public sealed class SaveArchiveService(IGameDataArchiveRepository repository)
             throw new ArgumentException("\u4fdd\u5b58\u526f\u672c\u7684\u8def\u5f84\u4e0d\u80fd\u4e0e\u5f53\u524d\u6863\u6848\u76f8\u540c\u3002", nameof(destinationPath));
         }
 
-        return repository.SaveCopyAsync(project, destinationPath, cancellationToken);
+        var preflight = validationPreflightService.Evaluate(
+            project,
+            ValidationOperation.Save,
+            cancellationToken);
+        await repository.SaveCopyAsync(project, destinationPath, cancellationToken);
+        return preflight.Report;
     }
 
     private static bool PathsEqual(string left, string right) =>

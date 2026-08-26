@@ -39,6 +39,7 @@ public sealed partial class App : Avalonia.Application
             services.AddSingleton<ICrossTableValidationRule, ReferenceExistenceValidationRule>();
             services.AddSingleton<ICrossTableValidationRule, TechniqueRelationshipValidationRule>();
             services.AddSingleton<ConfigValidationService>();
+            services.AddSingleton<ValidationPreflightService>();
             services.AddSingleton<EditorUiStateStore>();
             services.AddSingleton<IArchivePicker>(new AvaloniaArchivePicker(mainWindow));
             services.AddSingleton<IUnsavedChangesPrompt>(new AvaloniaUnsavedChangesPrompt(mainWindow));
