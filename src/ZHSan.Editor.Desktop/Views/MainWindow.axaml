@@ -274,15 +274,8 @@
                                    IsVisible="{Binding ShowString}" />
                           <NumericUpDown Value="{Binding NumericValue, Mode=TwoWay}"
                                          Increment="1" IsVisible="{Binding ShowNumber}" />
-                          <ComboBox ItemsSource="{Binding ReferenceOptions}"
-                                    SelectedItem="{Binding SelectedReference, Mode=TwoWay}"
-                                    IsVisible="{Binding ShowReference}">
-                            <ComboBox.ItemTemplate>
-                              <DataTemplate x:DataType="vm:ReferenceOptionViewModel">
-                                <TextBlock Text="{Binding Label}" />
-                              </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                          </ComboBox>
+                          <ContentControl Content="{Binding ReferencePicker}"
+                                          IsVisible="{Binding ShowReference}" />
                           <CheckBox IsChecked="{Binding BooleanValue, Mode=TwoWay}"
                                     Content="启用" IsVisible="{Binding ShowBoolean}" />
                           <ComboBox ItemsSource="{Binding Options}"
@@ -296,15 +289,8 @@
                                   <Grid ColumnDefinitions="*,Auto" Margin="0,2">
                                     <TextBox Text="{Binding ValueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                              IsVisible="{Binding ShowText}" />
-                                    <ComboBox ItemsSource="{Binding ReferenceOptions}"
-                                              SelectedItem="{Binding SelectedReference, Mode=TwoWay}"
-                                              IsVisible="{Binding ShowReference}">
-                                      <ComboBox.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:ReferenceOptionViewModel">
-                                          <TextBlock Text="{Binding Label}" />
-                                        </DataTemplate>
-                                      </ComboBox.ItemTemplate>
-                                    </ComboBox>
+                                    <ContentControl Content="{Binding ReferencePicker}"
+                                                    IsVisible="{Binding ShowReference}" />
                                     <Button Grid.Column="1" Content="移除" Command="{Binding RemoveCommand}" Margin="5,0,0,0" />
                                   </Grid>
                                 </DataTemplate>

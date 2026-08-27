@@ -1,6 +1,7 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:editors="using:ZHSan.Editor.Desktop.Editors"
+             xmlns:vm="using:ZHSan.Editor.Desktop.ViewModels"
              xmlns:views="using:ZHSan.Editor.Desktop.Views"
              x:Class="ZHSan.Editor.Desktop.App"
              RequestedThemeVariant="Default">
@@ -10,6 +11,9 @@
     </DataTemplate>
     <DataTemplate DataType="editors:FacilityKindLevelEditorViewModel">
       <views:FacilityKindLevelEditorView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:ReferencePickerViewModel">
+      <views:ReferencePickerView />
     </DataTemplate>
   </Application.DataTemplates>
   <Application.Styles>

@@ -31,6 +31,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     private readonly UndoRedoHistory _history = new();
     private readonly ConfigReferenceIndex? _referenceIndex;
     private readonly IReferenceDeletionPrompt? _referenceDeletionPrompt;
+    private readonly Action<ConfigReferenceTarget>? _navigateReference;
     private bool _wasDirtyBeforeHistory;
     private int _savedHistoryPosition;
     private string _searchText = string.Empty;
@@ -51,13 +52,15 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         DocumentUiState? uiState = null,
         ConfigReferenceIndex? referenceIndex = null,
         IReferenceDeletionPrompt? referenceDeletionPrompt = null,
-        ConfigEditorProviderRegistry? editorProviderRegistry = null)
+        ConfigEditorProviderRegistry? editorProviderRegistry = null,
+        Action<ConfigReferenceTarget>? navigateReference = null)
     {
         Document = document;
         _clipboard = clipboard ?? new RecordClipboard();
         _uiState = uiState ?? new DocumentUiState();
         _referenceIndex = referenceIndex;
         _referenceDeletionPrompt = referenceDeletionPrompt;
+        _navigateReference = navigateReference;
         _wasDirtyBeforeHistory = document.IsDirty;
         _properties = metadataProvider.GetProperties(document.Definition.ItemType);
         FilterFields = [
@@ -890,7 +893,8 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
                 property,
                 (editor, oldValue, newValue) =>
                     RecordPropertyChanged(record, editor, oldValue, newValue),
-                GetReferenceTargets(property)));
+                GetReferenceTargets(property),
+                _navigateReference));
         }
 
         RefreshRawJson();

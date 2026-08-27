@@ -13,6 +13,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
     private readonly object _owner;
     private readonly PropertyInfo _property;
     private readonly Action<PropertyEditorViewModel, object?, object?> _changed;
+    private readonly Action<ConfigReferenceTarget>? _navigateReference;
     private bool _isSynchronizing;
     private bool _isValidationTarget;
 
@@ -20,11 +21,13 @@ public sealed class PropertyEditorViewModel : ObservableObject
         object owner,
         ConfigPropertyDefinition definition,
         Action<PropertyEditorViewModel, object?, object?> changed,
-        IReadOnlyList<ConfigReferenceTarget>? referenceTargets = null)
+        IReadOnlyList<ConfigReferenceTarget>? referenceTargets = null,
+        Action<ConfigReferenceTarget>? navigateReference = null)
     {
         _owner = owner;
         Definition = definition;
         _changed = changed;
+        _navigateReference = navigateReference;
         _property = owner.GetType().GetProperty(definition.Name)
             ?? throw new InvalidOperationException($"找不到属性 {definition.Name}。");
 
@@ -43,6 +46,18 @@ public sealed class PropertyEditorViewModel : ObservableObject
         }
 
         AddCollectionItemCommand = new RelayCommand(AddCollectionItem, () => Definition.CanWrite);
+        if (IsReference && !IsCollection)
+        {
+            Action<ReferenceOptionViewModel>? navigate = _navigateReference is null
+                ? null
+                : NavigateToReference;
+            ReferencePicker = new ReferencePickerViewModel(
+                ReferenceOptions,
+                GetCurrentScalarReferenceId,
+                option => SelectedReference = option,
+                navigate);
+        }
+
         ReloadCollectionItems();
         ReloadReferenceOptions(referenceTargets ?? []);
     }
@@ -71,6 +86,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
     public IReadOnlyList<string> Options { get; } = [];
     public ObservableCollection<CollectionItemViewModel> CollectionItems { get; } = [];
     public ObservableCollection<ReferenceOptionViewModel> ReferenceOptions { get; } = [];
+    public ReferencePickerViewModel? ReferencePicker { get; }
     public ICommand AddCollectionItemCommand { get; }
 
     internal void SetValidationTarget(bool isTarget) => IsValidationTarget = isTarget;
@@ -186,6 +202,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(BooleanValue));
         OnPropertyChanged(nameof(SelectedOption));
         OnPropertyChanged(nameof(SelectedReference));
+        ReferencePicker?.RefreshSelection();
         OnPropertyChanged(nameof(ReadOnlyValue));
         if (reloadCollection)
         {
@@ -208,16 +225,20 @@ public sealed class PropertyEditorViewModel : ObservableObject
             ReferenceOptions.Add(new ReferenceOptionViewModel(emptyValue, "（无）", false));
         }
 
-        foreach (var target in targets
+        foreach (var targetGroup in targets
                      .Where(target => !Definition.Reference.IsEmpty(target.Id))
                      .GroupBy(target => target.Id)
-                     .Select(group => group.First())
-                     .OrderBy(target => target.Id))
+                     .OrderBy(group => group.Key))
         {
+            var target = targetGroup.First();
+            var isDuplicate = targetGroup.Count() > 1;
             ReferenceOptions.Add(new ReferenceOptionViewModel(
                 target.Id,
-                $"#{target.Id} · {target.DisplayName}",
-                false));
+                isDuplicate
+                    ? $"#{target.Id} · {target.DisplayName} [目标 ID 重复]"
+                    : $"#{target.Id} · {target.DisplayName}",
+                isDuplicate,
+                isDuplicate ? null : target));
         }
 
         foreach (var currentId in currentIds.Where(currentId =>
@@ -230,6 +251,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(SelectedReference));
+        ReferencePicker?.RefreshOptions();
         foreach (var item in CollectionItems)
         {
             item.RefreshReferenceSelection();
@@ -286,8 +308,23 @@ public sealed class PropertyEditorViewModel : ObservableObject
             CommitCollection,
             () => RemoveCollectionItem(item!),
             IsReference,
-            ReferenceOptions);
+            ReferenceOptions,
+            _navigateReference);
         return item;
+    }
+
+    private int? GetCurrentScalarReferenceId()
+    {
+        var value = _property.GetValue(_owner);
+        return value is null ? null : Convert.ToInt32(value, CultureInfo.InvariantCulture);
+    }
+
+    private void NavigateToReference(ReferenceOptionViewModel option)
+    {
+        if (option.Target is not null)
+        {
+            _navigateReference?.Invoke(option.Target);
+        }
     }
 
     private void AddCollectionItem()
@@ -410,7 +447,11 @@ public sealed class PropertyEditorViewModel : ObservableObject
     }
 }
 
-public sealed record ReferenceOptionViewModel(int Id, string Label, bool IsMissing);
+public sealed record ReferenceOptionViewModel(
+    int Id,
+    string Label,
+    bool IsMissing,
+    ConfigReferenceTarget? Target = null);
 
 public sealed class CollectionItemViewModel : ObservableObject
 {
@@ -423,7 +464,8 @@ public sealed class CollectionItemViewModel : ObservableObject
         Action changed,
         Action remove,
         bool isReference = false,
-        IReadOnlyList<ReferenceOptionViewModel>? referenceOptions = null)
+        IReadOnlyList<ReferenceOptionViewModel>? referenceOptions = null,
+        Action<ConfigReferenceTarget>? navigateReference = null)
     {
         _valueText = value is IFormattable formattable
             ? formattable.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty
@@ -432,6 +474,24 @@ public sealed class CollectionItemViewModel : ObservableObject
         ValueType = valueType;
         IsReference = isReference;
         ReferenceOptions = referenceOptions ?? [];
+        if (IsReference)
+        {
+            Action<ReferenceOptionViewModel>? navigate = navigateReference is null
+                ? null
+                : option =>
+                {
+                    if (option.Target is not null)
+                    {
+                        navigateReference(option.Target);
+                    }
+                };
+            ReferencePicker = new ReferencePickerViewModel(
+                ReferenceOptions,
+                GetCurrentReferenceId,
+                option => SelectedReference = option,
+                navigate);
+        }
+
         RemoveCommand = new RelayCommand(remove);
     }
 
@@ -440,6 +500,7 @@ public sealed class CollectionItemViewModel : ObservableObject
     public bool ShowText => !IsReference;
     public bool ShowReference => IsReference;
     public IReadOnlyList<ReferenceOptionViewModel> ReferenceOptions { get; }
+    public ReferencePickerViewModel? ReferencePicker { get; }
     public ICommand RemoveCommand { get; }
 
     public ReferenceOptionViewModel? SelectedReference
@@ -470,11 +531,20 @@ public sealed class CollectionItemViewModel : ObservableObject
             if (SetProperty(ref _valueText, value))
             {
                 OnPropertyChanged(nameof(SelectedReference));
+                ReferencePicker?.RefreshSelection();
                 _changed();
             }
         }
     }
 
-    public void RefreshReferenceSelection() =>
+    public void RefreshReferenceSelection()
+    {
         OnPropertyChanged(nameof(SelectedReference));
+        ReferencePicker?.RefreshOptions();
+    }
+
+    private int? GetCurrentReferenceId() =>
+        int.TryParse(ValueText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)
+            ? id
+            : null;
 }

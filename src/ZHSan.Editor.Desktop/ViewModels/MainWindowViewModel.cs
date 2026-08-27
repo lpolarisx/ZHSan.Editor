@@ -826,7 +826,8 @@ public sealed class MainWindowViewModel : ObservableObject
                     _uiState.GetDocument(document.Definition.Key),
                     referenceIndex,
                     _referenceDeletionPrompt,
-                    _editorProviderRegistry))
+                    _editorProviderRegistry,
+                    NavigateToReference))
                 .ToArray();
 
             foreach (var document in documents)
@@ -1300,6 +1301,22 @@ public sealed class MainWindowViewModel : ObservableObject
         StatusText = $"已定位到 {document.DisplayName} · " +
             (issue.ItemId is { } id ? $"ID {id}" : "整表") +
             (issue.PropertyName is null ? string.Empty : $" · {issue.PropertyName}");
+    }
+
+    private void NavigateToReference(ConfigReferenceTarget target)
+    {
+        var document = _documents.FirstOrDefault(candidate =>
+            string.Equals(candidate.Key, target.ConfigKey, StringComparison.OrdinalIgnoreCase));
+        if (document is null)
+        {
+            StatusText = $"无法定位：未找到配置 {target.ConfigKey}";
+            return;
+        }
+
+        SelectDocument(document);
+        document.NavigateTo(target.Id, null);
+        SelectedDetailsTabIndex = 0;
+        StatusText = $"已定位到 {document.DisplayName} · ID {target.Id}";
     }
 
     private static string FormatValidationCounts(ValidationReport report) =>

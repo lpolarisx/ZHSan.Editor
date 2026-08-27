@@ -337,11 +337,13 @@ public sealed class ConfigDocumentViewModelTests
         var metadata = new ReflectionConfigMetadataProvider();
         var index = new ConfigReferenceIndex(metadata);
         index.Rebuild(project);
+        ConfigReferenceTarget? navigatedTarget = null;
         var viewModel = new ConfigDocumentViewModel(
             document,
             metadata,
             _ => { },
-            referenceIndex: index);
+            referenceIndex: index,
+            navigateReference: target => navigatedTarget = target);
         viewModel.SelectedRecord = viewModel.Records[1];
         var editor = Assert.Single(
             viewModel.PropertyEditors,
@@ -351,18 +353,68 @@ public sealed class ConfigDocumentViewModelTests
         Assert.False(editor.ShowNumber);
         Assert.Equal(3, editor.ReferenceOptions.Count);
         Assert.Contains("基础技术", editor.SelectedReference?.Label);
+        var picker = Assert.IsType<ReferencePickerViewModel>(editor.ReferencePicker);
 
-        editor.SelectedReference = Assert.Single(
-            editor.ReferenceOptions,
+        picker.SearchText = "进阶";
+
+        Assert.Equal(2, picker.FilteredOptions.Count);
+        Assert.Contains(picker.FilteredOptions, option => option.Id == 1);
+        Assert.Contains(picker.FilteredOptions, option => option.Id == 2);
+
+        picker.SelectedOption = Assert.Single(
+            picker.FilteredOptions,
             option => option.Id == 2);
 
         Assert.Equal(2, second.PreID);
         Assert.True(document.IsDirty);
+        Assert.True(picker.NavigateCommand.CanExecute(null));
+
+        picker.NavigateCommand.Execute(null);
+
+        Assert.Equal(2, navigatedTarget?.Id);
 
         viewModel.UndoCommand.Execute(null);
 
         Assert.Equal(1, second.PreID);
         Assert.False(document.IsDirty);
+    }
+
+    [Fact]
+    public void ReferenceEditor_MarksMissingAndDuplicateTargetsAsInvalid()
+    {
+        var first = new TechniqueConfig { Id = 1, Name = "重复一" };
+        var duplicate = new TechniqueConfig { Id = 1, Name = "重复二" };
+        var source = new TechniqueConfig { Id = 2, Name = "来源", PreID = 404 };
+        var document = new ConfigDocument
+        {
+            Definition = new ConfigDefinition(
+                "techniques", "技术", "测试", "Techniques.json", typeof(TechniqueConfig)),
+            Items = [first, duplicate, source],
+        };
+        var project = new EditorProject
+        {
+            ArchivePath = "test.dat",
+            Documents = [document],
+        };
+        var metadata = new ReflectionConfigMetadataProvider();
+        var index = new ConfigReferenceIndex(metadata);
+        index.Rebuild(project);
+        var viewModel = new ConfigDocumentViewModel(
+            document,
+            metadata,
+            _ => { },
+            referenceIndex: index);
+        viewModel.SelectedRecord = viewModel.Records[2];
+        var editor = Assert.Single(
+            viewModel.PropertyEditors,
+            property => property.Definition.Name == nameof(TechniqueConfig.PreID));
+        var picker = Assert.IsType<ReferencePickerViewModel>(editor.ReferencePicker);
+
+        Assert.True(editor.ReferenceOptions.Single(option => option.Id == 1).IsMissing);
+        Assert.Contains("重复", editor.ReferenceOptions.Single(option => option.Id == 1).Label);
+        Assert.True(picker.HasMissingSelection);
+        Assert.False(picker.NavigateCommand.CanExecute(null));
+        Assert.Contains("不存在", picker.SelectedOption?.Label);
     }
 
     [Fact]
@@ -416,9 +468,14 @@ public sealed class ConfigDocumentViewModelTests
 
         Assert.True(itemEditor.ShowReference);
         Assert.Contains("影响一", itemEditor.SelectedReference?.Label);
+        var picker = Assert.IsType<ReferencePickerViewModel>(itemEditor.ReferencePicker);
 
-        itemEditor.SelectedReference = Assert.Single(
-            itemEditor.ReferenceOptions,
+        picker.SearchText = "影响二";
+
+        Assert.Equal(2, picker.FilteredOptions.Count);
+
+        picker.SelectedOption = Assert.Single(
+            picker.FilteredOptions,
             option => option.Id == 20);
 
         Assert.Equal([20], treasure.EligibleInfluenceIDs);
