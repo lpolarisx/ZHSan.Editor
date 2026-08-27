@@ -5,6 +5,7 @@ using ZHSan.Editor.Application.Abstractions;
 using ZHSan.Editor.Application.Exporting;
 using ZHSan.Editor.Application.Importing;
 using ZHSan.Editor.Application.Projects;
+using ZHSan.Editor.Application.Publishing;
 using ZHSan.Editor.Application.References;
 using ZHSan.Editor.Application.Settings;
 using ZHSan.Editor.Application.Transfers;
@@ -29,6 +30,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly ConfigImportService? _configImportService;
     private readonly IConfigTransferLogStore? _configTransferLogStore;
     private readonly ConfigExportService? _configExportService;
+    private readonly PublishArchiveService? _publishArchiveService;
     private readonly IEditorSettingsStore _editorSettingsStore;
     private readonly EditorSettings _editorSettings;
     private readonly EditorUiStateStore _uiStateStore;
@@ -69,7 +71,8 @@ public sealed class MainWindowViewModel : ObservableObject
         IReferenceDeletionPrompt? referenceDeletionPrompt = null,
         ConfigImportService? configImportService = null,
         IConfigTransferLogStore? configTransferLogStore = null,
-        ConfigExportService? configExportService = null)
+        ConfigExportService? configExportService = null,
+        PublishArchiveService? publishArchiveService = null)
     {
         _openArchiveService = openArchiveService;
         _saveArchiveService = saveArchiveService;
@@ -83,6 +86,7 @@ public sealed class MainWindowViewModel : ObservableObject
         _configImportService = configImportService;
         _configTransferLogStore = configTransferLogStore;
         _configExportService = configExportService;
+        _publishArchiveService = publishArchiveService;
         _editorSettingsStore = editorSettingsStore;
         _editorSettings = editorSettingsStore.Load();
         _uiStateStore = uiStateStore;
@@ -97,6 +101,7 @@ public sealed class MainWindowViewModel : ObservableObject
         ImportArchiveCommand = new AsyncCommand(ImportArchiveAsync, CanImportArchive);
         ExportJsonCommand = new AsyncCommand(ExportJsonAsync, CanExportJson);
         ExportProjectDirectoryCommand = new AsyncCommand(ExportProjectDirectoryAsync, CanExportProjectDirectory);
+        PublishCommand = new AsyncCommand(PublishAsync, CanPublish);
         ApplyImportCommand = new RelayCommand(ApplyImport, CanApplyImport);
         CancelImportPreviewCommand = new RelayCommand(ClearImportPreview, () => HasImportPreview);
         ValidateCommand = new RelayCommand(ValidateProject, () => !IsBusy && _project is not null);
@@ -152,6 +157,7 @@ public sealed class MainWindowViewModel : ObservableObject
     public ICommand ImportArchiveCommand { get; }
     public ICommand ExportJsonCommand { get; }
     public ICommand ExportProjectDirectoryCommand { get; }
+    public ICommand PublishCommand { get; }
     public ICommand ApplyImportCommand { get; }
     public ICommand CancelImportPreviewCommand { get; }
     public ICommand ValidateCommand { get; }
@@ -206,8 +212,8 @@ public sealed class MainWindowViewModel : ObservableObject
         : $"导入预览 ({ImportDifferenceRows.Count})";
 
     public string ImportLogTabHeader => ImportLogEntries.Count == 0
-        ? "导入/导出日志"
-        : $"导入/导出日志 ({ImportLogEntries.Count})";
+        ? "导入/导出/发布日志"
+        : $"导入/导出/发布日志 ({ImportLogEntries.Count})";
 
     public int SelectedDetailsTabIndex
     {
@@ -301,6 +307,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 ((AsyncCommand)ImportArchiveCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)ExportJsonCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)ExportProjectDirectoryCommand).RaiseCanExecuteChanged();
+                ((AsyncCommand)PublishCommand).RaiseCanExecuteChanged();
                 ((RelayCommand)ValidateCommand).RaiseCanExecuteChanged();
                 ((RelayCommand)ApplyImportCommand).RaiseCanExecuteChanged();
             }
@@ -542,6 +549,64 @@ public sealed class MainWindowViewModel : ObservableObject
         result.Successes.Count == 1 && result.Failures.Count == 0
             ? result.Successes[0]
             : throw new InvalidOperationException("单配置导出没有返回唯一成功结果。");
+
+    private async Task PublishAsync()
+    {
+        var project = _project;
+        if (project is null || _publishArchiveService is null)
+        {
+            return;
+        }
+
+        var path = await _archivePicker.PickPublishArchiveAsync(Path.GetFileName(project.ArchivePath));
+        if (path is null)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        ErrorMessage = null;
+        StatusText = "正在校验并发布游戏配置包…";
+        try
+        {
+            var result = await _publishArchiveService.PublishAsync(project, path);
+            UpdateValidationResults(result.ValidationReport, !result.Published);
+            if (!result.Published)
+            {
+                var counts = FormatValidationCounts(result.ValidationReport);
+                StatusText = $"发布已阻止：{counts}";
+                AddTransferLog(path, "游戏配置包", "已阻止", counts, "发布");
+                SelectedDetailsTabIndex = 1;
+                return;
+            }
+
+            AddTransferLog(
+                result.DestinationPath,
+                "游戏配置包",
+                "成功",
+                $"已发布 {result.ConfigCount} 项配置、{result.ItemCount} 条记录到 {result.DestinationPath}",
+                "发布");
+            StatusText = $"发布完成：{result.ConfigCount} 项配置，共 {result.ItemCount} 条记录";
+            SelectedDetailsTabIndex = 6;
+        }
+        catch (ArchiveConflictException exception)
+        {
+            ShowExternalChange(exception.ArchivePath);
+            StatusText = "发布已阻止：工作档案发生外部变更";
+            AddTransferLog(path, "游戏配置包", "失败", exception.Message, "发布");
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            var message = exception.GetBaseException().Message;
+            ErrorMessage = message;
+            StatusText = "发布游戏配置包失败";
+            AddTransferLog(path, "游戏配置包", "失败", message, "发布");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
 
     private async Task ReadImportSourceAsync(
         string path,
@@ -1005,6 +1070,7 @@ public sealed class MainWindowViewModel : ObservableObject
         ((AsyncCommand)ImportArchiveCommand).RaiseCanExecuteChanged();
         ((AsyncCommand)ExportJsonCommand).RaiseCanExecuteChanged();
         ((AsyncCommand)ExportProjectDirectoryCommand).RaiseCanExecuteChanged();
+        ((AsyncCommand)PublishCommand).RaiseCanExecuteChanged();
         ((RelayCommand)ValidateCommand).RaiseCanExecuteChanged();
     }
 
@@ -1027,6 +1093,9 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private bool CanExportProjectDirectory() =>
         !IsBusy && _configExportService is not null && _project is not null;
+
+    private bool CanPublish() =>
+        !IsBusy && _publishArchiveService is not null && _project is not null;
 
     private void RefreshProjectState()
     {

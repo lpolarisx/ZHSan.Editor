@@ -23,4 +23,9 @@ public interface IArchivePicker
 
     Task<string?> PickExportDirectoryAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<string?>(null);
+
+    Task<string?> PickPublishArchiveAsync(
+        string suggestedFileName,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<string?>(null);
 }

@@ -82,6 +82,14 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
             },
             cancellationToken);
 
+    public Task PublishAsync(
+        EditorProject project,
+        string destinationPath,
+        CancellationToken cancellationToken = default) =>
+        Task.Run(
+            () => PublishProject(project, destinationPath, cancellationToken),
+            cancellationToken);
+
     private static EditorProject LoadProject(
         string archivePath,
         IReadOnlyList<ConfigDefinition> definitions,
@@ -126,6 +134,113 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
             Path.GetFullPath(left),
             Path.GetFullPath(right),
             OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+
+    private static void PublishProject(
+        EditorProject project,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
+
+        var sourcePath = Path.GetFullPath(project.ArchivePath);
+        var targetPath = Path.GetFullPath(destinationPath);
+        if (PathsEqual(sourcePath, targetPath))
+        {
+            throw new ArgumentException("发布路径不能与当前工作档案相同。", nameof(destinationPath));
+        }
+
+        var targetDirectory = Path.GetDirectoryName(targetPath)
+            ?? throw new InvalidOperationException("发布文件路径无效。");
+        Directory.CreateDirectory(targetDirectory);
+        var stagingPath = targetPath + ".publish.tmp";
+        var stagingBackupPath = stagingPath + ".bak";
+        var targetBackupPath = targetPath + ".bak";
+
+        try
+        {
+            if (HasRevisionConflict(project, sourcePath))
+            {
+                throw new ArchiveConflictException(sourcePath);
+            }
+
+            SaveDocuments(
+                project,
+                stagingPath,
+                project.Documents,
+                updateProjectPath: false,
+                markSaved: false,
+                cancellationToken);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (HasRevisionConflict(project, sourcePath))
+            {
+                throw new ArchiveConflictException(sourcePath);
+            }
+
+            var verifiedProject = LoadProject(
+                stagingPath,
+                project.Documents.Select(document => document.Definition).ToArray(),
+                cancellationToken);
+            VerifyPublishedProject(project, verifiedProject);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (HasRevisionConflict(project, sourcePath))
+            {
+                throw new ArchiveConflictException(sourcePath);
+            }
+
+            if (File.Exists(targetPath))
+            {
+                File.Replace(stagingPath, targetPath, targetBackupPath, true);
+            }
+            else
+            {
+                File.Move(stagingPath, targetPath);
+            }
+        }
+        finally
+        {
+            DeleteIfExists(stagingPath);
+            DeleteIfExists(stagingPath + ".tmp");
+            DeleteIfExists(stagingBackupPath);
+        }
+    }
+
+    private static void VerifyPublishedProject(EditorProject source, EditorProject published)
+    {
+        if (source.Documents.Count != published.Documents.Count)
+        {
+            throw new InvalidDataException(
+                $"发布档案验证失败：预期 {source.Documents.Count} 项配置，实际读取 {published.Documents.Count} 项。");
+        }
+
+        var publishedByKey = published.Documents.ToDictionary(
+            document => document.Definition.Key,
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var sourceDocument in source.Documents)
+        {
+            if (!publishedByKey.TryGetValue(sourceDocument.Definition.Key, out var publishedDocument))
+            {
+                throw new InvalidDataException(
+                    $"发布档案验证失败：缺少配置 {sourceDocument.Definition.DisplayName}。");
+            }
+
+            if (sourceDocument.Items.Count != publishedDocument.Items.Count)
+            {
+                throw new InvalidDataException(
+                    $"发布档案验证失败：配置 {sourceDocument.Definition.DisplayName} " +
+                    $"预期 {sourceDocument.Items.Count} 条记录，实际读取 {publishedDocument.Items.Count} 条。");
+            }
+        }
+    }
+
+    private static void DeleteIfExists(string path)
+    {
+        if (File.Exists(path))
+        {
+            File.Delete(path);
+        }
+    }
 
     private static void SaveDocuments(
         EditorProject project,

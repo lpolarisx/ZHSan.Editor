@@ -27,6 +27,7 @@
     <KeyBinding Gesture="Ctrl+Shift+I" Command="{Binding ImportArchiveCommand}" />
     <KeyBinding Gesture="Ctrl+E" Command="{Binding ExportJsonCommand}" />
     <KeyBinding Gesture="Ctrl+Shift+E" Command="{Binding ExportProjectDirectoryCommand}" />
+    <KeyBinding Gesture="Ctrl+Shift+P" Command="{Binding PublishCommand}" />
   </Window.KeyBindings>
   <DockPanel>
     <Menu DockPanel.Dock="Top">
@@ -58,6 +59,8 @@
         <Separator />
         <MenuItem Header="导出当前配置 JSON…" Command="{Binding ExportJsonCommand}" InputGesture="Ctrl+E" />
         <MenuItem Header="导出全项目到目录…" Command="{Binding ExportProjectDirectoryCommand}" InputGesture="Ctrl+Shift+E" />
+        <Separator />
+        <MenuItem Header="发布游戏配置包…" Command="{Binding PublishCommand}" InputGesture="Ctrl+Shift+P" />
         <Separator />
         <MenuItem Header="校验项目" Command="{Binding ValidateCommand}" InputGesture="F8" />
       </MenuItem>
@@ -491,7 +494,7 @@
 
             <TabItem Header="{Binding ImportLogTabHeader}">
               <Grid RowDefinitions="Auto,*" Margin="12">
-                <TextBlock Text="导入/导出日志与失败详情" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8" />
+                <TextBlock Text="导入/导出/发布日志与失败详情" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8" />
                 <ListBox Grid.Row="1" ItemsSource="{Binding ImportLogEntries}">
                   <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:ImportLogEntryViewModel">

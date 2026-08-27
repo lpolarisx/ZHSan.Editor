@@ -28,4 +28,10 @@ public interface IGameDataArchiveRepository
         EditorProject project,
         string destinationPath,
         CancellationToken cancellationToken = default);
+
+    Task PublishAsync(
+        EditorProject project,
+        string destinationPath,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("当前档案仓储不支持发布。");
 }

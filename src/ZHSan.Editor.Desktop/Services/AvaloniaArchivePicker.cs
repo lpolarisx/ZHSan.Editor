@@ -102,4 +102,21 @@ public sealed class AvaloniaArchivePicker(Window owner) : IArchivePicker
         cancellationToken.ThrowIfCancellationRequested();
         return folders.Count == 0 ? null : folders[0].TryGetLocalPath();
     }
+
+    public async Task<string?> PickPublishArchiveAsync(
+        string suggestedFileName,
+        CancellationToken cancellationToken = default)
+    {
+        var file = await owner.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "发布游戏配置包（请选择工作档案之外的位置）",
+            SuggestedFileName = suggestedFileName,
+            DefaultExtension = "dat",
+            FileTypeChoices = [ArchiveFileType, FilePickerFileTypes.All],
+            ShowOverwritePrompt = true
+        });
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return file?.TryGetLocalPath();
+    }
 }

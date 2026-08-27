@@ -7,6 +7,7 @@ using ZHSan.Editor.Application.Differences;
 using ZHSan.Editor.Application.Exporting;
 using ZHSan.Editor.Application.Importing;
 using ZHSan.Editor.Application.Projects;
+using ZHSan.Editor.Application.Publishing;
 using ZHSan.Editor.Application.Validation;
 using ZHSan.Editor.Desktop.Services;
 using ZHSan.Editor.Desktop.ViewModels;
@@ -50,6 +51,7 @@ public sealed partial class App : Avalonia.Application
             services.AddSingleton<ConfigImportMergeService>();
             services.AddSingleton<ConfigImportService>();
             services.AddSingleton<ConfigExportService>();
+            services.AddSingleton<PublishArchiveService>();
             services.AddSingleton<EditorUiStateStore>();
             services.AddSingleton<IArchivePicker>(new AvaloniaArchivePicker(mainWindow));
             services.AddSingleton<IUnsavedChangesPrompt>(new AvaloniaUnsavedChangesPrompt(mainWindow));

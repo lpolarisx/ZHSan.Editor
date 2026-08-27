@@ -369,4 +369,134 @@ public sealed class GameDataArchiveRepositoryTests
         }
     }
 
+    [Fact]
+    public async Task PublishAsync_WritesVerifiedIndependentArchiveAndPreservesUnmanagedEntries()
+    {
+        var testDirectory = Path.Combine(Path.GetTempPath(), "ZHSan.Editor.Tests", Guid.NewGuid().ToString("N"));
+        var sourcePath = Path.Combine(testDirectory, "CommonData.dat");
+        var publishPath = Path.Combine(testDirectory, "release", "CommonData.dat");
+        Directory.CreateDirectory(testDirectory);
+
+        try
+        {
+            using (var archive = GameDataArchive.Open(sourcePath))
+            {
+                archive.Save("Techniques.json", new List<TechniqueConfig>
+                {
+                    new() { Id = 1, Name = "工作档案" }
+                });
+            }
+            using (var zip = ZipFile.Open(sourcePath, ZipArchiveMode.Update))
+            using (var writer = new StreamWriter(zip.CreateEntry("Colors.json").Open()))
+            {
+                await writer.WriteAsync("{\"accent\":\"blue\"}");
+            }
+
+            var repository = new GameDataArchiveRepository();
+            var definition = new ConfigDefinition(
+                "techniques", "技术", "测试", "Techniques.json", typeof(TechniqueConfig));
+            var project = await repository.LoadAsync(sourcePath, [definition]);
+            ((TechniqueConfig)project.Documents[0].Items[0]).Name = "正式发布";
+            project.Documents[0].IsDirty = true;
+
+            await repository.PublishAsync(project, publishPath);
+
+            Assert.Equal(Path.GetFullPath(sourcePath), project.ArchivePath);
+            Assert.True(project.Documents[0].IsDirty);
+            Assert.False(File.Exists(publishPath + ".publish.tmp"));
+            using (var source = GameDataArchive.Open(sourcePath))
+            using (var published = GameDataArchive.Open(publishPath))
+            {
+                Assert.Equal("工作档案", source.Load<List<TechniqueConfig>>("Techniques.json")![0].Name);
+                Assert.Equal("正式发布", published.Load<List<TechniqueConfig>>("Techniques.json")![0].Name);
+            }
+
+            using var publishedZip = ZipFile.OpenRead(publishPath);
+            using var colorsReader = new StreamReader(publishedZip.GetEntry("Colors.json")!.Open());
+            Assert.Equal("{\"accent\":\"blue\"}", await colorsReader.ReadToEndAsync());
+        }
+        finally
+        {
+            Directory.Delete(testDirectory, true);
+        }
+    }
+
+    [Fact]
+    public async Task PublishAsync_CurrentArchivePath_IsRejectedWithoutChangingSource()
+    {
+        var testDirectory = Path.Combine(Path.GetTempPath(), "ZHSan.Editor.Tests", Guid.NewGuid().ToString("N"));
+        var sourcePath = Path.Combine(testDirectory, "CommonData.dat");
+        Directory.CreateDirectory(testDirectory);
+
+        try
+        {
+            using (var archive = GameDataArchive.Open(sourcePath))
+            {
+                archive.Save("Techniques.json", new List<TechniqueConfig>
+                {
+                    new() { Id = 1, Name = "原始内容" }
+                });
+            }
+
+            var repository = new GameDataArchiveRepository();
+            var definition = new ConfigDefinition(
+                "techniques", "技术", "测试", "Techniques.json", typeof(TechniqueConfig));
+            var project = await repository.LoadAsync(sourcePath, [definition]);
+            ((TechniqueConfig)project.Documents[0].Items[0]).Name = "未发布内容";
+
+            var exception = await Assert.ThrowsAsync<ArgumentException>(
+                () => repository.PublishAsync(project, sourcePath));
+
+            Assert.Contains("不能与当前工作档案相同", exception.Message);
+            using var source = GameDataArchive.Open(sourcePath);
+            Assert.Equal("原始内容", source.Load<List<TechniqueConfig>>("Techniques.json")![0].Name);
+        }
+        finally
+        {
+            Directory.Delete(testDirectory, true);
+        }
+    }
+
+    [Fact]
+    public async Task PublishAsync_ExternallyChangedSource_IsRejectedBeforeCreatingArtifact()
+    {
+        var testDirectory = Path.Combine(Path.GetTempPath(), "ZHSan.Editor.Tests", Guid.NewGuid().ToString("N"));
+        var sourcePath = Path.Combine(testDirectory, "CommonData.dat");
+        var publishPath = Path.Combine(testDirectory, "release", "CommonData.dat");
+        Directory.CreateDirectory(testDirectory);
+
+        try
+        {
+            using (var archive = GameDataArchive.Open(sourcePath))
+            {
+                archive.Save("Techniques.json", new List<TechniqueConfig>
+                {
+                    new() { Id = 1, Name = "初始" }
+                });
+            }
+
+            var repository = new GameDataArchiveRepository();
+            var definition = new ConfigDefinition(
+                "techniques", "技术", "测试", "Techniques.json", typeof(TechniqueConfig));
+            var project = await repository.LoadAsync(sourcePath, [definition]);
+            using (var archive = GameDataArchive.Open(sourcePath))
+            {
+                archive.Save("Techniques.json", new List<TechniqueConfig>
+                {
+                    new() { Id = 1, Name = "外部修改" }
+                });
+            }
+
+            await Assert.ThrowsAsync<ArchiveConflictException>(
+                () => repository.PublishAsync(project, publishPath));
+
+            Assert.False(File.Exists(publishPath));
+            Assert.False(File.Exists(publishPath + ".publish.tmp"));
+        }
+        finally
+        {
+            Directory.Delete(testDirectory, true);
+        }
+    }
+
 }
