@@ -41,6 +41,7 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
     public ReferencePickerViewModel AddPicker { get; }
     public string FormatDescription => _definition.FormatDescription;
     public bool IsWeighted => _definition.Kind == ConfigStructuredStringKind.WeightedConditionPairs;
+    public bool IsInfluenceList => _definition.Kind == ConfigStructuredStringKind.InfluenceIds;
     public bool CanUseStructuredEditor => _parseErrors.Count == 0;
     public bool HasIssues => IssueCount > 0;
     public int IssueCount => GetIssues().Count;
@@ -107,6 +108,8 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
             id,
             weight,
             IsWeighted,
+            canReplaceReference: !IsInfluenceList,
+            canReorder: !IsInfluenceList,
             _options,
             _navigateReference,
             entry => ReplaceId(entry, entry.Id),
@@ -164,7 +167,7 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
 
     private void Move(StructuredRuleStringEntryViewModel entry, int offset)
     {
-        if (!CanUseStructuredEditor)
+        if (!CanUseStructuredEditor || IsInfluenceList)
         {
             return;
         }
@@ -263,6 +266,8 @@ public sealed class StructuredRuleStringEntryViewModel : ObservableObject
         int id,
         float? weight,
         bool showWeight,
+        bool canReplaceReference,
+        bool canReorder,
         IReadOnlyList<ReferenceOptionViewModel> options,
         Action<ConfigReferenceTarget>? navigateReference,
         Action<StructuredRuleStringEntryViewModel> idChanged,
@@ -277,6 +282,8 @@ public sealed class StructuredRuleStringEntryViewModel : ObservableObject
         _idChanged = idChanged;
         _weightChanged = weightChanged;
         ShowWeight = showWeight;
+        CanReplaceReference = canReplaceReference;
+        CanReorder = canReorder;
         Options = options;
         Action<ReferenceOptionViewModel>? navigate = navigateReference is null
             ? null
@@ -292,7 +299,7 @@ public sealed class StructuredRuleStringEntryViewModel : ObservableObject
             () => Id,
             option =>
             {
-                if (option.Id != Id)
+                if (CanReplaceReference && option.Id != Id)
                 {
                     _id = option.Id;
                     _idChanged(this);
@@ -312,6 +319,11 @@ public sealed class StructuredRuleStringEntryViewModel : ObservableObject
     public int Id => _id;
     public float? Weight => _weight;
     public bool ShowWeight { get; }
+    public bool CanReplaceReference { get; }
+    public bool ShowReadOnlyReference => !CanReplaceReference;
+    public bool CanReorder { get; }
+    public string ReferenceLabel =>
+        ReferencePicker.SelectedOption?.Label ?? $"#{Id} · [目标不存在]";
     public int Position => _position;
     public bool CanMoveUp => _canMoveUp;
     public bool CanMoveDown => _canMoveDown;
@@ -350,6 +362,7 @@ public sealed class StructuredRuleStringEntryViewModel : ObservableObject
         OnPropertyChanged(nameof(Id));
         OnPropertyChanged(nameof(IsMissing));
         ReferencePicker.RefreshSelection();
+        OnPropertyChanged(nameof(ReferenceLabel));
     }
 
     internal void ApplyWeight(float weight)
@@ -365,8 +378,8 @@ public sealed class StructuredRuleStringEntryViewModel : ObservableObject
     internal void Refresh(int index, int count)
     {
         _position = index + 1;
-        _canMoveUp = index > 0;
-        _canMoveDown = index + 1 < count;
+        _canMoveUp = CanReorder && index > 0;
+        _canMoveDown = CanReorder && index + 1 < count;
         OnPropertyChanged(nameof(Position));
         OnPropertyChanged(nameof(CanMoveUp));
         OnPropertyChanged(nameof(CanMoveDown));
@@ -374,5 +387,6 @@ public sealed class StructuredRuleStringEntryViewModel : ObservableObject
         ((RelayCommand)MoveUpCommand).RaiseCanExecuteChanged();
         ((RelayCommand)MoveDownCommand).RaiseCanExecuteChanged();
         ReferencePicker.RefreshOptions();
+        OnPropertyChanged(nameof(ReferenceLabel));
     }
 }

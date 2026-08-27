@@ -26,6 +26,7 @@
                 <ComboBox Grid.Column="2"
                           ItemsSource="{Binding ReferencePicker.FilteredOptions}"
                           SelectedItem="{Binding ReferencePicker.SelectedOption, Mode=TwoWay}"
+                          IsVisible="{Binding CanReplaceReference}"
                           MinWidth="100"
                           PlaceholderText="引用目标不存在">
                   <ComboBox.ItemTemplate>
@@ -34,6 +35,14 @@
                     </DataTemplate>
                   </ComboBox.ItemTemplate>
                 </ComboBox>
+
+                <Border Grid.Column="2" IsVisible="{Binding ShowReadOnlyReference}"
+                        MinWidth="100" Padding="10,5" CornerRadius="3"
+                        BorderThickness="1"
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
+                  <TextBlock Text="{Binding ReferenceLabel}"
+                             TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                </Border>
 
                 <TextBlock Grid.Column="3" Text="!" Margin="5,0,0,0"
                            VerticalAlignment="Center" Foreground="#E5484D"
@@ -52,8 +61,10 @@
                            ToolTip.Tip="权重必须是有限数字" />
 
                 <Button Grid.Column="6" Content="↑" Command="{Binding MoveUpCommand}"
+                        IsVisible="{Binding CanReorder}"
                         Padding="6,2" Margin="4,0,0,0" ToolTip.Tip="上移" />
                 <Button Grid.Column="7" Content="↓" Command="{Binding MoveDownCommand}"
+                        IsVisible="{Binding CanReorder}"
                         Padding="6,2" Margin="3,0,0,0" ToolTip.Tip="下移" />
                 <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="3" Margin="3,0,0,0">
                   <Button Content="定位" Command="{Binding ReferencePicker.NavigateCommand}"

@@ -10,7 +10,7 @@ namespace ZHSan.Editor.Infrastructure.Tests;
 public sealed class StructuredRuleStringEditorViewModelTests
 {
     [Fact]
-    public void InfluenceEditor_UsesNamedTargetsAndRecordsReorderAsOneUndoStep()
+    public void InfluenceEditor_ShowsNamedTargetsWithoutReplacementOrReordering()
     {
         var technique = new TechniqueConfig { Id = 1, Name = "技术", InfluencesString = "10 20" };
         var (document, editor) = CreateEditor(
@@ -21,19 +21,22 @@ public sealed class StructuredRuleStringEditorViewModelTests
             ]);
 
         Assert.Equal(2, editor.Entries.Count);
-        Assert.Contains(editor.Entries[0].ReferencePicker.FilteredOptions, option => option.Label.Contains("影响甲"));
+        var first = editor.Entries[0];
+        Assert.Contains("影响甲", first.ReferenceLabel);
+        Assert.False(first.CanReplaceReference);
+        Assert.True(first.ShowReadOnlyReference);
+        Assert.False(first.CanReorder);
+        Assert.False(first.MoveDownCommand.CanExecute(null));
 
-        editor.Entries[0].MoveDownCommand.Execute(null);
+        first.MoveDownCommand.Execute(null);
 
-        Assert.Equal("20 10", technique.InfluencesString);
-        Assert.True(document.CanUndo);
-        document.UndoCommand.Execute(null);
         Assert.Equal("10 20", technique.InfluencesString);
+        Assert.False(document.CanUndo);
         Assert.Equal([10, 20], editor.Entries.Select(entry => entry.Id));
     }
 
     [Fact]
-    public void InfluenceEditor_ReplacesAndRemovesCompactRowsWithUndoSupport()
+    public void InfluenceEditor_PreventsReplacementAndRemovesCompactRowsWithUndoSupport()
     {
         var technique = new TechniqueConfig { Id = 1, Name = "技术", InfluencesString = "10 20" };
         var (document, editor) = CreateEditor(
@@ -49,10 +52,9 @@ public sealed class StructuredRuleStringEditorViewModelTests
 
         editor.Entries[0].ReferencePicker.SelectedOption = replacement;
 
-        Assert.Equal("30 20", technique.InfluencesString);
-        Assert.Equal([30, 20], editor.Entries.Select(entry => entry.Id));
-        document.UndoCommand.Execute(null);
         Assert.Equal("10 20", technique.InfluencesString);
+        Assert.Equal([10, 20], editor.Entries.Select(entry => entry.Id));
+        Assert.False(document.CanUndo);
 
         editor.Entries[1].RemoveCommand.Execute(null);
 
@@ -108,7 +110,11 @@ public sealed class StructuredRuleStringEditorViewModelTests
         editor.AddPicker.SelectedOption = option;
 
         Assert.Equal("30 1", technique.AIConditionWeightString);
-        Assert.Equal(1f, Assert.Single(editor.Entries).Weight);
+        var entry = Assert.Single(editor.Entries);
+        Assert.Equal(1f, entry.Weight);
+        Assert.True(entry.CanReplaceReference);
+        Assert.False(entry.ShowReadOnlyReference);
+        Assert.True(entry.CanReorder);
     }
 
     private static (ConfigDocumentViewModel Document, StructuredRuleStringEditorViewModel Editor) CreateEditor(
