@@ -128,7 +128,8 @@ public sealed record ImportLogEntryViewModel(
     string SourceName,
     string TargetName,
     string Status,
-    string Message)
+    string Message,
+    string Operation)
 {
     public string TimeText => Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
 }

@@ -25,6 +25,8 @@
     <KeyBinding Gesture="F8" Command="{Binding ValidateCommand}" />
     <KeyBinding Gesture="Ctrl+I" Command="{Binding ImportJsonCommand}" />
     <KeyBinding Gesture="Ctrl+Shift+I" Command="{Binding ImportArchiveCommand}" />
+    <KeyBinding Gesture="Ctrl+E" Command="{Binding ExportJsonCommand}" />
+    <KeyBinding Gesture="Ctrl+Shift+E" Command="{Binding ExportProjectDirectoryCommand}" />
   </Window.KeyBindings>
   <DockPanel>
     <Menu DockPanel.Dock="Top">
@@ -53,6 +55,9 @@
       <MenuItem Header="数据">
         <MenuItem Header="导入当前配置 JSON…" Command="{Binding ImportJsonCommand}" InputGesture="Ctrl+I" />
         <MenuItem Header="从数据档案批量导入…" Command="{Binding ImportArchiveCommand}" InputGesture="Ctrl+Shift+I" />
+        <Separator />
+        <MenuItem Header="导出当前配置 JSON…" Command="{Binding ExportJsonCommand}" InputGesture="Ctrl+E" />
+        <MenuItem Header="导出全项目到目录…" Command="{Binding ExportProjectDirectoryCommand}" InputGesture="Ctrl+Shift+E" />
         <Separator />
         <MenuItem Header="校验项目" Command="{Binding ValidateCommand}" InputGesture="F8" />
       </MenuItem>
@@ -486,16 +491,17 @@
 
             <TabItem Header="{Binding ImportLogTabHeader}">
               <Grid RowDefinitions="Auto,*" Margin="12">
-                <TextBlock Text="导入日志与失败详情" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8" />
+                <TextBlock Text="导入/导出日志与失败详情" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8" />
                 <ListBox Grid.Row="1" ItemsSource="{Binding ImportLogEntries}">
                   <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:ImportLogEntryViewModel">
                       <Border Padding="9,7" Margin="0,1" CornerRadius="4" Background="#0DFFFFFF">
                         <StackPanel Spacing="3">
-                          <Grid ColumnDefinitions="Auto,8,*,Auto">
-                            <TextBlock Text="{Binding Status}" FontWeight="SemiBold" />
-                            <TextBlock Grid.Column="2" Text="{Binding TargetName}" />
-                            <TextBlock Grid.Column="3" Text="{Binding TimeText}" FontSize="10" Opacity="0.55" />
+                          <Grid ColumnDefinitions="Auto,8,Auto,8,*,Auto">
+                            <TextBlock Text="{Binding Operation}" FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="2" Text="{Binding Status}" FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="4" Text="{Binding TargetName}" />
+                            <TextBlock Grid.Column="5" Text="{Binding TimeText}" FontSize="10" Opacity="0.55" />
                           </Grid>
                           <TextBlock Text="{Binding SourceName}" FontSize="11" Opacity="0.55" />
                           <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="11" Opacity="0.75" />

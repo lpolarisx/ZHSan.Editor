@@ -73,4 +73,33 @@ public sealed class AvaloniaArchivePicker(Window owner) : IArchivePicker
         cancellationToken.ThrowIfCancellationRequested();
         return files.Count == 0 ? null : files[0].TryGetLocalPath();
     }
+
+    public async Task<string?> PickSaveConfigJsonAsync(
+        string suggestedFileName,
+        CancellationToken cancellationToken = default)
+    {
+        var file = await owner.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "导出当前配置 JSON",
+            SuggestedFileName = suggestedFileName,
+            DefaultExtension = "json",
+            FileTypeChoices = [JsonFileType, FilePickerFileTypes.All],
+            ShowOverwritePrompt = true
+        });
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return file?.TryGetLocalPath();
+    }
+
+    public async Task<string?> PickExportDirectoryAsync(CancellationToken cancellationToken = default)
+    {
+        var folders = await owner.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "选择全项目 JSON 导出目录",
+            AllowMultiple = false
+        });
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return folders.Count == 0 ? null : folders[0].TryGetLocalPath();
+    }
 }

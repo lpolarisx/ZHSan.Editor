@@ -2,10 +2,12 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using Avalonia.Threading;
 using ZHSan.Editor.Application.Abstractions;
+using ZHSan.Editor.Application.Exporting;
 using ZHSan.Editor.Application.Importing;
 using ZHSan.Editor.Application.Projects;
 using ZHSan.Editor.Application.References;
 using ZHSan.Editor.Application.Settings;
+using ZHSan.Editor.Application.Transfers;
 using ZHSan.Editor.Application.Validation;
 using ZHSan.Editor.Desktop.Services;
 using ZHSan.Editor.Domain.Documents;
@@ -25,7 +27,8 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly IUnsavedChangesPrompt _unsavedChangesPrompt;
     private readonly IReferenceDeletionPrompt? _referenceDeletionPrompt;
     private readonly ConfigImportService? _configImportService;
-    private readonly IConfigImportLogStore? _configImportLogStore;
+    private readonly IConfigTransferLogStore? _configTransferLogStore;
+    private readonly ConfigExportService? _configExportService;
     private readonly IEditorSettingsStore _editorSettingsStore;
     private readonly EditorSettings _editorSettings;
     private readonly EditorUiStateStore _uiStateStore;
@@ -65,7 +68,8 @@ public sealed class MainWindowViewModel : ObservableObject
         EditorUiStateStore uiStateStore,
         IReferenceDeletionPrompt? referenceDeletionPrompt = null,
         ConfigImportService? configImportService = null,
-        IConfigImportLogStore? configImportLogStore = null)
+        IConfigTransferLogStore? configTransferLogStore = null,
+        ConfigExportService? configExportService = null)
     {
         _openArchiveService = openArchiveService;
         _saveArchiveService = saveArchiveService;
@@ -77,7 +81,8 @@ public sealed class MainWindowViewModel : ObservableObject
         _unsavedChangesPrompt = unsavedChangesPrompt;
         _referenceDeletionPrompt = referenceDeletionPrompt;
         _configImportService = configImportService;
-        _configImportLogStore = configImportLogStore;
+        _configTransferLogStore = configTransferLogStore;
+        _configExportService = configExportService;
         _editorSettingsStore = editorSettingsStore;
         _editorSettings = editorSettingsStore.Load();
         _uiStateStore = uiStateStore;
@@ -90,6 +95,8 @@ public sealed class MainWindowViewModel : ObservableObject
         SaveCopyCommand = new AsyncCommand(SaveCopyAsync, CanSaveProject);
         ImportJsonCommand = new AsyncCommand(ImportJsonAsync, CanImportJson);
         ImportArchiveCommand = new AsyncCommand(ImportArchiveAsync, CanImportArchive);
+        ExportJsonCommand = new AsyncCommand(ExportJsonAsync, CanExportJson);
+        ExportProjectDirectoryCommand = new AsyncCommand(ExportProjectDirectoryAsync, CanExportProjectDirectory);
         ApplyImportCommand = new RelayCommand(ApplyImport, CanApplyImport);
         CancelImportPreviewCommand = new RelayCommand(ClearImportPreview, () => HasImportPreview);
         ValidateCommand = new RelayCommand(ValidateProject, () => !IsBusy && _project is not null);
@@ -123,7 +130,7 @@ public sealed class MainWindowViewModel : ObservableObject
         ];
         _selectedImportStrategy = ImportStrategies[0];
         _selectedValidationSeverityFilter = ValidationSeverityFilters[0];
-        LoadImportLog();
+        LoadTransferLog();
         RefreshRecentProjects();
     }
 
@@ -143,6 +150,8 @@ public sealed class MainWindowViewModel : ObservableObject
     public ICommand SaveCopyCommand { get; }
     public ICommand ImportJsonCommand { get; }
     public ICommand ImportArchiveCommand { get; }
+    public ICommand ExportJsonCommand { get; }
+    public ICommand ExportProjectDirectoryCommand { get; }
     public ICommand ApplyImportCommand { get; }
     public ICommand CancelImportPreviewCommand { get; }
     public ICommand ValidateCommand { get; }
@@ -197,8 +206,8 @@ public sealed class MainWindowViewModel : ObservableObject
         : $"导入预览 ({ImportDifferenceRows.Count})";
 
     public string ImportLogTabHeader => ImportLogEntries.Count == 0
-        ? "导入日志"
-        : $"导入日志 ({ImportLogEntries.Count})";
+        ? "导入/导出日志"
+        : $"导入/导出日志 ({ImportLogEntries.Count})";
 
     public int SelectedDetailsTabIndex
     {
@@ -290,6 +299,8 @@ public sealed class MainWindowViewModel : ObservableObject
                 ((AsyncCommand)SaveCopyCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)ImportJsonCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)ImportArchiveCommand).RaiseCanExecuteChanged();
+                ((AsyncCommand)ExportJsonCommand).RaiseCanExecuteChanged();
+                ((AsyncCommand)ExportProjectDirectoryCommand).RaiseCanExecuteChanged();
                 ((RelayCommand)ValidateCommand).RaiseCanExecuteChanged();
                 ((RelayCommand)ApplyImportCommand).RaiseCanExecuteChanged();
             }
@@ -349,6 +360,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 OnPropertyChanged(nameof(HasNoSelectedDocument));
                 ((AsyncCommand)SaveDocumentCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)ImportJsonCommand).RaiseCanExecuteChanged();
+                ((AsyncCommand)ExportJsonCommand).RaiseCanExecuteChanged();
             }
         }
     }
@@ -408,6 +420,129 @@ public sealed class MainWindowViewModel : ObservableObject
             "正在读取导入数据档案…");
     }
 
+    private async Task ExportJsonAsync()
+    {
+        var selectedDocument = SelectedDocument;
+        if (_project is null || selectedDocument is null || _configExportService is null)
+        {
+            return;
+        }
+
+        var path = await _archivePicker.PickSaveConfigJsonAsync(selectedDocument.EntryName);
+        if (path is null)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        ErrorMessage = null;
+        StatusText = "正在导出当前配置 JSON…";
+        try
+        {
+            var result = await _configExportService.ExportDocumentAsync(
+                _project,
+                selectedDocument.Document,
+                path);
+            UpdateValidationResults(
+                result.ValidationReport,
+                result.ValidationReport.Issues.Count > 0);
+            var success = AssertSingleExportSuccess(result.WriteResult);
+            AddTransferLog(
+                success.DestinationPath,
+                success.DisplayName,
+                "成功",
+                $"已导出 {success.ItemCount} 条记录到 {success.DestinationPath}",
+                "导出");
+            StatusText = result.ValidationReport.Issues.Count == 0
+                ? $"已导出配置：{success.DisplayName}"
+                : $"已导出配置：{success.DisplayName}；{FormatValidationCounts(result.ValidationReport)}";
+            SelectedDetailsTabIndex = 6;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            var message = exception.GetBaseException().Message;
+            ErrorMessage = message;
+            StatusText = "导出当前配置失败";
+            AddTransferLog(path, selectedDocument.DisplayName, "失败", message, "导出");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task ExportProjectDirectoryAsync()
+    {
+        if (_project is null || _configExportService is null)
+        {
+            return;
+        }
+
+        var directory = await _archivePicker.PickExportDirectoryAsync();
+        if (directory is null)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        ErrorMessage = null;
+        StatusText = "正在导出全项目 JSON…";
+        try
+        {
+            var result = await _configExportService.ExportProjectDirectoryAsync(_project, directory);
+            UpdateValidationResults(
+                result.ValidationReport,
+                result.ValidationReport.Issues.Count > 0);
+            foreach (var success in result.WriteResult.Successes)
+            {
+                AddTransferLog(
+                    success.DestinationPath,
+                    success.DisplayName,
+                    "成功",
+                    $"已导出 {success.ItemCount} 条记录到 {success.DestinationPath}",
+                    "导出");
+            }
+
+            foreach (var failure in result.WriteResult.Failures)
+            {
+                AddTransferLog(
+                    failure.DestinationPath,
+                    failure.DisplayName,
+                    "失败",
+                    failure.Message,
+                    "导出");
+            }
+
+            StatusText = $"全项目导出完成：成功 {result.WriteResult.Successes.Count} 项，" +
+                $"失败 {result.WriteResult.Failures.Count} 项" +
+                (result.ValidationReport.Issues.Count == 0
+                    ? string.Empty
+                    : $"；{FormatValidationCounts(result.ValidationReport)}");
+            if (result.WriteResult.Failures.Count > 0)
+            {
+                ErrorMessage = $"{result.WriteResult.Failures.Count} 项配置导出失败，请在导入/导出日志中查看详情。";
+            }
+
+            SelectedDetailsTabIndex = 6;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            var message = exception.GetBaseException().Message;
+            ErrorMessage = message;
+            StatusText = "全项目导出失败";
+            AddTransferLog(directory, "全项目", "失败", message, "导出");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private static ConfigExportSuccess AssertSingleExportSuccess(ConfigExportWriteResult result) =>
+        result.Successes.Count == 1 && result.Failures.Count == 0
+            ? result.Successes[0]
+            : throw new InvalidOperationException("单配置导出没有返回唯一成功结果。");
+
     private async Task ReadImportSourceAsync(
         string path,
         Func<Task<ConfigImportReadResult>> read,
@@ -422,7 +557,7 @@ public sealed class MainWindowViewModel : ObservableObject
             _importSource = await read();
             foreach (var failure in _importSource.Failures)
             {
-                AddImportLog(path, failure.DisplayName, "失败", failure.Message);
+                AddTransferLog(path, failure.DisplayName, "失败", failure.Message);
             }
 
             RebuildImportPreview();
@@ -435,7 +570,7 @@ public sealed class MainWindowViewModel : ObservableObject
             var message = exception.Message;
             ErrorMessage = message;
             StatusText = "读取导入源失败";
-            AddImportLog(path, SelectedDocument?.DisplayName ?? "数据档案", "失败", message);
+            AddTransferLog(path, SelectedDocument?.DisplayName ?? "数据档案", "失败", message);
         }
         finally
         {
@@ -512,7 +647,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 item.MergePlan!.MergedItems,
                 $"导入 {document.DisplayName}（{GetStrategyName(item.Strategy)}）");
             appliedCount++;
-            AddImportLog(
+            AddTransferLog(
                 _importPreview.SourcePath,
                 document.DisplayName,
                 "成功",
@@ -539,22 +674,24 @@ public sealed class MainWindowViewModel : ObservableObject
         ((RelayCommand)CancelImportPreviewCommand).RaiseCanExecuteChanged();
     }
 
-    private void AddImportLog(
+    private void AddTransferLog(
         string sourcePath,
         string targetName,
         string status,
-        string message)
+        string message,
+        string operation = "导入")
     {
-        var entry = new ConfigImportLogEntry(
+        var entry = new ConfigTransferLogEntry(
             DateTimeOffset.Now,
             Path.GetFullPath(sourcePath),
             targetName,
             status,
-            message);
+            message,
+            operation);
         ImportLogEntries.Insert(0, ToViewModel(entry));
         try
         {
-            _configImportLogStore?.Append(entry);
+            _configTransferLogStore?.Append(entry);
         }
         catch
         {
@@ -565,26 +702,27 @@ public sealed class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ImportLogTabHeader));
     }
 
-    private void LoadImportLog()
+    private void LoadTransferLog()
     {
-        if (_configImportLogStore is null)
+        if (_configTransferLogStore is null)
         {
             return;
         }
 
-        foreach (var entry in _configImportLogStore.Load())
+        foreach (var entry in _configTransferLogStore.Load())
         {
             ImportLogEntries.Add(ToViewModel(entry));
         }
     }
 
-    private static ImportLogEntryViewModel ToViewModel(ConfigImportLogEntry entry) =>
+    private static ImportLogEntryViewModel ToViewModel(ConfigTransferLogEntry entry) =>
         new(
             entry.Timestamp,
             Path.GetFileName(entry.SourcePath),
             entry.TargetName,
             entry.Status,
-            entry.Message);
+            entry.Message,
+            string.IsNullOrWhiteSpace(entry.Operation) ? "导入" : entry.Operation);
 
     private static string GetStrategyName(ConfigImportStrategy strategy) => strategy switch
     {
@@ -865,6 +1003,8 @@ public sealed class MainWindowViewModel : ObservableObject
         ((AsyncCommand)SaveCopyCommand).RaiseCanExecuteChanged();
         ((AsyncCommand)ImportJsonCommand).RaiseCanExecuteChanged();
         ((AsyncCommand)ImportArchiveCommand).RaiseCanExecuteChanged();
+        ((AsyncCommand)ExportJsonCommand).RaiseCanExecuteChanged();
+        ((AsyncCommand)ExportProjectDirectoryCommand).RaiseCanExecuteChanged();
         ((RelayCommand)ValidateCommand).RaiseCanExecuteChanged();
     }
 
@@ -881,6 +1021,12 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private bool CanImportArchive() =>
         !IsBusy && _configImportService is not null && _project is not null;
+
+    private bool CanExportJson() =>
+        !IsBusy && _configExportService is not null && _project is not null && SelectedDocument is not null;
+
+    private bool CanExportProjectDirectory() =>
+        !IsBusy && _configExportService is not null && _project is not null;
 
     private void RefreshProjectState()
     {

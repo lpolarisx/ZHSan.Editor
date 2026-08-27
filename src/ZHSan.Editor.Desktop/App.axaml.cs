@@ -4,6 +4,7 @@ using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
 using ZHSan.Editor.Application.Abstractions;
 using ZHSan.Editor.Application.Differences;
+using ZHSan.Editor.Application.Exporting;
 using ZHSan.Editor.Application.Importing;
 using ZHSan.Editor.Application.Projects;
 using ZHSan.Editor.Application.Validation;
@@ -32,9 +33,10 @@ public sealed partial class App : Avalonia.Application
             services.AddSingleton<IConfigMetadataProvider, ReflectionConfigMetadataProvider>();
             services.AddSingleton<IGameDataArchiveRepository, GameDataArchiveRepository>();
             services.AddSingleton<IConfigImportReader, GameDataConfigImportReader>();
+            services.AddSingleton<IConfigExportWriter, GameDataConfigExportWriter>();
             services.AddSingleton<IArchiveChangeMonitor, FileSystemArchiveChangeMonitor>();
             services.AddSingleton<IEditorSettingsStore, JsonEditorSettingsStore>();
-            services.AddSingleton<IConfigImportLogStore, JsonConfigImportLogStore>();
+            services.AddSingleton<IConfigTransferLogStore, JsonConfigTransferLogStore>();
             services.AddSingleton<OpenArchiveService>();
             services.AddSingleton<SaveArchiveService>();
             services.AddSingleton<IFieldValidationRule, PropertyConstraintValidationRule>();
@@ -47,6 +49,7 @@ public sealed partial class App : Avalonia.Application
             services.AddSingleton<ConfigDifferenceService>();
             services.AddSingleton<ConfigImportMergeService>();
             services.AddSingleton<ConfigImportService>();
+            services.AddSingleton<ConfigExportService>();
             services.AddSingleton<EditorUiStateStore>();
             services.AddSingleton<IArchivePicker>(new AvaloniaArchivePicker(mainWindow));
             services.AddSingleton<IUnsavedChangesPrompt>(new AvaloniaUnsavedChangesPrompt(mainWindow));

@@ -15,4 +15,12 @@ public interface IArchivePicker
         string suggestedFileName,
         CancellationToken cancellationToken = default) =>
         Task.FromResult<string?>(null);
+
+    Task<string?> PickSaveConfigJsonAsync(
+        string suggestedFileName,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<string?>(null);
+
+    Task<string?> PickExportDirectoryAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<string?>(null);
 }

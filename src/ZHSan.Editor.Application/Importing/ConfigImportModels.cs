@@ -15,13 +15,6 @@ public sealed record ConfigImportFailure(
     string EntryName,
     string Message);
 
-public sealed record ConfigImportLogEntry(
-    DateTimeOffset Timestamp,
-    string SourcePath,
-    string TargetName,
-    string Status,
-    string Message);
-
 public sealed class ConfigImportReadResult
 {
     public ConfigImportReadResult(
