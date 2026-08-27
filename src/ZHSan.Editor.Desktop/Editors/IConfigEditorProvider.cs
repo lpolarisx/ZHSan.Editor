@@ -40,7 +40,17 @@ public sealed class ConfigEditorContext
         object? value,
         string? editDescription = null) =>
         Document.SetPropertyValue(record, propertyName, value, editDescription);
+
+    public void SetPropertyValues(
+        IEnumerable<ConfigEditorPropertyChange> changes,
+        string editDescription) =>
+        Document.SetPropertyValues(changes, editDescription);
 }
+
+public sealed record ConfigEditorPropertyChange(
+    ConfigRecordViewModel Record,
+    string PropertyName,
+    object? Value);
 
 public sealed record ConfigEditorHostViewModel(
     string ProviderId,

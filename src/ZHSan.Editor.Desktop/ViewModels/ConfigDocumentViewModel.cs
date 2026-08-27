@@ -15,7 +15,7 @@ using ZHSan.Editor.Domain.Editing;
 
 namespace ZHSan.Editor.Desktop.ViewModels;
 
-public sealed class ConfigDocumentViewModel : ObservableObject
+public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -41,6 +41,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject
     private string _rawJson = "选择一条记录以查看 JSON。";
     private string? _notificationMessage;
     private bool _isSpecializedEditorActive;
+    private bool _isDisposed;
 
     public ConfigDocumentViewModel(
         ConfigDocument document,
@@ -308,65 +309,127 @@ public sealed class ConfigDocumentViewModel : ObservableObject
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public void SetPropertyValue(
-        ConfigRecordViewModel record,
-        string propertyName,
-        object? value,
-        string? editDescription = null)
+    public void Dispose()
     {
-        ArgumentNullException.ThrowIfNull(record);
-        ArgumentException.ThrowIfNullOrWhiteSpace(propertyName);
-        if (!Records.Contains(record))
-        {
-            throw new ArgumentException("记录不属于当前配置文档。", nameof(record));
-        }
-
-        var definition = _properties.FirstOrDefault(property => property.Name == propertyName)
-            ?? throw new ArgumentException($"配置不包含属性 {propertyName}。", nameof(propertyName));
-        if (!definition.CanWrite)
-        {
-            throw new InvalidOperationException($"属性 {propertyName} 是只读的。");
-        }
-
-        var property = record.Item.GetType().GetProperty(propertyName)
-            ?? throw new InvalidOperationException($"找不到属性 {propertyName}。");
-        if (value is null && property.PropertyType.IsValueType &&
-            Nullable.GetUnderlyingType(property.PropertyType) is null)
-        {
-            throw new ArgumentException($"属性 {propertyName} 不接受空值。", nameof(value));
-        }
-
-        if (value is not null && !property.PropertyType.IsInstanceOfType(value))
-        {
-            throw new ArgumentException(
-                $"属性 {propertyName} 需要 {property.PropertyType.Name}，实际为 {value.GetType().Name}。",
-                nameof(value));
-        }
-
-        var oldValue = CloneValue(property.GetValue(record.Item));
-        var newValue = CloneValue(value);
-        if (Equals(oldValue, newValue))
+        if (_isDisposed)
         {
             return;
         }
 
-        void Apply(object? nextValue)
+        _isDisposed = true;
+        _history.Changed -= HistoryChanged;
+        _clipboard.Changed -= ClipboardChanged;
+        if (SpecializedEditor?.Content is IDisposable disposable)
         {
-            property.SetValue(record.Item, CloneValue(nextValue));
-            RefreshEditedRecord(record);
-            if (ReferenceEquals(SelectedRecord, record))
+            disposable.Dispose();
+        }
+    }
+
+    public void SetPropertyValue(
+        ConfigRecordViewModel record,
+        string propertyName,
+        object? value,
+        string? editDescription = null) =>
+        SetPropertyValues(
+            [new ConfigEditorPropertyChange(record, propertyName, value)],
+            editDescription ?? $"修改 {_properties.FirstOrDefault(property => property.Name == propertyName)?.DisplayName ?? propertyName}");
+
+    public void SetPropertyValues(
+        IEnumerable<ConfigEditorPropertyChange> changes,
+        string editDescription)
+    {
+        ArgumentNullException.ThrowIfNull(changes);
+        ArgumentException.ThrowIfNullOrWhiteSpace(editDescription);
+        var requestedChanges = changes.ToArray();
+        if (requestedChanges.Length == 0)
+        {
+            return;
+        }
+
+        var preparedChanges = new List<PreparedPropertyChange>();
+        foreach (var change in requestedChanges)
+        {
+            ArgumentNullException.ThrowIfNull(change.Record);
+            ArgumentException.ThrowIfNullOrWhiteSpace(change.PropertyName);
+            if (!Records.Contains(change.Record))
+            {
+                throw new ArgumentException("记录不属于当前配置文档。", nameof(changes));
+            }
+
+            var definition = _properties.FirstOrDefault(property => property.Name == change.PropertyName)
+                ?? throw new ArgumentException($"配置不包含属性 {change.PropertyName}。", nameof(changes));
+            if (!definition.CanWrite)
+            {
+                throw new InvalidOperationException($"属性 {change.PropertyName} 是只读的。");
+            }
+
+            var property = change.Record.Item.GetType().GetProperty(change.PropertyName)
+                ?? throw new InvalidOperationException($"找不到属性 {change.PropertyName}。");
+            if (change.Value is null && property.PropertyType.IsValueType &&
+                Nullable.GetUnderlyingType(property.PropertyType) is null)
+            {
+                throw new ArgumentException($"属性 {change.PropertyName} 不接受空值。", nameof(changes));
+            }
+
+            if (change.Value is not null && !property.PropertyType.IsInstanceOfType(change.Value))
+            {
+                throw new ArgumentException(
+                    $"属性 {change.PropertyName} 需要 {property.PropertyType.Name}，实际为 {change.Value.GetType().Name}。",
+                    nameof(changes));
+            }
+
+            var existing = preparedChanges.FindIndex(prepared =>
+                ReferenceEquals(prepared.Record, change.Record) &&
+                prepared.Property.Name == change.PropertyName);
+            if (existing >= 0)
+            {
+                preparedChanges[existing] = preparedChanges[existing] with
+                {
+                    NewValue = CloneValue(change.Value),
+                };
+            }
+            else
+            {
+                preparedChanges.Add(new PreparedPropertyChange(
+                    change.Record,
+                    property,
+                    CloneValue(property.GetValue(change.Record.Item)),
+                    CloneValue(change.Value)));
+            }
+        }
+
+        preparedChanges.RemoveAll(change => ValuesEqual(change.OldValue, change.NewValue));
+        if (preparedChanges.Count == 0)
+        {
+            return;
+        }
+
+        void Apply(bool useNewValues)
+        {
+            foreach (var change in preparedChanges)
+            {
+                change.Property.SetValue(
+                    change.Record.Item,
+                    CloneValue(useNewValues ? change.NewValue : change.OldValue));
+            }
+
+            foreach (var record in preparedChanges.Select(change => change.Record).Distinct())
+            {
+                RefreshEditedRecord(record);
+            }
+
+            if (preparedChanges.Any(change => ReferenceEquals(SelectedRecord, change.Record)))
             {
                 RebuildPropertyEditors();
             }
         }
 
-        Apply(newValue);
-        var description = editDescription ?? $"修改 {definition.DisplayName}";
+        Apply(true);
         RecordEdit(new DelegateUndoableEdit(
-            description,
-            () => Apply(oldValue),
-            () => Apply(newValue)),
-            $"已{description}");
+            editDescription,
+            () => Apply(false),
+            () => Apply(true)),
+            $"已{editDescription}");
     }
 
     public void ApplyImportedItems(
@@ -748,6 +811,27 @@ public sealed class ConfigDocumentViewModel : ObservableObject
         return value;
     }
 
+    private static bool ValuesEqual(object? first, object? second)
+    {
+        if (ReferenceEquals(first, second))
+        {
+            return true;
+        }
+
+        if (first is null || second is null)
+        {
+            return false;
+        }
+
+        if (first is IEnumerable firstValues && second is IEnumerable secondValues &&
+            first is not string && second is not string)
+        {
+            return firstValues.Cast<object?>().SequenceEqual(secondValues.Cast<object?>());
+        }
+
+        return Equals(first, second);
+    }
+
     private void RebuildPropertyEditors()
     {
         PropertyEditors.Clear();
@@ -944,6 +1028,12 @@ public sealed class ConfigDocumentViewModel : ObservableObject
 
     private void ClipboardChanged(object? sender, EventArgs eventArgs) =>
         ((RelayCommand)PasteCommand).RaiseCanExecuteChanged();
+
+    private sealed record PreparedPropertyChange(
+        ConfigRecordViewModel Record,
+        System.Reflection.PropertyInfo Property,
+        object? OldValue,
+        object? NewValue);
 
     private static bool IsBatchEditable(ConfigPropertyDefinition definition)
     {

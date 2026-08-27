@@ -1,0 +1,108 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:editors="using:ZHSan.Editor.Desktop.Editors"
+             x:Class="ZHSan.Editor.Desktop.Views.TechniqueTreeEditorView"
+             x:DataType="editors:TechniqueTreeEditorViewModel">
+  <Grid RowDefinitions="Auto,*" Background="#08000000">
+    <Border Padding="12,9" BorderThickness="0,0,0,1"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+      <Grid ColumnDefinitions="260,8,Auto,18,170,*,Auto">
+        <TextBox Grid.Column="0"
+                 Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                 PlaceholderText="搜索科技名称或 ID…" />
+        <Button Grid.Column="2" Content="清除" Command="{Binding ClearSearchCommand}" />
+        <Grid Grid.Column="4" ColumnDefinitions="Auto,*" VerticalAlignment="Center">
+          <TextBlock Text="缩放" VerticalAlignment="Center" Margin="0,0,8,0" />
+          <Slider Grid.Column="1" Minimum="0.5" Maximum="1.8" SmallChange="0.1"
+                  Value="{Binding Zoom, Mode=TwoWay}" />
+        </Grid>
+        <TextBlock Grid.Column="5" Text="{Binding StatusMessage}" Margin="16,0"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Opacity="0.72" />
+        <TextBlock Grid.Column="6" Text="{Binding Summary}" VerticalAlignment="Center"
+                   FontWeight="SemiBold" />
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="*,1,340">
+      <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                    VerticalScrollBarVisibility="Auto">
+        <Border Margin="12" Background="#0BFFFFFF" CornerRadius="6"
+                BorderThickness="1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+          <Canvas x:Name="GraphCanvas" />
+        </Border>
+      </ScrollViewer>
+
+      <Border Grid.Column="1" Background="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+
+      <ScrollViewer Grid.Column="2">
+        <StackPanel Margin="16" Spacing="12">
+          <TextBlock Text="节点属性" FontSize="18" FontWeight="SemiBold" />
+          <TextBlock Text="在关系图中选择一个科技节点。" Opacity="0.62"
+                     IsVisible="{Binding !HasSelection}" />
+
+          <StackPanel Spacing="10" IsVisible="{Binding HasSelection}">
+            <Grid ColumnDefinitions="Auto,*">
+              <TextBlock Text="科技 ID" VerticalAlignment="Center" />
+              <TextBox Grid.Column="1" Margin="12,0,0,0" Text="{Binding SelectedId}" IsReadOnly="True" />
+            </Grid>
+
+            <TextBlock Text="名称" FontWeight="SemiBold" />
+            <TextBox Text="{Binding SelectedName, Mode=TwoWay}" />
+
+            <TextBlock Text="说明" FontWeight="SemiBold" />
+            <TextBox Text="{Binding SelectedDescription, Mode=TwoWay}"
+                     AcceptsReturn="True" MinHeight="64" TextWrapping="Wrap" />
+
+            <Grid ColumnDefinitions="*,10,*">
+              <StackPanel Spacing="5">
+                <TextBlock Text="显示列" FontWeight="SemiBold" />
+                <NumericUpDown Minimum="0" Maximum="1000" Increment="1"
+                               Value="{Binding SelectedDisplayColumn, Mode=TwoWay}" />
+              </StackPanel>
+              <StackPanel Grid.Column="2" Spacing="5">
+                <TextBlock Text="显示行" FontWeight="SemiBold" />
+                <NumericUpDown Minimum="0" Maximum="1000" Increment="1"
+                               Value="{Binding SelectedDisplayRow, Mode=TwoWay}" />
+              </StackPanel>
+            </Grid>
+
+            <Grid ColumnDefinitions="*,6,*,6,*" Margin="0,2">
+              <Button Content="← 左移" Command="{Binding MoveLeftCommand}" />
+              <Button Grid.Column="2" Content="↑ 上移" Command="{Binding MoveUpCommand}" />
+              <Button Grid.Column="4" Content="下移 ↓" Command="{Binding MoveDownCommand}" />
+            </Grid>
+            <Button Content="右移 →" Command="{Binding MoveRightCommand}" HorizontalAlignment="Stretch" />
+
+            <Separator Margin="0,4" />
+            <TextBlock Text="前置科技" FontWeight="SemiBold" />
+            <ComboBox ItemsSource="{Binding PredecessorOptions}"
+                      SelectedItem="{Binding SelectedPredecessor, Mode=TwoWay}"
+                      IsEnabled="{Binding CanEditRelationships}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="editors:TechniqueReferenceOptionViewModel">
+                  <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <TextBlock Text="后置科技" FontWeight="SemiBold" />
+            <ComboBox ItemsSource="{Binding SuccessorOptions}"
+                      SelectedItem="{Binding SelectedSuccessor, Mode=TwoWay}"
+                      IsEnabled="{Binding CanEditRelationships}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="editors:TechniqueReferenceOptionViewModel">
+                  <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <Border Padding="10" Margin="0,4,0,0" CornerRadius="5" Background="#12FFFFFF">
+              <TextBlock Text="{Binding SelectedIssueSummary}" TextWrapping="Wrap" />
+            </Border>
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+  </Grid>
+</UserControl>

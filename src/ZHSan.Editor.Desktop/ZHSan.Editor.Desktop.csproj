@@ -10,5 +10,9 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <ProjectReference Include="..\ZHSan.Editor.Application\ZHSan.Editor.Application.csproj" />
     <ProjectReference Include="..\ZHSan.Editor.Infrastructure\ZHSan.Editor.Infrastructure.csproj" />
+    <Reference Include="ZHSan.Data">
+      <HintPath>..\..\libs\ZHSan.Data.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
   </ItemGroup>
 </Project>

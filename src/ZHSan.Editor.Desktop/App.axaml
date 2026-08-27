@@ -1,7 +1,14 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:editors="using:ZHSan.Editor.Desktop.Editors"
+             xmlns:views="using:ZHSan.Editor.Desktop.Views"
              x:Class="ZHSan.Editor.Desktop.App"
              RequestedThemeVariant="Default">
+  <Application.DataTemplates>
+    <DataTemplate DataType="editors:TechniqueTreeEditorViewModel">
+      <views:TechniqueTreeEditorView />
+    </DataTemplate>
+  </Application.DataTemplates>
   <Application.Styles>
     <FluentTheme />
     <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />

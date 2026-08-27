@@ -1061,6 +1061,7 @@ public sealed class MainWindowViewModel : ObservableObject
         foreach (var document in _documents)
         {
             document.StateChanged -= DocumentStateChanged;
+            document.Dispose();
         }
     }
 
