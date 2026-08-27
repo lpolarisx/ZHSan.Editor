@@ -73,6 +73,33 @@ public sealed class ConfigReferenceIndexTests
         Assert.Empty(index.GetDeletionImpacts("techniques", [first, second]));
     }
 
+    [Fact]
+    public void Rebuild_IndexesIdsEmbeddedInStructuredRuleStrings()
+    {
+        var influence = new InfluenceConfig { Id = 10, Name = "影响" };
+        var condition = new ConditionConfig { Id = 20, Name = "条件" };
+        var technique = new TechniqueConfig
+        {
+            Id = 1,
+            Name = "技术",
+            InfluencesString = "10 missing",
+            ConditionTableString = "20",
+            AIConditionWeightString = "20 1.5",
+        };
+        var project = CreateProject(
+            CreateDocument("influences", typeof(InfluenceConfig), influence),
+            CreateDocument("conditions", typeof(ConditionConfig), condition),
+            CreateDocument("techniques", typeof(TechniqueConfig), technique));
+        var index = new ConfigReferenceIndex(new ReflectionConfigMetadataProvider());
+
+        index.Rebuild(project);
+
+        Assert.Contains(index.GetReferencesTo("influences", 10), reference =>
+            reference.Property.Name == nameof(TechniqueConfig.InfluencesString));
+        Assert.Equal(2, index.GetReferencesTo("conditions", 20).Count);
+        Assert.Single(index.GetDeletionImpacts("influences", [influence]));
+    }
+
     private static ConfigDocument CreateDocument(string key, Type itemType, params object[] items) =>
         new()
         {

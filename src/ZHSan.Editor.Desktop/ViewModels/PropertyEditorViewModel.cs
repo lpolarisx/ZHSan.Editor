@@ -38,6 +38,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
         IsString = valueType == typeof(string);
         IsCollection = valueType != typeof(string) && typeof(IEnumerable).IsAssignableFrom(valueType);
         IsReference = definition.Reference is not null;
+        IsStructuredString = definition.StructuredString is not null;
         IsReadOnly = !definition.CanWrite || (!IsBoolean && !IsEnum && !IsNumber && !IsString && !IsCollection);
 
         if (IsEnum)
@@ -58,8 +59,18 @@ public sealed class PropertyEditorViewModel : ObservableObject
                 navigate);
         }
 
-        ReloadCollectionItems();
         ReloadReferenceOptions(referenceTargets ?? []);
+        if (IsStructuredString && !IsReadOnly)
+        {
+            StructuredStringEditor = new StructuredRuleStringEditorViewModel(
+                definition.StructuredString!,
+                () => FormatScalar(_property.GetValue(_owner)),
+                value => SetValue(value),
+                ReferenceOptions,
+                _navigateReference);
+        }
+
+        ReloadCollectionItems();
     }
 
     public ConfigPropertyDefinition Definition { get; }
@@ -71,12 +82,15 @@ public sealed class PropertyEditorViewModel : ObservableObject
     public bool IsString { get; }
     public bool IsCollection { get; }
     public bool IsReference { get; }
+    public bool IsStructuredString { get; }
+    public bool UsesReferenceOptions => IsReference || IsStructuredString;
     public bool IsReadOnly { get; }
     public bool ShowBoolean => IsBoolean && !IsReadOnly;
     public bool ShowEnum => IsEnum && !IsReadOnly;
     public bool ShowNumber => IsNumber && !IsReference && !IsReadOnly;
     public bool ShowReference => IsReference && IsNumber && !IsCollection && !IsReadOnly;
-    public bool ShowString => IsString && !IsReadOnly;
+    public bool ShowString => IsString && !IsStructuredString && !IsReadOnly;
+    public bool ShowStructuredString => IsStructuredString && !IsReadOnly;
     public bool ShowCollection => IsCollection && !IsReadOnly;
     public bool IsValidationTarget
     {
@@ -87,6 +101,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
     public ObservableCollection<CollectionItemViewModel> CollectionItems { get; } = [];
     public ObservableCollection<ReferenceOptionViewModel> ReferenceOptions { get; } = [];
     public ReferencePickerViewModel? ReferencePicker { get; }
+    public StructuredRuleStringEditorViewModel? StructuredStringEditor { get; }
     public ICommand AddCollectionItemCommand { get; }
 
     internal void SetValidationTarget(bool isTarget) => IsValidationTarget = isTarget;
@@ -203,6 +218,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedOption));
         OnPropertyChanged(nameof(SelectedReference));
         ReferencePicker?.RefreshSelection();
+        StructuredStringEditor?.ReloadFromValue(FormatScalar(value));
         OnPropertyChanged(nameof(ReadOnlyValue));
         if (reloadCollection)
         {
@@ -212,7 +228,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
 
     public void ReloadReferenceOptions(IReadOnlyList<ConfigReferenceTarget> targets)
     {
-        if (!IsReference)
+        if (!UsesReferenceOptions)
         {
             return;
         }
@@ -220,13 +236,13 @@ public sealed class PropertyEditorViewModel : ObservableObject
         var currentIds = GetCurrentReferenceIds();
         ReferenceOptions.Clear();
 
-        if (Definition.Reference!.EmptyValue is { } emptyValue)
+        if (Definition.Reference?.EmptyValue is { } emptyValue)
         {
             ReferenceOptions.Add(new ReferenceOptionViewModel(emptyValue, "（无）", false));
         }
 
         foreach (var targetGroup in targets
-                     .Where(target => !Definition.Reference.IsEmpty(target.Id))
+                     .Where(target => Definition.Reference?.IsEmpty(target.Id) != true)
                      .GroupBy(target => target.Id)
                      .OrderBy(group => group.Key))
         {
@@ -252,6 +268,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
 
         OnPropertyChanged(nameof(SelectedReference));
         ReferencePicker?.RefreshOptions();
+        StructuredStringEditor?.RefreshReferenceOptions();
         foreach (var item in CollectionItems)
         {
             item.RefreshReferenceSelection();
@@ -264,6 +281,16 @@ public sealed class PropertyEditorViewModel : ObservableObject
         if (value is null)
         {
             return [];
+        }
+
+        if (Definition.StructuredString is { } structuredString && value is string text)
+        {
+            return structuredString.Kind == ConfigStructuredStringKind.WeightedConditionPairs
+                ? ConfigStructuredStringCodec.ParseWeightedConditions(text).Items
+                    .Select(item => item.ConditionId)
+                    .Distinct()
+                    .ToArray()
+                : ConfigStructuredStringCodec.ParseIds(text).Items.Distinct().ToArray();
         }
 
         if (value is IEnumerable values and not string)

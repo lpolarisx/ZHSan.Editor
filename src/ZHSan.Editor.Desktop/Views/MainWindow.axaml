@@ -272,6 +272,8 @@
 
                           <TextBox Text="{Binding ValueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                    IsVisible="{Binding ShowString}" />
+                          <ContentControl Content="{Binding StructuredStringEditor}"
+                                          IsVisible="{Binding ShowStructuredString}" />
                           <NumericUpDown Value="{Binding NumericValue, Mode=TwoWay}"
                                          Increment="1" IsVisible="{Binding ShowNumber}" />
                           <ContentControl Content="{Binding ReferencePicker}"

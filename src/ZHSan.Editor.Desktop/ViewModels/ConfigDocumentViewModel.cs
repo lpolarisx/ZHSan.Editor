@@ -261,7 +261,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
     public void RefreshReferenceOptions()
     {
-        foreach (var editor in PropertyEditors.Where(editor => editor.IsReference))
+        foreach (var editor in PropertyEditors.Where(editor => editor.UsesReferenceOptions))
         {
             editor.ReloadReferenceOptions(GetReferenceTargets(editor.Definition));
         }
@@ -902,9 +902,10 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
     private IReadOnlyList<ConfigReferenceTarget> GetReferenceTargets(
         ConfigPropertyDefinition property) =>
-        property.Reference is null || _referenceIndex is null
+        (property.Reference is null && property.StructuredString is null) || _referenceIndex is null
             ? []
-            : _referenceIndex.GetTargets(property.Reference.TargetConfigKey);
+            : _referenceIndex.GetTargets(
+                property.Reference?.TargetConfigKey ?? property.StructuredString!.TargetConfigKey);
 
     internal IReadOnlyList<ConfigReferenceTarget> GetReferenceTargets(string configKey) =>
         _referenceIndex?.GetTargets(configKey) ?? [];

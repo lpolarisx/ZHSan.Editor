@@ -43,6 +43,7 @@ public sealed partial class App : Avalonia.Application
             services.AddSingleton<SaveArchiveService>();
             services.AddSingleton<IFieldValidationRule, PropertyConstraintValidationRule>();
             services.AddSingleton<IFieldValidationRule, FixedLengthCollectionValidationRule>();
+            services.AddSingleton<IFieldValidationRule, StructuredStringValidationRule>();
             services.AddSingleton<ITableValidationRule, UniqueIdValidationRule>();
             services.AddSingleton<ICrossTableValidationRule, ReferenceExistenceValidationRule>();
             services.AddSingleton<ICrossTableValidationRule, TechniqueRelationshipValidationRule>();

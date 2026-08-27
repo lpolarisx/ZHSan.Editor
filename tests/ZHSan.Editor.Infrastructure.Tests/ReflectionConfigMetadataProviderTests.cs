@@ -1,4 +1,5 @@
 using GameDatas;
+using ZHSan.Editor.Domain.Configuration;
 using ZHSan.Editor.Infrastructure.Configuration;
 
 namespace ZHSan.Editor.Infrastructure.Tests;
@@ -62,6 +63,27 @@ public sealed class ReflectionConfigMetadataProviderTests
         Assert.False(kindId.Reference?.IsOptional);
         Assert.Equal("military-kinds", levelUps.Reference?.TargetConfigKey);
         Assert.Null(ordinaryField.Reference);
+    }
+
+    [Fact]
+    public void GetProperties_IncludesExplicitStructuredRuleStringMetadata()
+    {
+        var provider = new ReflectionConfigMetadataProvider();
+
+        var influences = Assert.Single(
+            provider.GetProperties(typeof(TechniqueConfig)),
+            property => property.Name == nameof(TechniqueConfig.InfluencesString));
+        var conditions = Assert.Single(
+            provider.GetProperties(typeof(TechniqueConfig)),
+            property => property.Name == nameof(TechniqueConfig.ConditionTableString));
+        var weights = Assert.Single(
+            provider.GetProperties(typeof(TechniqueConfig)),
+            property => property.Name == nameof(TechniqueConfig.AIConditionWeightString));
+
+        Assert.Equal(ConfigStructuredStringKind.InfluenceIds, influences.StructuredString?.Kind);
+        Assert.Equal("influences", influences.StructuredString?.TargetConfigKey);
+        Assert.Equal(ConfigStructuredStringKind.ConditionIds, conditions.StructuredString?.Kind);
+        Assert.Equal(ConfigStructuredStringKind.WeightedConditionPairs, weights.StructuredString?.Kind);
     }
 
     [Theory]

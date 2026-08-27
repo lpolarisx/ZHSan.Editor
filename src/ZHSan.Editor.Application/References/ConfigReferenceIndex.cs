@@ -22,11 +22,11 @@ public sealed record ConfigReferenceSource(
     int RecordIndex,
     object Item,
     ConfigPropertyDefinition Property,
+    string TargetConfigKey,
     int TargetId)
 {
-    public ConfigReferenceDefinition Definition => Property.Reference!;
-
-    public string TargetConfigKey => Definition.TargetConfigKey;
+    public ConfigReferenceDefinition Definition =>
+        Property.Reference ?? new ConfigReferenceDefinition(TargetConfigKey);
 }
 
 public sealed record ConfigReferenceImpact(
@@ -78,7 +78,7 @@ public sealed class ConfigReferenceIndex
         {
             var properties = _metadataProvider
                 .GetProperties(document.Definition.ItemType)
-                .Where(property => property.Reference is not null)
+                .Where(property => property.Reference is not null || property.StructuredString is not null)
                 .ToArray();
 
             for (var itemIndex = 0; itemIndex < document.Items.Count; itemIndex++)
@@ -95,7 +95,9 @@ public sealed class ConfigReferenceIndex
                             $"类型 {item.GetType().FullName} 不包含引用元数据声明的属性 {property.Name}。");
                     foreach (var targetId in GetReferenceIds(propertyInfo.GetValue(item), property))
                     {
-                        if (!property.Reference!.IsEmpty(targetId))
+                        var targetConfigKey = property.Reference?.TargetConfigKey ??
+                                              property.StructuredString!.TargetConfigKey;
+                        if (property.Reference?.IsEmpty(targetId) != true)
                         {
                             references.Add(new ConfigReferenceSource(
                                 document.Definition.Key,
@@ -105,6 +107,7 @@ public sealed class ConfigReferenceIndex
                                 itemIndex,
                                 item,
                                 property,
+                                targetConfigKey,
                                 targetId));
                         }
                     }
@@ -216,6 +219,31 @@ public sealed class ConfigReferenceIndex
     {
         if (value is null)
         {
+            yield break;
+        }
+
+        if (property.StructuredString is { } structuredString)
+        {
+            if (value is not string text)
+            {
+                yield break;
+            }
+
+            if (structuredString.Kind == ConfigStructuredStringKind.WeightedConditionPairs)
+            {
+                foreach (var item in ConfigStructuredStringCodec.ParseWeightedConditions(text).Items)
+                {
+                    yield return item.ConditionId;
+                }
+            }
+            else
+            {
+                foreach (var id in ConfigStructuredStringCodec.ParseIds(text).Items)
+                {
+                    yield return id;
+                }
+            }
+
             yield break;
         }
 

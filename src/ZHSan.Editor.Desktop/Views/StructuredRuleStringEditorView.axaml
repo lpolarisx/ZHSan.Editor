@@ -1,0 +1,64 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ZHSan.Editor.Desktop.ViewModels"
+             x:Class="ZHSan.Editor.Desktop.Views.StructuredRuleStringEditorView"
+             x:DataType="vm:StructuredRuleStringEditorViewModel">
+  <StackPanel Spacing="8">
+    <TextBlock Text="{Binding FormatDescription}" FontSize="11" Opacity="0.68"
+               TextWrapping="Wrap" />
+
+    <Border Padding="9" CornerRadius="5" Background="#14E5484D"
+            IsVisible="{Binding HasIssues}">
+      <TextBlock Text="{Binding IssueSummary}" Foreground="#E5484D"
+                 FontSize="11" TextWrapping="Wrap" />
+    </Border>
+
+    <StackPanel IsEnabled="{Binding CanUseStructuredEditor}" Spacing="6">
+      <ItemsControl ItemsSource="{Binding Entries}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:StructuredRuleStringEntryViewModel">
+            <Border Padding="8" Margin="0,2" CornerRadius="5" BorderThickness="1"
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+              <StackPanel Spacing="5">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                  <TextBlock Text="{Binding Position, StringFormat='第 {0} 项'}" Margin="0,0,7,0"
+                             VerticalAlignment="Center" Opacity="0.6" />
+                  <TextBlock Grid.Column="1" Text="{Binding Id, StringFormat='ID {0}'}"
+                             VerticalAlignment="Center" FontWeight="SemiBold" />
+                  <Button Grid.Column="2" Content="↑" Command="{Binding MoveUpCommand}"
+                          Padding="7,2" Margin="3,0,0,0" />
+                  <Button Grid.Column="3" Content="↓" Command="{Binding MoveDownCommand}"
+                          Padding="7,2" Margin="3,0,0,0" />
+                  <Button Grid.Column="4" Content="移除" Command="{Binding RemoveCommand}"
+                          Padding="7,2" Margin="3,0,0,0" />
+                </Grid>
+                <ContentControl Content="{Binding ReferencePicker}" />
+                <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding ShowWeight}">
+                  <TextBlock Text="权重" VerticalAlignment="Center" Margin="0,0,8,0" />
+                  <TextBox Grid.Column="1"
+                           Text="{Binding WeightText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                </Grid>
+                <TextBlock Text="权重必须是有限数字" Foreground="#E5484D" FontSize="11"
+                           IsVisible="{Binding HasWeightError}" />
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <Border Padding="8" CornerRadius="5" Background="#0AFFFFFF">
+        <StackPanel Spacing="5">
+          <TextBlock Text="添加一项" FontWeight="SemiBold" />
+          <ContentControl Content="{Binding AddPicker}" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+
+    <Grid ColumnDefinitions="*,Auto">
+      <TextBlock Text="原始格式（可直接修复无法解析的内容）" FontSize="11" Opacity="0.58" />
+      <TextBlock Grid.Column="1" Text="{Binding Summary}" FontSize="11" Opacity="0.58" />
+    </Grid>
+    <TextBox Text="{Binding RawText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+             AcceptsReturn="True" MinHeight="52" TextWrapping="Wrap" />
+  </StackPanel>
+</UserControl>

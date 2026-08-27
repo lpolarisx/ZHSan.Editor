@@ -15,6 +15,9 @@
     <DataTemplate DataType="vm:ReferencePickerViewModel">
       <views:ReferencePickerView />
     </DataTemplate>
+    <DataTemplate DataType="vm:StructuredRuleStringEditorViewModel">
+      <views:StructuredRuleStringEditorView />
+    </DataTemplate>
   </Application.DataTemplates>
   <Application.Styles>
     <FluentTheme />

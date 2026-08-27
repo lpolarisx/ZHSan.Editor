@@ -18,6 +18,7 @@ public sealed class ReferenceExistenceValidationRuleTests
             Name = "技术",
             PreID = 0,
             PostID = 404,
+            InfluencesString = "7 409",
         };
         var treasure = new TreasureCreationSettingConfig
         {
@@ -45,7 +46,7 @@ public sealed class ReferenceExistenceValidationRuleTests
 
         var report = service.Validate(project, ValidationScope.CrossTable);
 
-        Assert.Equal(2, report.ErrorCount);
+        Assert.Equal(3, report.ErrorCount);
         Assert.Contains(report.Issues, issue =>
             issue.ConfigKey == "techniques" &&
             issue.ItemId == 1 &&
@@ -56,6 +57,11 @@ public sealed class ReferenceExistenceValidationRuleTests
             issue.ItemId == 2 &&
             issue.PropertyName == nameof(TreasureCreationSettingConfig.EligibleInfluenceIDs) &&
             issue.Message.Contains("408"));
+        Assert.Contains(report.Issues, issue =>
+            issue.ConfigKey == "techniques" &&
+            issue.ItemId == 1 &&
+            issue.PropertyName == nameof(TechniqueConfig.InfluencesString) &&
+            issue.Message.Contains("409"));
         Assert.DoesNotContain(report.Issues, issue => issue.Message.Contains(" ID 0 "));
     }
 

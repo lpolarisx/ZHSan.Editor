@@ -26,6 +26,7 @@ public sealed class ReflectionConfigMetadataProvider : IConfigMetadataProvider
             {
                 Validation = GameDataPropertyValidationMetadata.Get(property),
                 Reference = GameDataPropertyReferenceMetadata.Get(itemType, property),
+                StructuredString = GameDataStructuredStringMetadata.Get(itemType, property),
             })
             .OrderBy(property => property.Order)
             .ThenBy(property => property.Name, StringComparer.Ordinal)
