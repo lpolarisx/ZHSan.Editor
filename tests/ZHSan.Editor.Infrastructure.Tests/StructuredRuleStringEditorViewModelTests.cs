@@ -33,6 +33,36 @@ public sealed class StructuredRuleStringEditorViewModelTests
     }
 
     [Fact]
+    public void InfluenceEditor_ReplacesAndRemovesCompactRowsWithUndoSupport()
+    {
+        var technique = new TechniqueConfig { Id = 1, Name = "技术", InfluencesString = "10 20" };
+        var (document, editor) = CreateEditor(
+            technique,
+            [
+                new InfluenceConfig { Id = 10, Name = "影响甲" },
+                new InfluenceConfig { Id = 20, Name = "影响乙" },
+                new InfluenceConfig { Id = 30, Name = "影响丙" },
+            ]);
+        var replacement = Assert.Single(
+            editor.Entries[0].ReferencePicker.FilteredOptions,
+            option => option.Id == 30);
+
+        editor.Entries[0].ReferencePicker.SelectedOption = replacement;
+
+        Assert.Equal("30 20", technique.InfluencesString);
+        Assert.Equal([30, 20], editor.Entries.Select(entry => entry.Id));
+        document.UndoCommand.Execute(null);
+        Assert.Equal("10 20", technique.InfluencesString);
+
+        editor.Entries[1].RemoveCommand.Execute(null);
+
+        Assert.Equal("10", technique.InfluencesString);
+        Assert.Single(editor.Entries);
+        document.UndoCommand.Execute(null);
+        Assert.Equal("10 20", technique.InfluencesString);
+    }
+
+    [Fact]
     public void InfluenceEditor_PreservesMalformedRawTextUntilUserRepairsIt()
     {
         var technique = new TechniqueConfig { Id = 1, Name = "技术", InfluencesString = "10 bad" };
