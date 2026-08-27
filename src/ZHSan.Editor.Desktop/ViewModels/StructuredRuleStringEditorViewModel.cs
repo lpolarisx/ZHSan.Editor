@@ -19,6 +19,8 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
     private ConditionExpressionGroupViewModel? _selectedAddGroup;
     private bool _addAsAlternativeGroup;
     private bool _isRawEditorExpanded;
+    private StructuredRuleStringEntryViewModel? _selectedWeightedEntry;
+    private IReadOnlyList<string> _pasteErrors = [];
 
     public StructuredRuleStringEditorViewModel(
         ConfigStructuredStringDefinition definition,
@@ -49,15 +51,19 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
     public bool IsWeighted => _definition.Kind == ConfigStructuredStringKind.WeightedConditionPairs;
     public bool IsInfluenceList => _definition.Kind == ConfigStructuredStringKind.InfluenceIds;
     public bool IsConditionExpression => _definition.Kind == ConfigStructuredStringKind.ConditionIds;
-    public bool ShowFlatList => !IsConditionExpression;
+    public bool ShowFlatList => !IsConditionExpression && !IsWeighted;
+    public bool ShowWeightedTable => IsWeighted;
     public bool HasConditionGroups => ConditionGroups.Count > 0;
     public bool HasParseErrors => _parseErrors.Count > 0;
-    public bool ShowRawEditor => !IsConditionExpression || HasParseErrors || _isRawEditorExpanded;
+    public bool CanToggleRawEditor => IsConditionExpression || IsWeighted;
+    public bool ShowRawEditor => IsInfluenceList || HasParseErrors || _isRawEditorExpanded;
     public string RawEditorToggleText => ShowRawEditor ? "隐藏底层文本" : "显示底层文本（高级）";
     public bool CanUseStructuredEditor => _parseErrors.Count == 0;
     public bool HasIssues => IssueCount > 0;
+    public bool HasPasteIssues => _pasteErrors.Count > 0;
     public int IssueCount => GetIssues().Count;
     public string IssueSummary => string.Join(Environment.NewLine, GetIssues().Select(issue => $"• {issue}"));
+    public string PasteIssueSummary => string.Join(Environment.NewLine, _pasteErrors.Select(error => $"• {error}"));
     public string Summary => IsConditionExpression
         ? $"{ConditionGroups.Count} 个或分组，{ConditionGroups.Sum(group => group.Terms.Count)} 个条件"
         : IsWeighted
@@ -74,6 +80,12 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
     {
         get => _addAsAlternativeGroup;
         set => SetProperty(ref _addAsAlternativeGroup, value);
+    }
+
+    public StructuredRuleStringEntryViewModel? SelectedWeightedEntry
+    {
+        get => _selectedWeightedEntry;
+        set => SetProperty(ref _selectedWeightedEntry, value);
     }
 
     public string RawText
@@ -93,6 +105,8 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
 
     public void ReloadFromValue(string value)
     {
+        var selectedWeightedId = SelectedWeightedEntry?.Id;
+        _pasteErrors = [];
         _isSynchronizing = true;
         Entries.Clear();
         ConditionGroups.Clear();
@@ -115,6 +129,10 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
             {
                 Entries.Add(CreateEntry(item.ConditionId, item.Weight));
             }
+
+            SelectedWeightedEntry = selectedWeightedId.HasValue
+                ? Entries.FirstOrDefault(entry => entry.Id == selectedWeightedId.Value)
+                : null;
         }
         else
         {
@@ -147,9 +165,113 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
         RefreshState();
     }
 
+    public bool PasteWeightedEntries(string? text)
+    {
+        if (!IsWeighted || !CanUseStructuredEditor)
+        {
+            return false;
+        }
+
+        var parsed = ConfigStructuredStringCodec.ParseWeightedConditions(text);
+        var errors = new List<string>(parsed.Errors);
+        if (string.IsNullOrWhiteSpace(text) ||
+            (parsed.Items.Count == 0 && parsed.Errors.Count == 0))
+        {
+            errors.Add("剪贴板中没有可粘贴的条件权重数据。");
+        }
+
+        foreach (var duplicate in parsed.Items.GroupBy(item => item.ConditionId).Where(group => group.Count() > 1))
+        {
+            errors.Add($"粘贴内容中的条件 ID {duplicate.Key} 重复。");
+        }
+
+        var existingIds = Entries.Select(entry => entry.Id).ToHashSet();
+        foreach (var duplicateId in parsed.Items
+                     .Select(item => item.ConditionId)
+                     .Where(existingIds.Contains)
+                     .Distinct())
+        {
+            errors.Add($"条件 ID {duplicateId} 已在表格中存在。");
+        }
+
+        if (errors.Count > 0)
+        {
+            SetPasteErrors(errors);
+            return false;
+        }
+
+        var combined = Entries
+            .Select(entry => new WeightedConditionValue(entry.Id, entry.Weight ?? 1f))
+            .Concat(parsed.Items)
+            .ToArray();
+        _setValue(ConfigStructuredStringCodec.FormatWeightedConditions(combined));
+        SelectedWeightedEntry = Entries.FirstOrDefault(entry => entry.Id == parsed.Items[^1].ConditionId);
+        SetPasteErrors([]);
+        return true;
+    }
+
+    public string FormatWeightedEntriesForClipboard(
+        IEnumerable<StructuredRuleStringEntryViewModel> entries)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+        if (!IsWeighted)
+        {
+            return string.Empty;
+        }
+
+        var selected = entries
+            .Where(Entries.Contains)
+            .Distinct()
+            .OrderBy(Entries.IndexOf)
+            .ToArray();
+        return string.Join(
+            Environment.NewLine,
+            selected.Select(entry =>
+                $"{entry.Id.ToString(CultureInfo.InvariantCulture)}\t{(entry.Weight ?? 1f).ToString("R", CultureInfo.InvariantCulture)}"));
+    }
+
+    public void RemoveWeightedEntries(IEnumerable<StructuredRuleStringEntryViewModel> entries)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+        if (!IsWeighted || !CanUseStructuredEditor)
+        {
+            return;
+        }
+
+        var removed = entries.Where(Entries.Contains).ToHashSet();
+        if (removed.Count == 0)
+        {
+            return;
+        }
+
+        var remaining = Entries
+            .Where(entry => !removed.Contains(entry))
+            .Select(entry => new WeightedConditionValue(entry.Id, entry.Weight ?? 1f));
+        _setValue(ConfigStructuredStringCodec.FormatWeightedConditions(remaining));
+        SetPasteErrors([]);
+    }
+
+    public void MoveWeightedEntry(StructuredRuleStringEntryViewModel entry, int offset)
+    {
+        if (!IsWeighted || !Entries.Contains(entry) || offset is not (-1 or 1))
+        {
+            return;
+        }
+
+        SelectedWeightedEntry = entry;
+        Move(entry, offset);
+    }
+
+    private void SetPasteErrors(IReadOnlyList<string> errors)
+    {
+        _pasteErrors = errors;
+        OnPropertyChanged(nameof(HasPasteIssues));
+        OnPropertyChanged(nameof(PasteIssueSummary));
+    }
+
     private void ToggleRawEditor()
     {
-        if (!IsConditionExpression || HasParseErrors)
+        if (!CanToggleRawEditor || HasParseErrors)
         {
             return;
         }
@@ -449,6 +571,8 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(HasIssues));
         OnPropertyChanged(nameof(IssueCount));
         OnPropertyChanged(nameof(IssueSummary));
+        OnPropertyChanged(nameof(HasPasteIssues));
+        OnPropertyChanged(nameof(PasteIssueSummary));
         OnPropertyChanged(nameof(Summary));
     }
 }

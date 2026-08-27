@@ -86,25 +86,9 @@ public sealed class StructuredRuleStringEditorViewModelTests
     public void WeightedConditionEditor_AddsAConditionWithDefaultWeight()
     {
         var technique = new TechniqueConfig { Id = 1, Name = "技术", AIConditionWeightString = string.Empty };
-        var conditionDocument = CreateDocument(
-            "conditions",
-            typeof(ConditionConfig),
-            new ConditionConfig { Id = 30, Name = "兵力充足" });
-        var sourceDocument = CreateDocument("techniques", typeof(TechniqueConfig), technique);
-        var project = new EditorProject
-        {
-            ArchivePath = "test.dat",
-            Documents = [conditionDocument, sourceDocument],
-        };
-        var metadata = new ReflectionConfigMetadataProvider();
-        var references = new ConfigReferenceIndex(metadata);
-        references.Rebuild(project);
-        var document = new ConfigDocumentViewModel(sourceDocument, metadata, _ => { }, referenceIndex: references);
-        document.SelectedRecord = document.Records[0];
-        var property = Assert.Single(
-            document.PropertyEditors,
-            item => item.Definition.Name == nameof(TechniqueConfig.AIConditionWeightString));
-        var editor = Assert.IsType<StructuredRuleStringEditorViewModel>(property.StructuredStringEditor);
+        var (_, editor) = CreateWeightedEditor(
+            technique,
+            [new ConditionConfig { Id = 30, Name = "兵力充足" }]);
         var option = Assert.Single(editor.AddPicker.FilteredOptions, item => item.Id == 30);
 
         editor.AddPicker.SelectedOption = option;
@@ -115,6 +99,81 @@ public sealed class StructuredRuleStringEditorViewModelTests
         Assert.True(entry.CanReplaceReference);
         Assert.False(entry.ShowReadOnlyReference);
         Assert.True(entry.CanReorder);
+        Assert.True(editor.ShowWeightedTable);
+        Assert.False(editor.ShowFlatList);
+        Assert.False(editor.ShowRawEditor);
+    }
+
+    [Fact]
+    public void WeightedConditionEditor_BatchPasteIsAtomicUndoableAndClipboardFriendly()
+    {
+        var technique = new TechniqueConfig { Id = 1, Name = "技术", AIConditionWeightString = "10 1" };
+        var (document, editor) = CreateWeightedEditor(
+            technique,
+            [
+                new ConditionConfig { Id = 10, Name = "条件甲" },
+                new ConditionConfig { Id = 20, Name = "条件乙" },
+                new ConditionConfig { Id = 30, Name = "条件丙" },
+            ]);
+
+        var pasted = editor.PasteWeightedEntries("20\t1.5\r\n30\t-2");
+
+        Assert.True(pasted);
+        Assert.Equal("10 1 20 1.5 30 -2", technique.AIConditionWeightString);
+        Assert.Equal(30, editor.SelectedWeightedEntry?.Id);
+        Assert.Equal(
+            $"20\t1.5{Environment.NewLine}30\t-2",
+            editor.FormatWeightedEntriesForClipboard(editor.Entries.Skip(1)));
+        document.UndoCommand.Execute(null);
+        Assert.Equal("10 1", technique.AIConditionWeightString);
+    }
+
+    [Fact]
+    public void WeightedConditionEditor_RejectsMalformedOrDuplicatePasteWithoutPartialChanges()
+    {
+        var technique = new TechniqueConfig { Id = 1, Name = "技术", AIConditionWeightString = "10 1" };
+        var (document, editor) = CreateWeightedEditor(
+            technique,
+            [
+                new ConditionConfig { Id = 10, Name = "条件甲" },
+                new ConditionConfig { Id = 20, Name = "条件乙" },
+            ]);
+
+        Assert.False(editor.PasteWeightedEntries("20 1.5 30"));
+        Assert.True(editor.HasPasteIssues);
+        Assert.Equal("10 1", technique.AIConditionWeightString);
+
+        Assert.False(editor.PasteWeightedEntries("10\t2"));
+        Assert.Contains("已在表格中存在", editor.PasteIssueSummary);
+        Assert.Equal("10 1", technique.AIConditionWeightString);
+        Assert.False(document.CanUndo);
+    }
+
+    [Fact]
+    public void WeightedConditionEditor_KeyboardOperationsMoveAndDeleteSelectionAsSingleEdits()
+    {
+        var technique = new TechniqueConfig
+        {
+            Id = 1,
+            Name = "技术",
+            AIConditionWeightString = "10 1 20 2 30 3",
+        };
+        var (document, editor) = CreateWeightedEditor(
+            technique,
+            [
+                new ConditionConfig { Id = 10, Name = "条件甲" },
+                new ConditionConfig { Id = 20, Name = "条件乙" },
+                new ConditionConfig { Id = 30, Name = "条件丙" },
+            ]);
+
+        editor.MoveWeightedEntry(editor.Entries[1], -1);
+        Assert.Equal("20 2 10 1 30 3", technique.AIConditionWeightString);
+        Assert.Equal(20, editor.SelectedWeightedEntry?.Id);
+
+        editor.RemoveWeightedEntries([editor.Entries[0], editor.Entries[2]]);
+        Assert.Equal("10 1", technique.AIConditionWeightString);
+        document.UndoCommand.Execute(null);
+        Assert.Equal("20 2 10 1 30 3", technique.AIConditionWeightString);
     }
 
     [Fact]
@@ -274,6 +333,27 @@ public sealed class StructuredRuleStringEditorViewModelTests
         var property = Assert.Single(
             document.PropertyEditors,
             item => item.Definition.Name == nameof(TechniqueConfig.ConditionTableString));
+        return (document, Assert.IsType<StructuredRuleStringEditorViewModel>(property.StructuredStringEditor));
+    }
+
+    private static (ConfigDocumentViewModel Document, StructuredRuleStringEditorViewModel Editor)
+        CreateWeightedEditor(TechniqueConfig technique, ConditionConfig[] conditions)
+    {
+        var conditionDocument = CreateDocument("conditions", typeof(ConditionConfig), conditions.Cast<object>().ToArray());
+        var techniqueDocument = CreateDocument("techniques", typeof(TechniqueConfig), technique);
+        var project = new EditorProject
+        {
+            ArchivePath = "test.dat",
+            Documents = [conditionDocument, techniqueDocument],
+        };
+        var metadata = new ReflectionConfigMetadataProvider();
+        var references = new ConfigReferenceIndex(metadata);
+        references.Rebuild(project);
+        var document = new ConfigDocumentViewModel(techniqueDocument, metadata, _ => { }, referenceIndex: references);
+        document.SelectedRecord = document.Records[0];
+        var property = Assert.Single(
+            document.PropertyEditors,
+            item => item.Definition.Name == nameof(TechniqueConfig.AIConditionWeightString));
         return (document, Assert.IsType<StructuredRuleStringEditorViewModel>(property.StructuredStringEditor));
     }
 

@@ -87,6 +87,101 @@
     </StackPanel>
 
     <StackPanel IsEnabled="{Binding CanUseStructuredEditor}"
+                IsVisible="{Binding ShowWeightedTable}" Spacing="6">
+      <Grid ColumnDefinitions="*,Auto,Auto">
+        <TextBlock Text="条件权重" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Content="复制选中" Click="OnCopyWeightedClick"
+                Padding="7,2" Margin="4,0,0,0" ToolTip.Tip="Ctrl+C" />
+        <Button Grid.Column="2" Content="粘贴多行" Click="OnPasteWeightedClick"
+                Padding="7,2" Margin="4,0,0,0" ToolTip.Tip="Ctrl+V" />
+      </Grid>
+
+      <DataGrid x:Name="WeightedConditionsGrid"
+                ItemsSource="{Binding Entries}"
+                SelectedItem="{Binding SelectedWeightedEntry, Mode=TwoWay}"
+                AutoGenerateColumns="False"
+                CanUserReorderColumns="False"
+                CanUserSortColumns="False"
+                GridLinesVisibility="All"
+                HeadersVisibility="Column"
+                SelectionMode="Extended"
+                MinHeight="80" MaxHeight="280"
+                RowHeight="34"
+                KeyDown="OnWeightedGridKeyDown">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="#" Binding="{Binding Position}"
+                              Width="42" IsReadOnly="True" />
+          <DataGridTemplateColumn Header="条件" Width="*">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate x:DataType="vm:StructuredRuleStringEntryViewModel">
+                <Grid ColumnDefinitions="*,Auto">
+                  <ComboBox ItemsSource="{Binding ReferencePicker.FilteredOptions}"
+                            SelectedItem="{Binding ReferencePicker.SelectedOption, Mode=TwoWay}"
+                            MinWidth="100" PlaceholderText="引用目标不存在">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ReferenceOptionViewModel">
+                        <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                  <TextBlock Grid.Column="1" Text="!" Margin="5,0,0,0"
+                             VerticalAlignment="Center" Foreground="#E5484D"
+                             FontWeight="Bold" IsVisible="{Binding IsMissing}"
+                             ToolTip.Tip="当前条件引用无效或目标 ID 重复" />
+                </Grid>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTemplateColumn Header="权重" Width="90">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate x:DataType="vm:StructuredRuleStringEntryViewModel">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBox Text="{Binding WeightText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                           HorizontalContentAlignment="Right" />
+                  <TextBlock Grid.Column="1" Text="!" Margin="4,0,0,0"
+                             VerticalAlignment="Center" Foreground="#E5484D"
+                             FontWeight="Bold" IsVisible="{Binding HasWeightError}"
+                             ToolTip.Tip="权重必须是有限数字" />
+                </Grid>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTemplateColumn Header="操作" Width="146">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate x:DataType="vm:StructuredRuleStringEntryViewModel">
+                <StackPanel Orientation="Horizontal" Spacing="3">
+                  <Button Content="↑" Command="{Binding MoveUpCommand}"
+                          Padding="6,2" ToolTip.Tip="上移（Alt+↑）" />
+                  <Button Content="↓" Command="{Binding MoveDownCommand}"
+                          Padding="6,2" ToolTip.Tip="下移（Alt+↓）" />
+                  <Button Content="定位" Command="{Binding ReferencePicker.NavigateCommand}"
+                          Padding="7,2" />
+                  <Button Content="×" Command="{Binding RemoveCommand}"
+                          Padding="7,2" ToolTip.Tip="删除（Delete）" />
+                </StackPanel>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+        </DataGrid.Columns>
+      </DataGrid>
+
+      <TextBlock Text="可从 Excel 粘贴两列数据（条件 ID、权重）；快捷键：Ctrl+C/V、Delete、Alt+↑/↓。"
+                 FontSize="11" Opacity="0.58" TextWrapping="Wrap" />
+      <Border Padding="8" CornerRadius="5" Background="#14E5484D"
+              IsVisible="{Binding HasPasteIssues}">
+        <TextBlock Text="{Binding PasteIssueSummary}" Foreground="#E5484D"
+                   FontSize="11" TextWrapping="Wrap" />
+      </Border>
+
+      <Border Padding="8" CornerRadius="5" Background="#0AFFFFFF">
+        <StackPanel Spacing="5">
+          <TextBlock Text="添加条件（默认权重 1）" FontWeight="SemiBold" />
+          <ContentControl Content="{Binding AddPicker}" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+
+    <StackPanel IsEnabled="{Binding CanUseStructuredEditor}"
                 IsVisible="{Binding IsConditionExpression}" Spacing="8">
       <ItemsControl ItemsSource="{Binding ConditionGroups}">
         <ItemsControl.ItemTemplate>
@@ -176,7 +271,7 @@
     <Grid ColumnDefinitions="*,Auto,Auto">
       <Button Content="{Binding RawEditorToggleText}"
               Command="{Binding ToggleRawEditorCommand}"
-              IsVisible="{Binding IsConditionExpression}"
+              IsVisible="{Binding CanToggleRawEditor}"
               Padding="7,2" FontSize="11" />
       <TextBlock Grid.Column="1" Text="{Binding Summary}" FontSize="11" Opacity="0.58"
                  VerticalAlignment="Center" Margin="8,0" />
