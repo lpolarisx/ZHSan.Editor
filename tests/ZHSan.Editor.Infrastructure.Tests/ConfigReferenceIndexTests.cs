@@ -83,7 +83,7 @@ public sealed class ConfigReferenceIndexTests
             Id = 1,
             Name = "技术",
             InfluencesString = "10 missing",
-            ConditionTableString = "20",
+            ConditionTableString = "996 20 997 30",
             AIConditionWeightString = "20 1.5",
         };
         var project = CreateProject(
@@ -97,6 +97,9 @@ public sealed class ConfigReferenceIndexTests
         Assert.Contains(index.GetReferencesTo("influences", 10), reference =>
             reference.Property.Name == nameof(TechniqueConfig.InfluencesString));
         Assert.Equal(2, index.GetReferencesTo("conditions", 20).Count);
+        Assert.Single(index.GetReferencesTo("conditions", 30));
+        Assert.Empty(index.GetReferencesTo("conditions", 996));
+        Assert.Empty(index.GetReferencesTo("conditions", 997));
         Assert.Single(index.GetDeletionImpacts("influences", [influence]));
     }
 

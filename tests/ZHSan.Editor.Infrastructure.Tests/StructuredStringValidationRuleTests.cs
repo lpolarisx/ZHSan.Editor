@@ -15,8 +15,8 @@ public sealed class StructuredStringValidationRuleTests
         var malformed = Validate(ConfigStructuredStringKind.ConditionIds, "997 10 bad 996");
 
         Assert.Contains(malformed, issue => issue.Severity == ValidationSeverity.Error && issue.Message.Contains("bad"));
-        Assert.Contains(malformed, issue => issue.Message.Contains("997"));
-        Assert.Contains(malformed, issue => issue.Message.Contains("996"));
+        Assert.Contains(malformed, issue => issue.Message.Contains("或"));
+        Assert.Contains(malformed, issue => issue.Message.Contains("非"));
     }
 
     [Fact]

@@ -13,7 +13,7 @@
                  FontSize="11" TextWrapping="Wrap" />
     </Border>
 
-    <StackPanel IsEnabled="{Binding CanUseStructuredEditor}" Spacing="6">
+    <StackPanel IsEnabled="{Binding CanUseStructuredEditor}" IsVisible="{Binding ShowFlatList}" Spacing="6">
       <ItemsControl ItemsSource="{Binding Entries}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:StructuredRuleStringEntryViewModel">
@@ -86,11 +86,105 @@
       </Border>
     </StackPanel>
 
-    <Grid ColumnDefinitions="*,Auto">
-      <TextBlock Text="原始格式（可直接修复无法解析的内容）" FontSize="11" Opacity="0.58" />
-      <TextBlock Grid.Column="1" Text="{Binding Summary}" FontSize="11" Opacity="0.58" />
+    <StackPanel IsEnabled="{Binding CanUseStructuredEditor}"
+                IsVisible="{Binding IsConditionExpression}" Spacing="8">
+      <ItemsControl ItemsSource="{Binding ConditionGroups}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:ConditionExpressionGroupViewModel">
+            <Border Padding="8" Margin="0,2" CornerRadius="6" BorderThickness="1"
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+              <StackPanel Spacing="6">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                  <TextBlock Text="{Binding Heading}" FontWeight="SemiBold"
+                             VerticalAlignment="Center" />
+                  <Button Grid.Column="1" Content="↑" Command="{Binding MoveUpCommand}"
+                          Padding="6,2" Margin="4,0,0,0" ToolTip.Tip="上移整个或分组" />
+                  <Button Grid.Column="2" Content="↓" Command="{Binding MoveDownCommand}"
+                          Padding="6,2" Margin="3,0,0,0" ToolTip.Tip="下移整个或分组" />
+                  <Button Grid.Column="3" Content="删除组" Command="{Binding RemoveCommand}"
+                          Padding="7,2" Margin="3,0,0,0" />
+                </Grid>
+
+                <ItemsControl ItemsSource="{Binding Terms}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ConditionExpressionTermViewModel">
+                      <Grid ColumnDefinitions="Auto,Auto,6,*,Auto,Auto,Auto,Auto,Auto"
+                            Margin="0,1">
+                        <TextBlock Text="{Binding Position, StringFormat='#{0}'}"
+                                   VerticalAlignment="Center" Opacity="0.55" />
+                        <CheckBox Grid.Column="1" Content="非"
+                                  IsChecked="{Binding IsNegated, Mode=TwoWay}"
+                                  Margin="7,0,0,0" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="3"
+                                  ItemsSource="{Binding ReferencePicker.FilteredOptions}"
+                                  SelectedItem="{Binding ReferencePicker.SelectedOption, Mode=TwoWay}"
+                                  MinWidth="100" PlaceholderText="引用目标不存在">
+                          <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ReferenceOptionViewModel">
+                              <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                          </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <TextBlock Grid.Column="4" Text="!" Margin="5,0,0,0"
+                                   VerticalAlignment="Center" Foreground="#E5484D"
+                                   FontWeight="Bold" IsVisible="{Binding IsMissing}"
+                                   ToolTip.Tip="当前条件引用无效或目标 ID 重复" />
+                        <Button Grid.Column="5" Content="↑" Command="{Binding MoveUpCommand}"
+                                Padding="6,2" Margin="4,0,0,0" ToolTip.Tip="在组内上移" />
+                        <Button Grid.Column="6" Content="↓" Command="{Binding MoveDownCommand}"
+                                Padding="6,2" Margin="3,0,0,0" ToolTip.Tip="在组内下移" />
+                        <Button Grid.Column="7" Content="定位"
+                                Command="{Binding ReferencePicker.NavigateCommand}"
+                                Padding="7,2" Margin="3,0,0,0" />
+                        <Button Grid.Column="8" Content="×" Command="{Binding RemoveCommand}"
+                                Padding="7,2" Margin="3,0,0,0" ToolTip.Tip="移除条件" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <Border Padding="8" CornerRadius="5" Background="#0AFFFFFF">
+        <StackPanel Spacing="6">
+          <TextBlock Text="添加条件" FontWeight="SemiBold" />
+          <Grid ColumnDefinitions="Auto,8,*,Auto">
+            <TextBlock Text="添加到" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="2" ItemsSource="{Binding ConditionGroups}"
+                      SelectedItem="{Binding SelectedAddGroup, Mode=TwoWay}"
+                      IsEnabled="{Binding HasConditionGroups}"
+                      MinWidth="100" PlaceholderText="首个分组">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:ConditionExpressionGroupViewModel">
+                  <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <CheckBox Grid.Column="3" Content="新建“或”分组"
+                      IsChecked="{Binding AddAsAlternativeGroup, Mode=TwoWay}"
+                      IsEnabled="{Binding HasConditionGroups}"
+                      Margin="10,0,0,0" VerticalAlignment="Center" />
+          </Grid>
+          <ContentControl Content="{Binding AddPicker}" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+
+    <Grid ColumnDefinitions="*,Auto,Auto">
+      <Button Content="{Binding RawEditorToggleText}"
+              Command="{Binding ToggleRawEditorCommand}"
+              IsVisible="{Binding IsConditionExpression}"
+              Padding="7,2" FontSize="11" />
+      <TextBlock Grid.Column="1" Text="{Binding Summary}" FontSize="11" Opacity="0.58"
+                 VerticalAlignment="Center" Margin="8,0" />
     </Grid>
-    <TextBox Text="{Binding RawText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-             AcceptsReturn="True" MinHeight="52" TextWrapping="Wrap" />
+    <StackPanel IsVisible="{Binding ShowRawEditor}" Spacing="4">
+      <TextBlock Text="底层格式（仅用于修复无法解析的内容）" FontSize="11" Opacity="0.58" />
+      <TextBox Text="{Binding RawText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+               AcceptsReturn="True" MinHeight="52" TextWrapping="Wrap" />
+    </StackPanel>
   </StackPanel>
 </UserControl>

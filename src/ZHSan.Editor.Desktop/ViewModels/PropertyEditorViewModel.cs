@@ -285,12 +285,21 @@ public sealed class PropertyEditorViewModel : ObservableObject
 
         if (Definition.StructuredString is { } structuredString && value is string text)
         {
-            return structuredString.Kind == ConfigStructuredStringKind.WeightedConditionPairs
-                ? ConfigStructuredStringCodec.ParseWeightedConditions(text).Items
+            return structuredString.Kind switch
+            {
+                ConfigStructuredStringKind.WeightedConditionPairs =>
+                    ConfigStructuredStringCodec.ParseWeightedConditions(text).Items
                     .Select(item => item.ConditionId)
                     .Distinct()
-                    .ToArray()
-                : ConfigStructuredStringCodec.ParseIds(text).Items.Distinct().ToArray();
+                    .ToArray(),
+                ConfigStructuredStringKind.ConditionIds =>
+                    ConfigStructuredStringCodec.ParseConditionExpression(text).Items
+                        .SelectMany(group => group.Terms)
+                        .Select(term => term.ConditionId)
+                        .Distinct()
+                        .ToArray(),
+                _ => ConfigStructuredStringCodec.ParseIds(text).Items.Distinct().ToArray(),
+            };
         }
 
         if (value is IEnumerable values and not string)

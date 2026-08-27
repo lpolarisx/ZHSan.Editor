@@ -236,6 +236,14 @@ public sealed class ConfigReferenceIndex
                     yield return item.ConditionId;
                 }
             }
+            else if (structuredString.Kind == ConfigStructuredStringKind.ConditionIds)
+            {
+                foreach (var term in ConfigStructuredStringCodec.ParseConditionExpression(text).Items
+                             .SelectMany(group => group.Terms))
+                {
+                    yield return term.ConditionId;
+                }
+            }
             else
             {
                 foreach (var id in ConfigStructuredStringCodec.ParseIds(text).Items)

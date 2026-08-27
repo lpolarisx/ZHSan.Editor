@@ -8,15 +8,17 @@ namespace ZHSan.Editor.Desktop.ViewModels;
 
 public sealed class StructuredRuleStringEditorViewModel : ObservableObject
 {
-    private const int NegateNextConditionId = 996;
-    private const int OrConditionId = 997;
     private readonly ConfigStructuredStringDefinition _definition;
     private readonly Func<string> _getValue;
     private readonly Action<string> _setValue;
     private readonly IReadOnlyList<ReferenceOptionViewModel> _options;
+    private readonly ObservableCollection<ReferenceOptionViewModel> _conditionOptions = [];
     private readonly Action<ConfigReferenceTarget>? _navigateReference;
     private IReadOnlyList<string> _parseErrors = [];
     private bool _isSynchronizing;
+    private ConditionExpressionGroupViewModel? _selectedAddGroup;
+    private bool _addAsAlternativeGroup;
+    private bool _isRawEditorExpanded;
 
     public StructuredRuleStringEditorViewModel(
         ConfigStructuredStringDefinition definition,
@@ -29,26 +31,50 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
         _getValue = getValue ?? throw new ArgumentNullException(nameof(getValue));
         _setValue = setValue ?? throw new ArgumentNullException(nameof(setValue));
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        ReloadConditionOptions();
         _navigateReference = navigateReference;
+        ToggleRawEditorCommand = new RelayCommand(ToggleRawEditor);
         AddPicker = new ReferencePickerViewModel(
-            _options,
+            IsConditionExpression ? _conditionOptions : _options,
             () => null,
             option => Add(option.Id));
         ReloadFromValue(_getValue());
     }
 
     public ObservableCollection<StructuredRuleStringEntryViewModel> Entries { get; } = [];
+    public ObservableCollection<ConditionExpressionGroupViewModel> ConditionGroups { get; } = [];
     public ReferencePickerViewModel AddPicker { get; }
+    public ICommand ToggleRawEditorCommand { get; }
     public string FormatDescription => _definition.FormatDescription;
     public bool IsWeighted => _definition.Kind == ConfigStructuredStringKind.WeightedConditionPairs;
     public bool IsInfluenceList => _definition.Kind == ConfigStructuredStringKind.InfluenceIds;
+    public bool IsConditionExpression => _definition.Kind == ConfigStructuredStringKind.ConditionIds;
+    public bool ShowFlatList => !IsConditionExpression;
+    public bool HasConditionGroups => ConditionGroups.Count > 0;
+    public bool HasParseErrors => _parseErrors.Count > 0;
+    public bool ShowRawEditor => !IsConditionExpression || HasParseErrors || _isRawEditorExpanded;
+    public string RawEditorToggleText => ShowRawEditor ? "隐藏底层文本" : "显示底层文本（高级）";
     public bool CanUseStructuredEditor => _parseErrors.Count == 0;
     public bool HasIssues => IssueCount > 0;
     public int IssueCount => GetIssues().Count;
     public string IssueSummary => string.Join(Environment.NewLine, GetIssues().Select(issue => $"• {issue}"));
-    public string Summary => IsWeighted
-        ? $"{Entries.Count} 组条件权重"
-        : $"{Entries.Count} 个{(_definition.Kind == ConfigStructuredStringKind.InfluenceIds ? "影响" : "条件")}";
+    public string Summary => IsConditionExpression
+        ? $"{ConditionGroups.Count} 个或分组，{ConditionGroups.Sum(group => group.Terms.Count)} 个条件"
+        : IsWeighted
+            ? $"{Entries.Count} 组条件权重"
+            : $"{Entries.Count} 个影响";
+
+    public ConditionExpressionGroupViewModel? SelectedAddGroup
+    {
+        get => _selectedAddGroup;
+        set => SetProperty(ref _selectedAddGroup, value);
+    }
+
+    public bool AddAsAlternativeGroup
+    {
+        get => _addAsAlternativeGroup;
+        set => SetProperty(ref _addAsAlternativeGroup, value);
+    }
 
     public string RawText
     {
@@ -69,7 +95,19 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
     {
         _isSynchronizing = true;
         Entries.Clear();
-        if (IsWeighted)
+        ConditionGroups.Clear();
+        if (IsConditionExpression)
+        {
+            var parsed = ConfigStructuredStringCodec.ParseConditionExpression(value);
+            _parseErrors = parsed.Errors;
+            foreach (var group in parsed.Items)
+            {
+                ConditionGroups.Add(CreateConditionGroup(group));
+            }
+
+            SelectedAddGroup = ConditionGroups.LastOrDefault();
+        }
+        else if (IsWeighted)
         {
             var parsed = ConfigStructuredStringCodec.ParseWeightedConditions(value);
             _parseErrors = parsed.Errors;
@@ -94,13 +132,42 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
 
     public void RefreshReferenceOptions()
     {
+        ReloadConditionOptions();
         AddPicker.RefreshOptions();
         foreach (var entry in Entries)
         {
             entry.ReferencePicker.RefreshOptions();
         }
 
+        foreach (var term in ConditionGroups.SelectMany(group => group.Terms))
+        {
+            term.ReferencePicker.RefreshOptions();
+        }
+
         RefreshState();
+    }
+
+    private void ToggleRawEditor()
+    {
+        if (!IsConditionExpression || HasParseErrors)
+        {
+            return;
+        }
+
+        _isRawEditorExpanded = !_isRawEditorExpanded;
+        OnPropertyChanged(nameof(ShowRawEditor));
+        OnPropertyChanged(nameof(RawEditorToggleText));
+    }
+
+    private void ReloadConditionOptions()
+    {
+        _conditionOptions.Clear();
+        foreach (var option in _options.Where(option =>
+                     option.Id != ConfigStructuredStringCodec.NegateNextConditionId &&
+                     option.Id != ConfigStructuredStringCodec.OrConditionId))
+        {
+            _conditionOptions.Add(option);
+        }
     }
 
     private StructuredRuleStringEntryViewModel CreateEntry(int id, float? weight) =>
@@ -125,8 +192,28 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
             return;
         }
 
-        Entries.Add(CreateEntry(id, IsWeighted ? 1f : null));
-        CommitEntries();
+        if (IsConditionExpression)
+        {
+            if (AddAsAlternativeGroup || SelectedAddGroup is null || !ConditionGroups.Contains(SelectedAddGroup))
+            {
+                var group = CreateConditionGroup(
+                    new ConditionExpressionGroupValue([new ConditionExpressionTermValue(id, false)]));
+                ConditionGroups.Add(group);
+                SelectedAddGroup = group;
+                AddAsAlternativeGroup = false;
+            }
+            else
+            {
+                SelectedAddGroup.Terms.Add(CreateConditionTerm(id, false, SelectedAddGroup));
+            }
+
+            CommitConditionGroups();
+        }
+        else
+        {
+            Entries.Add(CreateEntry(id, IsWeighted ? 1f : null));
+            CommitEntries();
+        }
     }
 
     private void ReplaceId(StructuredRuleStringEntryViewModel entry, int id)
@@ -183,6 +270,115 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
         CommitEntries();
     }
 
+    private ConditionExpressionGroupViewModel CreateConditionGroup(ConditionExpressionGroupValue value)
+    {
+        ConditionExpressionGroupViewModel? group = null;
+        group = new ConditionExpressionGroupViewModel(
+            remove: () => RemoveConditionGroup(group!),
+            moveUp: () => MoveConditionGroup(group!, -1),
+            moveDown: () => MoveConditionGroup(group!, 1));
+        foreach (var term in value.Terms)
+        {
+            group.Terms.Add(CreateConditionTerm(term.ConditionId, term.IsNegated, group));
+        }
+
+        return group;
+    }
+
+    private ConditionExpressionTermViewModel CreateConditionTerm(
+        int id,
+        bool isNegated,
+        ConditionExpressionGroupViewModel group)
+    {
+        ConditionExpressionTermViewModel? term = null;
+        term = new ConditionExpressionTermViewModel(
+            id,
+            isNegated,
+            _conditionOptions,
+            _navigateReference,
+            changed: CommitConditionGroups,
+            remove: () => RemoveConditionTerm(group, term!),
+            moveUp: () => MoveConditionTerm(group, term!, -1),
+            moveDown: () => MoveConditionTerm(group, term!, 1));
+        return term;
+    }
+
+    private void RemoveConditionGroup(ConditionExpressionGroupViewModel group)
+    {
+        if (!CanUseStructuredEditor || !ConditionGroups.Remove(group))
+        {
+            return;
+        }
+
+        SelectedAddGroup = ConditionGroups.LastOrDefault();
+        CommitConditionGroups();
+    }
+
+    private void MoveConditionGroup(ConditionExpressionGroupViewModel group, int offset)
+    {
+        if (!CanUseStructuredEditor)
+        {
+            return;
+        }
+
+        var oldIndex = ConditionGroups.IndexOf(group);
+        var newIndex = oldIndex + offset;
+        if (oldIndex < 0 || newIndex < 0 || newIndex >= ConditionGroups.Count)
+        {
+            return;
+        }
+
+        ConditionGroups.Move(oldIndex, newIndex);
+        CommitConditionGroups();
+    }
+
+    private void RemoveConditionTerm(
+        ConditionExpressionGroupViewModel group,
+        ConditionExpressionTermViewModel term)
+    {
+        if (!CanUseStructuredEditor || !ConditionGroups.Contains(group) || !group.Terms.Remove(term))
+        {
+            return;
+        }
+
+        if (group.Terms.Count == 0)
+        {
+            ConditionGroups.Remove(group);
+            SelectedAddGroup = ConditionGroups.LastOrDefault();
+        }
+
+        CommitConditionGroups();
+    }
+
+    private void MoveConditionTerm(
+        ConditionExpressionGroupViewModel group,
+        ConditionExpressionTermViewModel term,
+        int offset)
+    {
+        if (!CanUseStructuredEditor || !ConditionGroups.Contains(group))
+        {
+            return;
+        }
+
+        var oldIndex = group.Terms.IndexOf(term);
+        var newIndex = oldIndex + offset;
+        if (oldIndex < 0 || newIndex < 0 || newIndex >= group.Terms.Count)
+        {
+            return;
+        }
+
+        group.Terms.Move(oldIndex, newIndex);
+        CommitConditionGroups();
+    }
+
+    private void CommitConditionGroups()
+    {
+        var value = ConfigStructuredStringCodec.FormatConditionExpression(
+            ConditionGroups.Select(group => new ConditionExpressionGroupValue(
+                group.Terms.Select(term => new ConditionExpressionTermValue(term.Id, term.IsNegated)).ToArray())));
+        _setValue(value);
+    }
+
     private void CommitEntries()
     {
         var value = IsWeighted
@@ -201,6 +397,22 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
             return issues;
         }
 
+        if (IsConditionExpression)
+        {
+            var terms = ConditionGroups.SelectMany(group => group.Terms).ToArray();
+            foreach (var term in terms.Where(term => term.IsMissing))
+            {
+                issues.Add($"条件 ID {term.Id} 的目标不存在或 ID 重复。");
+            }
+
+            foreach (var duplicate in terms.GroupBy(term => term.Id).Where(group => group.Count() > 1))
+            {
+                issues.Add($"条件 ID {duplicate.Key} 重复，游戏加载时只保留第一次出现的位置。");
+            }
+
+            return issues.Distinct(StringComparer.Ordinal).ToArray();
+        }
+
         foreach (var entry in Entries.Where(entry => entry.IsMissing))
         {
             issues.Add($"ID {entry.Id} 的目标不存在或 ID 重复。");
@@ -213,24 +425,6 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
                 : $"ID {duplicate.Key} 重复，游戏加载时只保留第一次出现的位置。");
         }
 
-        if (_definition.Kind == ConfigStructuredStringKind.ConditionIds)
-        {
-            for (var index = 0; index < Entries.Count; index++)
-            {
-                if (Entries[index].Id == OrConditionId &&
-                    (index == 0 || index == Entries.Count - 1 || Entries[index - 1].Id == OrConditionId))
-                {
-                    issues.Add("997（或以下条件）不能位于开头、结尾或紧邻另一个 997。");
-                }
-
-                if (Entries[index].Id == NegateNextConditionId &&
-                    (index == Entries.Count - 1 || Entries[index + 1].Id == OrConditionId))
-                {
-                    issues.Add("996（否定下一项）后必须紧跟一个普通条件。");
-                }
-            }
-        }
-
         return issues.Distinct(StringComparer.Ordinal).ToArray();
     }
 
@@ -241,12 +435,158 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
             Entries[index].Refresh(index, Entries.Count);
         }
 
+        for (var index = 0; index < ConditionGroups.Count; index++)
+        {
+            ConditionGroups[index].Refresh(index, ConditionGroups.Count);
+        }
+
         OnPropertyChanged(nameof(RawText));
+        OnPropertyChanged(nameof(HasConditionGroups));
+        OnPropertyChanged(nameof(HasParseErrors));
+        OnPropertyChanged(nameof(ShowRawEditor));
+        OnPropertyChanged(nameof(RawEditorToggleText));
         OnPropertyChanged(nameof(CanUseStructuredEditor));
         OnPropertyChanged(nameof(HasIssues));
         OnPropertyChanged(nameof(IssueCount));
         OnPropertyChanged(nameof(IssueSummary));
         OnPropertyChanged(nameof(Summary));
+    }
+}
+
+public sealed class ConditionExpressionGroupViewModel : ObservableObject
+{
+    private int _position;
+    private bool _canMoveUp;
+    private bool _canMoveDown;
+
+    public ConditionExpressionGroupViewModel(Action remove, Action moveUp, Action moveDown)
+    {
+        RemoveCommand = new RelayCommand(remove);
+        MoveUpCommand = new RelayCommand(moveUp, () => CanMoveUp);
+        MoveDownCommand = new RelayCommand(moveDown, () => CanMoveDown);
+    }
+
+    public ObservableCollection<ConditionExpressionTermViewModel> Terms { get; } = [];
+    public ICommand RemoveCommand { get; }
+    public ICommand MoveUpCommand { get; }
+    public ICommand MoveDownCommand { get; }
+    public int Position => _position;
+    public string Label => $"第 {Position} 组";
+    public string Heading => Position == 1 ? "满足以下所有条件（与）" : "或者，满足以下所有条件（与）";
+    public bool CanMoveUp => _canMoveUp;
+    public bool CanMoveDown => _canMoveDown;
+
+    internal void Refresh(int index, int count)
+    {
+        _position = index + 1;
+        _canMoveUp = index > 0;
+        _canMoveDown = index + 1 < count;
+        OnPropertyChanged(nameof(Position));
+        OnPropertyChanged(nameof(Label));
+        OnPropertyChanged(nameof(Heading));
+        OnPropertyChanged(nameof(CanMoveUp));
+        OnPropertyChanged(nameof(CanMoveDown));
+        ((RelayCommand)MoveUpCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)MoveDownCommand).RaiseCanExecuteChanged();
+
+        for (var termIndex = 0; termIndex < Terms.Count; termIndex++)
+        {
+            Terms[termIndex].Refresh(termIndex, Terms.Count);
+        }
+    }
+}
+
+public sealed class ConditionExpressionTermViewModel : ObservableObject
+{
+    private readonly IReadOnlyList<ReferenceOptionViewModel> _options;
+    private readonly Action _changed;
+    private int _id;
+    private bool _isNegated;
+    private int _position;
+    private bool _canMoveUp;
+    private bool _canMoveDown;
+
+    public ConditionExpressionTermViewModel(
+        int id,
+        bool isNegated,
+        IReadOnlyList<ReferenceOptionViewModel> options,
+        Action<ConfigReferenceTarget>? navigateReference,
+        Action changed,
+        Action remove,
+        Action moveUp,
+        Action moveDown)
+    {
+        _id = id;
+        _isNegated = isNegated;
+        _options = options;
+        _changed = changed;
+        Action<ReferenceOptionViewModel>? navigate = navigateReference is null
+            ? null
+            : option =>
+            {
+                if (option.Target is not null)
+                {
+                    navigateReference(option.Target);
+                }
+            };
+        ReferencePickerViewModel? picker = null;
+        picker = new ReferencePickerViewModel(
+            options,
+            () => Id,
+            option =>
+            {
+                if (option.Id == Id)
+                {
+                    return;
+                }
+
+                _id = option.Id;
+                OnPropertyChanged(nameof(Id));
+                OnPropertyChanged(nameof(IsMissing));
+                picker!.RefreshSelection();
+                _changed();
+            },
+            navigate);
+        ReferencePicker = picker;
+        RemoveCommand = new RelayCommand(remove);
+        MoveUpCommand = new RelayCommand(moveUp, () => CanMoveUp);
+        MoveDownCommand = new RelayCommand(moveDown, () => CanMoveDown);
+    }
+
+    public ReferencePickerViewModel ReferencePicker { get; }
+    public ICommand RemoveCommand { get; }
+    public ICommand MoveUpCommand { get; }
+    public ICommand MoveDownCommand { get; }
+    public int Id => _id;
+    public int Position => _position;
+    public bool CanMoveUp => _canMoveUp;
+    public bool CanMoveDown => _canMoveDown;
+    public bool IsMissing => _options.FirstOrDefault(option => option.Id == Id)?.IsMissing != false;
+
+    public bool IsNegated
+    {
+        get => _isNegated;
+        set
+        {
+            if (SetProperty(ref _isNegated, value))
+            {
+                _changed();
+            }
+        }
+    }
+
+    internal void Refresh(int index, int count)
+    {
+        _position = index + 1;
+        _canMoveUp = index > 0;
+        _canMoveDown = index + 1 < count;
+        OnPropertyChanged(nameof(Position));
+        OnPropertyChanged(nameof(CanMoveUp));
+        OnPropertyChanged(nameof(CanMoveDown));
+        OnPropertyChanged(nameof(IsMissing));
+        ((RelayCommand)MoveUpCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)MoveDownCommand).RaiseCanExecuteChanged();
+        ReferencePicker.RefreshOptions();
     }
 }
 
