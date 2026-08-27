@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 using System.Windows.Input;
 using ZHSan.Editor.Application.Abstractions;
 using ZHSan.Editor.Application.References;
+using ZHSan.Editor.Desktop.Editors;
 using ZHSan.Editor.Desktop.Services;
 using ZHSan.Editor.Domain.Configuration;
 using ZHSan.Editor.Domain.Documents;
@@ -39,6 +40,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject
     private ConfigRecordViewModel? _selectedRecord;
     private string _rawJson = "选择一条记录以查看 JSON。";
     private string? _notificationMessage;
+    private bool _isSpecializedEditorActive;
 
     public ConfigDocumentViewModel(
         ConfigDocument document,
@@ -47,7 +49,8 @@ public sealed class ConfigDocumentViewModel : ObservableObject
         RecordClipboard? clipboard = null,
         DocumentUiState? uiState = null,
         ConfigReferenceIndex? referenceIndex = null,
-        IReferenceDeletionPrompt? referenceDeletionPrompt = null)
+        IReferenceDeletionPrompt? referenceDeletionPrompt = null,
+        ConfigEditorProviderRegistry? editorProviderRegistry = null)
     {
         Document = document;
         _clipboard = clipboard ?? new RecordClipboard();
@@ -90,6 +93,14 @@ public sealed class ConfigDocumentViewModel : ObservableObject
         _clipboard.Changed += ClipboardChanged;
         ClearSearchCommand = new RelayCommand(() => SearchText = string.Empty, () => SearchText.Length > 0);
         ApplyFilter();
+        SpecializedEditor = editorProviderRegistry?.CreateEditor(this);
+        _isSpecializedEditorActive = SpecializedEditor is not null;
+        ShowSpecializedEditorCommand = new RelayCommand(
+            () => IsSpecializedEditorActive = true,
+            () => SpecializedEditor is not null && !IsSpecializedEditorActive);
+        ShowGenericEditorCommand = new RelayCommand(
+            () => IsSpecializedEditorActive = false,
+            () => IsSpecializedEditorActive);
     }
 
     public event EventHandler? StateChanged;
@@ -104,6 +115,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject
     public ObservableCollection<ConfigRecordViewModel> Records { get; } = [];
     public ObservableCollection<ConfigRecordViewModel> FilteredRecords { get; } = [];
     public ObservableCollection<PropertyEditorViewModel> PropertyEditors { get; } = [];
+    public ConfigEditorHostViewModel? SpecializedEditor { get; }
     public ICommand SelectCommand { get; }
     public ICommand AddCommand { get; }
     public ICommand CopyCommand { get; }
@@ -115,6 +127,8 @@ public sealed class ConfigDocumentViewModel : ObservableObject
     public ICommand UndoCommand { get; }
     public ICommand RedoCommand { get; }
     public ICommand ClearSearchCommand { get; }
+    public ICommand ShowSpecializedEditorCommand { get; }
+    public ICommand ShowGenericEditorCommand { get; }
 
     public int ItemCount => Records.Count;
     public int VisibleItemCount => FilteredRecords.Count;
@@ -126,6 +140,21 @@ public sealed class ConfigDocumentViewModel : ObservableObject
     public string? NotificationMessage => _notificationMessage;
     public bool CanUndo => _history.CanUndo;
     public bool CanRedo => _history.CanRedo;
+    public bool HasSpecializedEditor => SpecializedEditor is not null;
+    public bool IsSpecializedEditorActive
+    {
+        get => _isSpecializedEditorActive;
+        private set
+        {
+            if (SetProperty(ref _isSpecializedEditorActive, value))
+            {
+                OnPropertyChanged(nameof(IsGenericEditorActive));
+                ((RelayCommand)ShowSpecializedEditorCommand).RaiseCanExecuteChanged();
+                ((RelayCommand)ShowGenericEditorCommand).RaiseCanExecuteChanged();
+            }
+        }
+    }
+    public bool IsGenericEditorActive => !IsSpecializedEditorActive;
     public string UndoLabel => _history.UndoDescription is null ? "撤销" : $"撤销 {_history.UndoDescription}";
     public string RedoLabel => _history.RedoDescription is null ? "重做" : $"重做 {_history.RedoDescription}";
     public IReadOnlyList<double> SavedColumnWidths => _uiState.ColumnWidths;
@@ -277,6 +306,67 @@ public sealed class ConfigDocumentViewModel : ObservableObject
         OnPropertyChanged(nameof(DirtyMarker));
         OnPropertyChanged(nameof(DisplayLabel));
         StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetPropertyValue(
+        ConfigRecordViewModel record,
+        string propertyName,
+        object? value,
+        string? editDescription = null)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        ArgumentException.ThrowIfNullOrWhiteSpace(propertyName);
+        if (!Records.Contains(record))
+        {
+            throw new ArgumentException("记录不属于当前配置文档。", nameof(record));
+        }
+
+        var definition = _properties.FirstOrDefault(property => property.Name == propertyName)
+            ?? throw new ArgumentException($"配置不包含属性 {propertyName}。", nameof(propertyName));
+        if (!definition.CanWrite)
+        {
+            throw new InvalidOperationException($"属性 {propertyName} 是只读的。");
+        }
+
+        var property = record.Item.GetType().GetProperty(propertyName)
+            ?? throw new InvalidOperationException($"找不到属性 {propertyName}。");
+        if (value is null && property.PropertyType.IsValueType &&
+            Nullable.GetUnderlyingType(property.PropertyType) is null)
+        {
+            throw new ArgumentException($"属性 {propertyName} 不接受空值。", nameof(value));
+        }
+
+        if (value is not null && !property.PropertyType.IsInstanceOfType(value))
+        {
+            throw new ArgumentException(
+                $"属性 {propertyName} 需要 {property.PropertyType.Name}，实际为 {value.GetType().Name}。",
+                nameof(value));
+        }
+
+        var oldValue = CloneValue(property.GetValue(record.Item));
+        var newValue = CloneValue(value);
+        if (Equals(oldValue, newValue))
+        {
+            return;
+        }
+
+        void Apply(object? nextValue)
+        {
+            property.SetValue(record.Item, CloneValue(nextValue));
+            RefreshEditedRecord(record);
+            if (ReferenceEquals(SelectedRecord, record))
+            {
+                RebuildPropertyEditors();
+            }
+        }
+
+        Apply(newValue);
+        var description = editDescription ?? $"修改 {definition.DisplayName}";
+        RecordEdit(new DelegateUndoableEdit(
+            description,
+            () => Apply(oldValue),
+            () => Apply(newValue)),
+            $"已{description}");
     }
 
     public void ApplyImportedItems(

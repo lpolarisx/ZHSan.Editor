@@ -10,6 +10,7 @@ using ZHSan.Editor.Application.Projects;
 using ZHSan.Editor.Application.Publishing;
 using ZHSan.Editor.Application.Validation;
 using ZHSan.Editor.Desktop.Services;
+using ZHSan.Editor.Desktop.Editors;
 using ZHSan.Editor.Desktop.ViewModels;
 using ZHSan.Editor.Desktop.Views;
 using ZHSan.Editor.Infrastructure.Archives;
@@ -53,6 +54,7 @@ public sealed partial class App : Avalonia.Application
             services.AddSingleton<ConfigExportService>();
             services.AddSingleton<PublishArchiveService>();
             services.AddSingleton<EditorUiStateStore>();
+            services.AddSingleton<ConfigEditorProviderRegistry>();
             services.AddSingleton<IArchivePicker>(new AvaloniaArchivePicker(mainWindow));
             services.AddSingleton<IUnsavedChangesPrompt>(new AvaloniaUnsavedChangesPrompt(mainWindow));
             services.AddSingleton<IReferenceDeletionPrompt>(new AvaloniaReferenceDeletionPrompt(mainWindow));

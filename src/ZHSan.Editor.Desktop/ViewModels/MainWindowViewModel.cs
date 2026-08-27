@@ -11,6 +11,7 @@ using ZHSan.Editor.Application.Settings;
 using ZHSan.Editor.Application.Transfers;
 using ZHSan.Editor.Application.Validation;
 using ZHSan.Editor.Desktop.Services;
+using ZHSan.Editor.Desktop.Editors;
 using ZHSan.Editor.Domain.Documents;
 using ZHSan.Editor.Domain.Importing;
 using ZHSan.Editor.Domain.Validation;
@@ -36,6 +37,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly EditorUiStateStore _uiStateStore;
     private readonly EditorUiState _uiState;
     private readonly RecordClipboard _recordClipboard = new();
+    private readonly ConfigEditorProviderRegistry _editorProviderRegistry;
     private readonly List<ConfigDocumentViewModel> _documents = [];
     private readonly List<ValidationIssueViewModel> _allValidationIssues = [];
     private ConfigReferenceIndex? _referenceIndex;
@@ -72,7 +74,8 @@ public sealed class MainWindowViewModel : ObservableObject
         ConfigImportService? configImportService = null,
         IConfigTransferLogStore? configTransferLogStore = null,
         ConfigExportService? configExportService = null,
-        PublishArchiveService? publishArchiveService = null)
+        PublishArchiveService? publishArchiveService = null,
+        ConfigEditorProviderRegistry? editorProviderRegistry = null)
     {
         _openArchiveService = openArchiveService;
         _saveArchiveService = saveArchiveService;
@@ -87,6 +90,7 @@ public sealed class MainWindowViewModel : ObservableObject
         _configTransferLogStore = configTransferLogStore;
         _configExportService = configExportService;
         _publishArchiveService = publishArchiveService;
+        _editorProviderRegistry = editorProviderRegistry ?? new ConfigEditorProviderRegistry([]);
         _editorSettingsStore = editorSettingsStore;
         _editorSettings = editorSettingsStore.Load();
         _uiStateStore = uiStateStore;
@@ -821,7 +825,8 @@ public sealed class MainWindowViewModel : ObservableObject
                     _recordClipboard,
                     _uiState.GetDocument(document.Definition.Key),
                     referenceIndex,
-                    _referenceDeletionPrompt))
+                    _referenceDeletionPrompt,
+                    _editorProviderRegistry))
                 .ToArray();
 
             foreach (var document in documents)

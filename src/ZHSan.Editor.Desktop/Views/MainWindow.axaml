@@ -148,12 +148,21 @@
         <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*">
           <Border Padding="18,13" BorderThickness="0,0,0,1"
                   BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid ColumnDefinitions="*,Auto,12,Auto">
               <StackPanel Spacing="3">
                 <TextBlock Text="{Binding SelectedDocumentTitle}" FontSize="21" FontWeight="SemiBold" />
                 <TextBlock Text="{Binding SelectedDocumentSummary}" Opacity="0.62" />
               </StackPanel>
-              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center"
+                          IsVisible="{Binding SelectedDocument.HasSpecializedEditor}">
+                <Button Content="专用编辑"
+                        Command="{Binding SelectedDocument.ShowSpecializedEditorCommand}"
+                        IsEnabled="{Binding SelectedDocument.IsGenericEditorActive}" />
+                <Button Content="表格编辑"
+                        Command="{Binding SelectedDocument.ShowGenericEditorCommand}"
+                        IsEnabled="{Binding SelectedDocument.IsSpecializedEditorActive}" />
+              </StackPanel>
+              <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"
                           IsVisible="{Binding HasSelectedDocument}">
                 <Button Content="导入 JSON" Command="{Binding ImportJsonCommand}" />
                 <Button Content="新增" Command="{Binding SelectedDocument.AddCommand}" />
@@ -166,7 +175,7 @@
 
           <Border Grid.Row="1" Padding="12,9" BorderThickness="0,0,0,1"
                   BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                  IsVisible="{Binding HasSelectedDocument}">
+                  IsVisible="{Binding SelectedDocument.IsGenericEditorActive}">
             <Grid ColumnDefinitions="Auto,140,8,*,8,Auto">
               <TextBlock Text="筛选" VerticalAlignment="Center" Margin="0,0,8,0" />
               <ComboBox Grid.Column="1"
@@ -196,7 +205,10 @@
                       GridLinesVisibility="Horizontal"
                       SelectionMode="Extended"
                       SelectionChanged="RecordsGrid_OnSelectionChanged"
-                      IsVisible="{Binding HasSelectedDocument}" />
+                      IsVisible="{Binding SelectedDocument.IsGenericEditorActive}" />
+
+            <ContentControl Content="{Binding SelectedDocument.SpecializedEditor.Content}"
+                            IsVisible="{Binding SelectedDocument.IsSpecializedEditorActive}" />
 
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" Width="520"
                         IsVisible="{Binding HasNoProject}">
