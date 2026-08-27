@@ -23,6 +23,8 @@
     <KeyBinding Gesture="Ctrl+D" Command="{Binding SelectedDocument.CopyCommand}" />
     <KeyBinding Gesture="Ctrl+Delete" Command="{Binding SelectedDocument.DeleteCommand}" />
     <KeyBinding Gesture="F8" Command="{Binding ValidateCommand}" />
+    <KeyBinding Gesture="Ctrl+I" Command="{Binding ImportJsonCommand}" />
+    <KeyBinding Gesture="Ctrl+Shift+I" Command="{Binding ImportArchiveCommand}" />
   </Window.KeyBindings>
   <DockPanel>
     <Menu DockPanel.Dock="Top">
@@ -49,6 +51,9 @@
         <MenuItem Header="删除记录" Command="{Binding SelectedDocument.DeleteCommand}" InputGesture="Ctrl+Delete" />
       </MenuItem>
       <MenuItem Header="数据">
+        <MenuItem Header="导入当前配置 JSON…" Command="{Binding ImportJsonCommand}" InputGesture="Ctrl+I" />
+        <MenuItem Header="从数据档案批量导入…" Command="{Binding ImportArchiveCommand}" InputGesture="Ctrl+Shift+I" />
+        <Separator />
         <MenuItem Header="校验项目" Command="{Binding ValidateCommand}" InputGesture="F8" />
       </MenuItem>
       <MenuItem Header="工具">
@@ -142,6 +147,7 @@
               </StackPanel>
               <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"
                           IsVisible="{Binding HasSelectedDocument}">
+                <Button Content="导入 JSON" Command="{Binding ImportJsonCommand}" />
                 <Button Content="新增" Command="{Binding SelectedDocument.AddCommand}" />
                 <Button Content="创建副本" Command="{Binding SelectedDocument.CopyCommand}" />
                 <Button Content="粘贴" Command="{Binding SelectedDocument.PasteCommand}" />
@@ -375,6 +381,76 @@
               </Grid>
             </TabItem>
 
+            <TabItem Header="{Binding ImportTabHeader}" IsVisible="{Binding HasImportPreview}">
+              <Grid RowDefinitions="Auto,Auto,Auto,150,Auto,*,Auto" Margin="12">
+                <TextBlock Text="导入前预览" FontSize="17" FontWeight="SemiBold" />
+                <TextBlock Grid.Row="1" Text="{Binding ImportPreviewSummary}"
+                           Margin="0,5,0,10" TextWrapping="Wrap" Opacity="0.72" />
+                <StackPanel Grid.Row="2" Spacing="5">
+                  <TextBlock Text="合并策略" FontWeight="SemiBold" />
+                  <ComboBox ItemsSource="{Binding ImportStrategies}"
+                            SelectedItem="{Binding SelectedImportStrategy, Mode=TwoWay}">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ImportStrategyOptionViewModel">
+                        <TextBlock Text="{Binding DisplayName}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                  <TextBlock Text="{Binding ImportStrategyDescription}"
+                             TextWrapping="Wrap" FontSize="11" Opacity="0.62" />
+                </StackPanel>
+                <ListBox Grid.Row="3" ItemsSource="{Binding ImportPreviewDocuments}" Margin="0,10,0,8">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ImportPreviewDocumentViewModel">
+                      <Border Padding="9,7" Margin="0,1" CornerRadius="4" Background="#0DFFFFFF">
+                        <StackPanel Spacing="3">
+                          <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="1" Text="{Binding StrategyText}" FontSize="11" Opacity="0.6" />
+                          </Grid>
+                          <TextBlock Text="{Binding Summary}" FontSize="11" />
+                          <TextBlock Text="{Binding ResultText}" FontSize="11" TextWrapping="Wrap" Opacity="0.65" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+                <Expander Grid.Row="4" Header="读取失败详情" IsVisible="{Binding HasImportFailures}"
+                          IsExpanded="True" Margin="0,0,0,8">
+                  <ItemsControl ItemsSource="{Binding ImportFailures}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ImportFailureViewModel">
+                        <StackPanel Margin="7,4" Spacing="2">
+                          <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="11" Foreground="#E5484D" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </Expander>
+                <ListBox Grid.Row="5" ItemsSource="{Binding ImportDifferenceRows}">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ImportDifferenceRowViewModel">
+                      <Border Padding="8,6" Margin="0,1" CornerRadius="4" Background="#0DFFFFFF">
+                        <StackPanel Spacing="3">
+                          <Grid ColumnDefinitions="Auto,8,*,Auto">
+                            <TextBlock Text="{Binding ChangeKind}" FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="2" Text="{Binding ConfigName}" />
+                            <TextBlock Grid.Column="3" Text="{Binding RecordLabel}" Opacity="0.62" />
+                          </Grid>
+                          <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" FontSize="11" Opacity="0.72" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+                <StackPanel Grid.Row="6" Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
+                  <Button Content="应用可用更改" Command="{Binding ApplyImportCommand}" />
+                  <Button Content="取消" Command="{Binding CancelImportPreviewCommand}" />
+                </StackPanel>
+              </Grid>
+            </TabItem>
+
             <TabItem Header="批量修改" IsVisible="{Binding SelectedDocument.HasMultipleSelection}">
               <StackPanel Margin="16" Spacing="10">
                 <TextBlock Text="{Binding SelectedDocument.SelectionSummary}"
@@ -406,6 +482,29 @@
                        ScrollViewer.VerticalScrollBarVisibility="Auto"
                        ScrollViewer.HorizontalScrollBarVisibility="Auto"
                        Margin="8" />
+            </TabItem>
+
+            <TabItem Header="{Binding ImportLogTabHeader}">
+              <Grid RowDefinitions="Auto,*" Margin="12">
+                <TextBlock Text="导入日志与失败详情" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8" />
+                <ListBox Grid.Row="1" ItemsSource="{Binding ImportLogEntries}">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ImportLogEntryViewModel">
+                      <Border Padding="9,7" Margin="0,1" CornerRadius="4" Background="#0DFFFFFF">
+                        <StackPanel Spacing="3">
+                          <Grid ColumnDefinitions="Auto,8,*,Auto">
+                            <TextBlock Text="{Binding Status}" FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="2" Text="{Binding TargetName}" />
+                            <TextBlock Grid.Column="3" Text="{Binding TimeText}" FontSize="10" Opacity="0.55" />
+                          </Grid>
+                          <TextBlock Text="{Binding SourceName}" FontSize="11" Opacity="0.55" />
+                          <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="11" Opacity="0.75" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </Grid>
             </TabItem>
           </TabControl>
         </Border>

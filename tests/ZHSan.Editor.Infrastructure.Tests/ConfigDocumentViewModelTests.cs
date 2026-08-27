@@ -562,4 +562,27 @@ public sealed class ConfigDocumentViewModelTests
         Assert.False(viewModel.IsDirty);
     }
 
+    [Fact]
+    public void ApplyImportedItems_IsDirtyAndCanBeUndoneAndRedone()
+    {
+        var original = new TechniqueConfig { Id = 1, Name = "当前" };
+        var imported = new TechniqueConfig { Id = 1, Name = "导入" };
+        var added = new TechniqueConfig { Id = 2, Name = "新增" };
+        var viewModel = CreateViewModel([original]);
+
+        viewModel.ApplyImportedItems([imported, added], "导入技术");
+
+        Assert.True(viewModel.IsDirty);
+        Assert.Equal([imported, added], viewModel.Document.Items);
+        Assert.Equal(2, viewModel.Records.Count);
+
+        viewModel.UndoCommand.Execute(null);
+        Assert.False(viewModel.IsDirty);
+        Assert.Same(original, Assert.Single(viewModel.Document.Items));
+
+        viewModel.RedoCommand.Execute(null);
+        Assert.True(viewModel.IsDirty);
+        Assert.Equal([imported, added], viewModel.Document.Items);
+    }
+
 }

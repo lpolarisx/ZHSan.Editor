@@ -2,12 +2,14 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using Avalonia.Threading;
 using ZHSan.Editor.Application.Abstractions;
+using ZHSan.Editor.Application.Importing;
 using ZHSan.Editor.Application.Projects;
 using ZHSan.Editor.Application.References;
 using ZHSan.Editor.Application.Settings;
 using ZHSan.Editor.Application.Validation;
 using ZHSan.Editor.Desktop.Services;
 using ZHSan.Editor.Domain.Documents;
+using ZHSan.Editor.Domain.Importing;
 using ZHSan.Editor.Domain.Validation;
 
 namespace ZHSan.Editor.Desktop.ViewModels;
@@ -22,6 +24,8 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly IArchivePicker _archivePicker;
     private readonly IUnsavedChangesPrompt _unsavedChangesPrompt;
     private readonly IReferenceDeletionPrompt? _referenceDeletionPrompt;
+    private readonly ConfigImportService? _configImportService;
+    private readonly IConfigImportLogStore? _configImportLogStore;
     private readonly IEditorSettingsStore _editorSettingsStore;
     private readonly EditorSettings _editorSettings;
     private readonly EditorUiStateStore _uiStateStore;
@@ -30,6 +34,8 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly List<ConfigDocumentViewModel> _documents = [];
     private readonly List<ValidationIssueViewModel> _allValidationIssues = [];
     private ConfigReferenceIndex? _referenceIndex;
+    private ConfigImportReadResult? _importSource;
+    private ConfigImportPreview? _importPreview;
     private bool _isBusy;
     private bool _hasValidationRun;
     private bool _validationResultsAreStale;
@@ -45,6 +51,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private string? _externalChangeMessage;
     private ConfigDocumentViewModel? _selectedDocument;
     private EditorProject? _project;
+    private ImportStrategyOptionViewModel _selectedImportStrategy;
 
     public MainWindowViewModel(
         OpenArchiveService openArchiveService,
@@ -56,7 +63,9 @@ public sealed class MainWindowViewModel : ObservableObject
         IUnsavedChangesPrompt unsavedChangesPrompt,
         IEditorSettingsStore editorSettingsStore,
         EditorUiStateStore uiStateStore,
-        IReferenceDeletionPrompt? referenceDeletionPrompt = null)
+        IReferenceDeletionPrompt? referenceDeletionPrompt = null,
+        ConfigImportService? configImportService = null,
+        IConfigImportLogStore? configImportLogStore = null)
     {
         _openArchiveService = openArchiveService;
         _saveArchiveService = saveArchiveService;
@@ -67,6 +76,8 @@ public sealed class MainWindowViewModel : ObservableObject
         _archivePicker = archivePicker;
         _unsavedChangesPrompt = unsavedChangesPrompt;
         _referenceDeletionPrompt = referenceDeletionPrompt;
+        _configImportService = configImportService;
+        _configImportLogStore = configImportLogStore;
         _editorSettingsStore = editorSettingsStore;
         _editorSettings = editorSettingsStore.Load();
         _uiStateStore = uiStateStore;
@@ -77,6 +88,10 @@ public sealed class MainWindowViewModel : ObservableObject
         SaveAllCommand = new AsyncCommand(SaveAllAsync, CanSaveAll);
         SaveAsCommand = new AsyncCommand(SaveAsAsync, CanSaveProject);
         SaveCopyCommand = new AsyncCommand(SaveCopyAsync, CanSaveProject);
+        ImportJsonCommand = new AsyncCommand(ImportJsonAsync, CanImportJson);
+        ImportArchiveCommand = new AsyncCommand(ImportArchiveAsync, CanImportArchive);
+        ApplyImportCommand = new RelayCommand(ApplyImport, CanApplyImport);
+        CancelImportPreviewCommand = new RelayCommand(ClearImportPreview, () => HasImportPreview);
         ValidateCommand = new RelayCommand(ValidateProject, () => !IsBusy && _project is not null);
         GlobalSearchCommand = new RelayCommand(SearchAllDocuments, CanSearchAllDocuments);
         ClearGlobalSearchCommand = new RelayCommand(
@@ -91,7 +106,24 @@ public sealed class MainWindowViewModel : ObservableObject
             new ValidationSeverityFilterViewModel("仅警告", ValidationSeverity.Warning),
             new ValidationSeverityFilterViewModel("仅信息", ValidationSeverity.Information),
         ];
+        ImportStrategies =
+        [
+            new ImportStrategyOptionViewModel(
+                "按 ID 合并",
+                "保留当前全部记录及顺序，更新同 ID 记录并追加新 ID；源中缺少的记录不会删除。",
+                ConfigImportStrategy.MergeById),
+            new ImportStrategyOptionViewModel(
+                "整表替换",
+                "完全采用导入顺序；导入中缺少的当前记录将删除。",
+                ConfigImportStrategy.ReplaceAll),
+            new ImportStrategyOptionViewModel(
+                "仅新增",
+                "只追加当前不存在的 ID，不修改或删除已有记录。",
+                ConfigImportStrategy.AddNewOnly),
+        ];
+        _selectedImportStrategy = ImportStrategies[0];
         _selectedValidationSeverityFilter = ValidationSeverityFilters[0];
+        LoadImportLog();
         RefreshRecentProjects();
     }
 
@@ -99,12 +131,20 @@ public sealed class MainWindowViewModel : ObservableObject
     public ObservableCollection<GlobalSearchResultViewModel> GlobalSearchResults { get; } = [];
     public ObservableCollection<ValidationIssueViewModel> ValidationIssues { get; } = [];
     public ObservableCollection<RecentProjectViewModel> RecentProjects { get; } = [];
+    public ObservableCollection<ImportPreviewDocumentViewModel> ImportPreviewDocuments { get; } = [];
+    public ObservableCollection<ImportDifferenceRowViewModel> ImportDifferenceRows { get; } = [];
+    public ObservableCollection<ImportFailureViewModel> ImportFailures { get; } = [];
+    public ObservableCollection<ImportLogEntryViewModel> ImportLogEntries { get; } = [];
     public ICommand OpenArchiveCommand { get; }
     public ICommand CloseProjectCommand { get; }
     public ICommand SaveDocumentCommand { get; }
     public ICommand SaveAllCommand { get; }
     public ICommand SaveAsCommand { get; }
     public ICommand SaveCopyCommand { get; }
+    public ICommand ImportJsonCommand { get; }
+    public ICommand ImportArchiveCommand { get; }
+    public ICommand ApplyImportCommand { get; }
+    public ICommand CancelImportPreviewCommand { get; }
     public ICommand ValidateCommand { get; }
     public ICommand GlobalSearchCommand { get; }
     public ICommand ClearGlobalSearchCommand { get; }
@@ -112,6 +152,7 @@ public sealed class MainWindowViewModel : ObservableObject
     public ICommand ClearRecentProjectsCommand { get; }
     public EditorUiState UiState => _uiState;
     public IReadOnlyList<ValidationSeverityFilterViewModel> ValidationSeverityFilters { get; }
+    public IReadOnlyList<ImportStrategyOptionViewModel> ImportStrategies { get; }
 
     public bool HasProject => _project is not null;
     public bool HasNoProject => _project is null;
@@ -120,6 +161,44 @@ public sealed class MainWindowViewModel : ObservableObject
     public bool HasNoSelectedDocument => SelectedDocument is null;
     public bool HasGlobalSearchResults => GlobalSearchResults.Count > 0;
     public bool HasValidationIssues => ValidationIssues.Count > 0;
+    public bool HasImportPreview => _importPreview is not null;
+    public bool HasImportFailures => ImportFailures.Count > 0;
+    public bool HasImportLogEntries => ImportLogEntries.Count > 0;
+
+    public ImportStrategyOptionViewModel SelectedImportStrategy
+    {
+        get => _selectedImportStrategy;
+        set
+        {
+            if (value is null)
+            {
+                return;
+            }
+
+            if (SetProperty(ref _selectedImportStrategy, value) && _importSource is not null)
+            {
+                OnPropertyChanged(nameof(ImportStrategyDescription));
+                RebuildImportPreview();
+            }
+        }
+    }
+
+    public string ImportStrategyDescription => SelectedImportStrategy.Description;
+
+    public string ImportPreviewSummary => _importPreview is null
+        ? "尚未选择导入源"
+        : $"{Path.GetFileName(_importPreview.SourcePath)} · 源差异：" +
+          $"新增 {_importPreview.AddedCount}，修改 {_importPreview.ModifiedCount}，" +
+          $"缺少 {_importPreview.DeletedCount}，冲突 {_importPreview.ConflictCount}，" +
+          $"失败 {_importPreview.Failures.Count}";
+
+    public string ImportTabHeader => _importPreview is null
+        ? "导入预览"
+        : $"导入预览 ({ImportDifferenceRows.Count})";
+
+    public string ImportLogTabHeader => ImportLogEntries.Count == 0
+        ? "导入日志"
+        : $"导入日志 ({ImportLogEntries.Count})";
 
     public int SelectedDetailsTabIndex
     {
@@ -209,7 +288,10 @@ public sealed class MainWindowViewModel : ObservableObject
                 ((AsyncCommand)SaveAllCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)SaveAsCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)SaveCopyCommand).RaiseCanExecuteChanged();
+                ((AsyncCommand)ImportJsonCommand).RaiseCanExecuteChanged();
+                ((AsyncCommand)ImportArchiveCommand).RaiseCanExecuteChanged();
                 ((RelayCommand)ValidateCommand).RaiseCanExecuteChanged();
+                ((RelayCommand)ApplyImportCommand).RaiseCanExecuteChanged();
             }
         }
     }
@@ -266,6 +348,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 OnPropertyChanged(nameof(HasSelectedDocument));
                 OnPropertyChanged(nameof(HasNoSelectedDocument));
                 ((AsyncCommand)SaveDocumentCommand).RaiseCanExecuteChanged();
+                ((AsyncCommand)ImportJsonCommand).RaiseCanExecuteChanged();
             }
         }
     }
@@ -286,6 +369,230 @@ public sealed class MainWindowViewModel : ObservableObject
 
         await OpenArchivePathAsync(path);
     }
+
+    private async Task ImportJsonAsync()
+    {
+        if (_project is null || SelectedDocument is null || _configImportService is null)
+        {
+            return;
+        }
+
+        var path = await _archivePicker.PickConfigJsonAsync(SelectedDocument.EntryName);
+        if (path is null)
+        {
+            return;
+        }
+
+        await ReadImportSourceAsync(
+            path,
+            () => _configImportService.ReadJsonAsync(path, SelectedDocument.Document),
+            "正在读取单配置 JSON…");
+    }
+
+    private async Task ImportArchiveAsync()
+    {
+        if (_project is null || _configImportService is null)
+        {
+            return;
+        }
+
+        var path = await _archivePicker.PickImportArchiveAsync();
+        if (path is null)
+        {
+            return;
+        }
+
+        await ReadImportSourceAsync(
+            path,
+            () => _configImportService.ReadArchiveAsync(path, _project),
+            "正在读取导入数据档案…");
+    }
+
+    private async Task ReadImportSourceAsync(
+        string path,
+        Func<Task<ConfigImportReadResult>> read,
+        string progressMessage)
+    {
+        ClearImportPreview();
+        IsBusy = true;
+        ErrorMessage = null;
+        StatusText = progressMessage;
+        try
+        {
+            _importSource = await read();
+            foreach (var failure in _importSource.Failures)
+            {
+                AddImportLog(path, failure.DisplayName, "失败", failure.Message);
+            }
+
+            RebuildImportPreview();
+            StatusText = _importSource.Failures.Count == 0
+                ? "导入源读取完成，请检查差异后应用"
+                : $"导入源读取完成，{_importSource.Failures.Count} 项失败；可检查详情并应用其余配置";
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            var message = exception.Message;
+            ErrorMessage = message;
+            StatusText = "读取导入源失败";
+            AddImportLog(path, SelectedDocument?.DisplayName ?? "数据档案", "失败", message);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private void RebuildImportPreview()
+    {
+        if (_project is null || _importSource is null || _configImportService is null)
+        {
+            return;
+        }
+
+        _importPreview = _configImportService.CreatePreview(
+            _project,
+            _importSource,
+            SelectedImportStrategy.Strategy);
+        ImportPreviewDocuments.Clear();
+        ImportDifferenceRows.Clear();
+        ImportFailures.Clear();
+
+        foreach (var item in _importPreview.Items)
+        {
+            ImportPreviewDocuments.Add(new ImportPreviewDocumentViewModel(item));
+            foreach (var difference in item.Difference.Records)
+            {
+                ImportDifferenceRows.Add(new ImportDifferenceRowViewModel(
+                    item.Document.Definition.DisplayName,
+                    difference,
+                    item.Strategy));
+            }
+        }
+
+        foreach (var failure in _importPreview.Failures)
+        {
+            ImportFailures.Add(new ImportFailureViewModel(
+                failure.DisplayName,
+                failure.EntryName,
+                failure.Message));
+        }
+
+        OnPropertyChanged(nameof(HasImportPreview));
+        OnPropertyChanged(nameof(HasImportFailures));
+        OnPropertyChanged(nameof(ImportPreviewSummary));
+        OnPropertyChanged(nameof(ImportTabHeader));
+        OnPropertyChanged(nameof(ImportStrategyDescription));
+        ((RelayCommand)ApplyImportCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)CancelImportPreviewCommand).RaiseCanExecuteChanged();
+        SelectedDetailsTabIndex = 3;
+    }
+
+    private bool CanApplyImport() =>
+        !IsBusy && _importPreview?.Items.Any(item => item.CanApply) == true;
+
+    private void ApplyImport()
+    {
+        if (_importPreview is null)
+        {
+            return;
+        }
+
+        var appliedCount = 0;
+        foreach (var item in _importPreview.Items.Where(item => item.CanApply))
+        {
+            var document = _documents.First(candidate => ReferenceEquals(candidate.Document, item.Document));
+            var appliedModifiedCount = item.Strategy == ConfigImportStrategy.AddNewOnly
+                ? 0
+                : item.Difference.ModifiedCount;
+            var appliedDeletedCount = item.Strategy == ConfigImportStrategy.ReplaceAll
+                ? item.Difference.DeletedCount
+                : 0;
+            document.ApplyImportedItems(
+                item.MergePlan!.MergedItems,
+                $"导入 {document.DisplayName}（{GetStrategyName(item.Strategy)}）");
+            appliedCount++;
+            AddImportLog(
+                _importPreview.SourcePath,
+                document.DisplayName,
+                "成功",
+                $"新增 {item.Difference.AddedCount}，修改 {appliedModifiedCount}，删除 {appliedDeletedCount}；{GetStrategyName(item.Strategy)}");
+        }
+
+        StatusText = $"已导入 {appliedCount} 项配置；更改尚未保存，可撤销或保存后写入档案";
+        ClearImportPreview();
+        SelectedDetailsTabIndex = 6;
+    }
+
+    private void ClearImportPreview()
+    {
+        _importSource = null;
+        _importPreview = null;
+        ImportPreviewDocuments.Clear();
+        ImportDifferenceRows.Clear();
+        ImportFailures.Clear();
+        OnPropertyChanged(nameof(HasImportPreview));
+        OnPropertyChanged(nameof(HasImportFailures));
+        OnPropertyChanged(nameof(ImportPreviewSummary));
+        OnPropertyChanged(nameof(ImportTabHeader));
+        ((RelayCommand)ApplyImportCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)CancelImportPreviewCommand).RaiseCanExecuteChanged();
+    }
+
+    private void AddImportLog(
+        string sourcePath,
+        string targetName,
+        string status,
+        string message)
+    {
+        var entry = new ConfigImportLogEntry(
+            DateTimeOffset.Now,
+            Path.GetFullPath(sourcePath),
+            targetName,
+            status,
+            message);
+        ImportLogEntries.Insert(0, ToViewModel(entry));
+        try
+        {
+            _configImportLogStore?.Append(entry);
+        }
+        catch
+        {
+            // Import success or the original failure must not be hidden by log persistence errors.
+        }
+
+        OnPropertyChanged(nameof(HasImportLogEntries));
+        OnPropertyChanged(nameof(ImportLogTabHeader));
+    }
+
+    private void LoadImportLog()
+    {
+        if (_configImportLogStore is null)
+        {
+            return;
+        }
+
+        foreach (var entry in _configImportLogStore.Load())
+        {
+            ImportLogEntries.Add(ToViewModel(entry));
+        }
+    }
+
+    private static ImportLogEntryViewModel ToViewModel(ConfigImportLogEntry entry) =>
+        new(
+            entry.Timestamp,
+            Path.GetFileName(entry.SourcePath),
+            entry.TargetName,
+            entry.Status,
+            entry.Message);
+
+    private static string GetStrategyName(ConfigImportStrategy strategy) => strategy switch
+    {
+        ConfigImportStrategy.ReplaceAll => "整表替换",
+        ConfigImportStrategy.MergeById => "按 ID 合并",
+        ConfigImportStrategy.AddNewOnly => "仅新增",
+        _ => strategy.ToString()
+    };
 
     private async Task OpenArchivePathAsync(string path)
     {
@@ -337,6 +644,7 @@ public sealed class MainWindowViewModel : ObservableObject
             StatusText = $"已加载 {documents.Length} 项配置，共 {documents.Sum(x => x.ItemCount)} 条记录";
             ClearGlobalSearch();
             ClearValidationResults();
+            ClearImportPreview();
             ((RelayCommand)GlobalSearchCommand).RaiseCanExecuteChanged();
             SelectDocument(documents.FirstOrDefault());
             NotifyProjectChanged();
@@ -532,6 +840,7 @@ public sealed class MainWindowViewModel : ObservableObject
         ErrorMessage = null;
         ClearGlobalSearch();
         ClearValidationResults();
+        ClearImportPreview();
         ProjectTitle = "尚未打开数据档案";
         StatusText = "项目已关闭";
         _recordClipboard.Clear();
@@ -554,6 +863,8 @@ public sealed class MainWindowViewModel : ObservableObject
         ((AsyncCommand)CloseProjectCommand).RaiseCanExecuteChanged();
         ((AsyncCommand)SaveAsCommand).RaiseCanExecuteChanged();
         ((AsyncCommand)SaveCopyCommand).RaiseCanExecuteChanged();
+        ((AsyncCommand)ImportJsonCommand).RaiseCanExecuteChanged();
+        ((AsyncCommand)ImportArchiveCommand).RaiseCanExecuteChanged();
         ((RelayCommand)ValidateCommand).RaiseCanExecuteChanged();
     }
 
@@ -564,6 +875,12 @@ public sealed class MainWindowViewModel : ObservableObject
         !IsBusy && _project?.Documents.Any(document => document.IsDirty) == true;
 
     private bool CanSaveProject() => !IsBusy && _project is not null;
+
+    private bool CanImportJson() =>
+        !IsBusy && _configImportService is not null && _project is not null && SelectedDocument is not null;
+
+    private bool CanImportArchive() =>
+        !IsBusy && _configImportService is not null && _project is not null;
 
     private void RefreshProjectState()
     {

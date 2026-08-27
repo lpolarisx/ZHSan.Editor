@@ -10,6 +10,11 @@ public sealed class AvaloniaArchivePicker(Window owner) : IArchivePicker
         Patterns = ["*.dat"]
     };
 
+    private static readonly FilePickerFileType JsonFileType = new("JSON 配置")
+    {
+        Patterns = ["*.json"]
+    };
+
     public async Task<string?> PickArchiveAsync(CancellationToken cancellationToken = default)
     {
         var files = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
@@ -38,5 +43,34 @@ public sealed class AvaloniaArchivePicker(Window owner) : IArchivePicker
 
         cancellationToken.ThrowIfCancellationRequested();
         return file?.TryGetLocalPath();
+    }
+
+    public async Task<string?> PickImportArchiveAsync(CancellationToken cancellationToken = default)
+    {
+        var files = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "从游戏数据档案批量导入",
+            AllowMultiple = false,
+            FileTypeFilter = [ArchiveFileType, FilePickerFileTypes.All]
+        });
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return files.Count == 0 ? null : files[0].TryGetLocalPath();
+    }
+
+    public async Task<string?> PickConfigJsonAsync(
+        string suggestedFileName,
+        CancellationToken cancellationToken = default)
+    {
+        var files = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = $"导入配置 {suggestedFileName}",
+            AllowMultiple = false,
+            SuggestedStartLocation = null,
+            FileTypeFilter = [JsonFileType, FilePickerFileTypes.All]
+        });
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return files.Count == 0 ? null : files[0].TryGetLocalPath();
     }
 }

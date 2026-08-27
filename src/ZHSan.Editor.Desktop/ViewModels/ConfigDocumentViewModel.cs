@@ -279,6 +279,23 @@ public sealed class ConfigDocumentViewModel : ObservableObject
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    public void ApplyImportedItems(
+        IReadOnlyList<object> importedItems,
+        string description)
+    {
+        ArgumentNullException.ThrowIfNull(importedItems);
+        ArgumentException.ThrowIfNullOrWhiteSpace(description);
+
+        var previousItems = Document.Items.ToArray();
+        var nextItems = importedItems.ToArray();
+        ReplaceItems(nextItems);
+        RecordEdit(new DelegateUndoableEdit(
+            description,
+            () => ReplaceItems(previousItems),
+            () => ReplaceItems(nextItems)),
+            description);
+    }
+
     public void SaveColumnWidths(IEnumerable<double> widths)
     {
         _uiState.ColumnWidths = widths
@@ -762,6 +779,19 @@ public sealed class ConfigDocumentViewModel : ObservableObject
             : FilteredRecords.FirstOrDefault();
         OnPropertyChanged(nameof(ItemCount));
         OnPropertyChanged(nameof(FilterSummary));
+    }
+
+    private void ReplaceItems(IReadOnlyList<object> items)
+    {
+        Document.Items.Clear();
+        Records.Clear();
+        foreach (var item in items)
+        {
+            Document.Items.Add(item);
+            Records.Add(new ConfigRecordViewModel(item, _properties));
+        }
+
+        FinishRecordMutation(Records.FirstOrDefault());
     }
 
     private void RecordEdit(IUndoableEdit edit, string message)
