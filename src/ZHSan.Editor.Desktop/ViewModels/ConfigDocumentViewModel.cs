@@ -105,6 +105,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     }
 
     public event EventHandler? StateChanged;
+    public event EventHandler? ReferenceOptionsChanged;
 
     public ConfigDocument Document { get; }
     public string Key => Document.Definition.Key;
@@ -261,6 +262,8 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         {
             editor.ReloadReferenceOptions(GetReferenceTargets(editor.Definition));
         }
+
+        ReferenceOptionsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void NavigateTo(ConfigRecordViewModel record)
@@ -488,23 +491,61 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var item = Activator.CreateInstance(Document.Definition.ItemType)
-                ?? throw new InvalidOperationException("无法创建记录实例。");
-            Document.Items.Add(item);
-            var record = new ConfigRecordViewModel(item, _properties);
-            Records.Add(record);
-            FinishRecordMutation(record);
-            var index = Records.IndexOf(record);
-            RecordEdit(new DelegateUndoableEdit(
-                "新增记录",
-                () => RemoveRecords([record], null),
-                () => InsertRecords([(index, record)], record)),
-                "已新增记录");
+            AddInitializedRecord(new Dictionary<string, object?>(), "新增记录");
         }
         catch (Exception exception)
         {
             SetNotification($"新增失败：{exception.GetBaseException().Message}");
         }
+    }
+
+    internal ConfigRecordViewModel AddInitializedRecord(
+        IReadOnlyDictionary<string, object?> initialValues,
+        string editDescription)
+    {
+        ArgumentNullException.ThrowIfNull(initialValues);
+        ArgumentException.ThrowIfNullOrWhiteSpace(editDescription);
+
+        var item = Activator.CreateInstance(Document.Definition.ItemType)
+            ?? throw new InvalidOperationException("无法创建记录实例。");
+        foreach (var (propertyName, value) in initialValues)
+        {
+            var definition = _properties.FirstOrDefault(property => property.Name == propertyName)
+                ?? throw new ArgumentException($"配置不包含属性 {propertyName}。", nameof(initialValues));
+            if (!definition.CanWrite)
+            {
+                throw new InvalidOperationException($"属性 {propertyName} 是只读的。");
+            }
+
+            var property = Document.Definition.ItemType.GetProperty(propertyName)
+                ?? throw new InvalidOperationException($"找不到属性 {propertyName}。");
+            if (value is null && property.PropertyType.IsValueType &&
+                Nullable.GetUnderlyingType(property.PropertyType) is null)
+            {
+                throw new ArgumentException($"属性 {propertyName} 不接受空值。", nameof(initialValues));
+            }
+
+            if (value is not null && !property.PropertyType.IsInstanceOfType(value))
+            {
+                throw new ArgumentException(
+                    $"属性 {propertyName} 需要 {property.PropertyType.Name}，实际为 {value.GetType().Name}。",
+                    nameof(initialValues));
+            }
+
+            property.SetValue(item, CloneValue(value));
+        }
+
+        Document.Items.Add(item);
+        var record = new ConfigRecordViewModel(item, _properties);
+        Records.Add(record);
+        FinishRecordMutation(record);
+        var index = Records.IndexOf(record);
+        RecordEdit(new DelegateUndoableEdit(
+            editDescription,
+            () => RemoveRecords([record], null),
+            () => InsertRecords([(index, record)], record)),
+            $"已{editDescription}");
+        return record;
     }
 
     private void CopySelectedRecords()
@@ -860,6 +901,9 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         property.Reference is null || _referenceIndex is null
             ? []
             : _referenceIndex.GetTargets(property.Reference.TargetConfigKey);
+
+    internal IReadOnlyList<ConfigReferenceTarget> GetReferenceTargets(string configKey) =>
+        _referenceIndex?.GetTargets(configKey) ?? [];
 
     private void RecordPropertyChanged(
         ConfigRecordViewModel record,

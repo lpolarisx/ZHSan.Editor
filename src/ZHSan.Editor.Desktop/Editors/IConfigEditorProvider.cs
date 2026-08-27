@@ -1,4 +1,5 @@
 using ZHSan.Editor.Desktop.ViewModels;
+using ZHSan.Editor.Application.References;
 using ZHSan.Editor.Domain.Configuration;
 
 namespace ZHSan.Editor.Desktop.Editors;
@@ -45,6 +46,14 @@ public sealed class ConfigEditorContext
         IEnumerable<ConfigEditorPropertyChange> changes,
         string editDescription) =>
         Document.SetPropertyValues(changes, editDescription);
+
+    public ConfigRecordViewModel AddRecord(
+        IReadOnlyDictionary<string, object?> initialValues,
+        string editDescription) =>
+        Document.AddInitializedRecord(initialValues, editDescription);
+
+    public IReadOnlyList<ConfigReferenceTarget> GetReferenceTargets(string configKey) =>
+        Document.GetReferenceTargets(configKey);
 }
 
 public sealed record ConfigEditorPropertyChange(

@@ -8,6 +8,9 @@
     <DataTemplate DataType="editors:TechniqueTreeEditorViewModel">
       <views:TechniqueTreeEditorView />
     </DataTemplate>
+    <DataTemplate DataType="editors:FacilityKindLevelEditorViewModel">
+      <views:FacilityKindLevelEditorView />
+    </DataTemplate>
   </Application.DataTemplates>
   <Application.Styles>
     <FluentTheme />

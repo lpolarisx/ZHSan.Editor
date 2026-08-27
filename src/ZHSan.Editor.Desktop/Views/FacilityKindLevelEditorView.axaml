@@ -1,0 +1,154 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:editors="using:ZHSan.Editor.Desktop.Editors"
+             x:Class="ZHSan.Editor.Desktop.Views.FacilityKindLevelEditorView"
+             x:DataType="editors:FacilityKindLevelEditorViewModel">
+  <Grid RowDefinitions="Auto,*" Background="#08000000">
+    <Border Padding="12,9" BorderThickness="0,0,0,1"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis" Opacity="0.72" />
+        <TextBlock Grid.Column="1" Text="{Binding Summary}" VerticalAlignment="Center"
+                   FontWeight="SemiBold" />
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="230,1,*,1,300">
+      <Grid RowDefinitions="Auto,*">
+        <StackPanel Margin="14,14,14,8" Spacing="3">
+          <TextBlock Text="设施种类" FontSize="18" FontWeight="SemiBold" />
+          <TextBlock Text="选择种类以查看其全部等级" FontSize="11" Opacity="0.58" />
+        </StackPanel>
+        <ListBox Grid.Row="1" Margin="8,0,8,12"
+                 ItemsSource="{Binding KindOptions}"
+                 SelectedItem="{Binding SelectedKind, Mode=TwoWay}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="editors:FacilityKindOptionViewModel">
+              <Grid ColumnDefinitions="*,Auto" Margin="4,5">
+                <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                <Border Grid.Column="1" CornerRadius="8" Padding="7,1" Background="#223B82F6">
+                  <TextBlock Text="{Binding CountLabel}" FontSize="11" />
+                </Border>
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Grid>
+
+      <Border Grid.Column="1" Background="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+
+      <Grid Grid.Column="2" RowDefinitions="Auto,*">
+        <Grid Margin="14,12" ColumnDefinitions="*,Auto">
+          <StackPanel Spacing="2">
+            <TextBlock Text="等级配置" FontSize="18" FontWeight="SemiBold" />
+            <TextBlock Text="按等级顺序展示；红色提示表示组合重复、断档或引用无效"
+                       FontSize="11" Opacity="0.58" />
+          </StackPanel>
+          <Button Grid.Column="1" Content="新增下一级" Command="{Binding AddLevelCommand}"
+                  VerticalAlignment="Center" />
+        </Grid>
+
+        <ListBox Grid.Row="1" Margin="10,0,10,12"
+                 ItemsSource="{Binding Levels}"
+                 SelectedItem="{Binding SelectedLevel, Mode=TwoWay}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="editors:FacilityLevelViewModel">
+              <Border Padding="12,10" Margin="3" CornerRadius="6" BorderThickness="1"
+                      BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                      ToolTip.Tip="{Binding ToolTip}">
+                <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto">
+                  <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="⚠" Foreground="#E5484D" IsVisible="{Binding HasIssues}" />
+                    <TextBlock Text="{Binding Id, StringFormat='记录 #{0}'}" FontSize="11" Opacity="0.58" />
+                  </StackPanel>
+                  <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding CostSummary}"
+                             Margin="0,5,0,0" />
+                  <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="{Binding BuildSummary}"
+                             Margin="0,3,0,0" FontSize="11" Opacity="0.65" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Grid>
+
+      <Border Grid.Column="3" Background="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+
+      <ScrollViewer Grid.Column="4">
+        <StackPanel Margin="14" Spacing="10">
+          <TextBlock Text="等级属性" FontSize="18" FontWeight="SemiBold" />
+          <TextBlock Text="请选择一条等级配置。" Opacity="0.62"
+                     IsVisible="{Binding !HasLevelSelection}" />
+
+          <StackPanel Spacing="9" IsVisible="{Binding HasLevelSelection}">
+            <Grid ColumnDefinitions="Auto,*">
+              <TextBlock Text="记录 ID" VerticalAlignment="Center" />
+              <TextBox Grid.Column="1" Margin="12,0,0,0" Text="{Binding SelectedId}" IsReadOnly="True" />
+            </Grid>
+
+            <TextBlock Text="设施种类" FontWeight="SemiBold" />
+            <ComboBox ItemsSource="{Binding KindOptions}"
+                      SelectedItem="{Binding SelectedKindForLevel, Mode=TwoWay}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="editors:FacilityKindOptionViewModel">
+                  <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <Grid ColumnDefinitions="*,8,*">
+              <StackPanel Spacing="4">
+                <TextBlock Text="等级" FontWeight="SemiBold" />
+                <NumericUpDown Minimum="1" Maximum="2147483647" Increment="1"
+                               Value="{Binding SelectedLevelNumber, Mode=TwoWay}" />
+              </StackPanel>
+              <StackPanel Grid.Column="2" Spacing="4">
+                <TextBlock Text="占地" FontWeight="SemiBold" />
+                <NumericUpDown Minimum="0" Maximum="2147483647" Increment="1"
+                               Value="{Binding SelectedPositionOccupied, Mode=TwoWay}" />
+              </StackPanel>
+            </Grid>
+
+            <Grid ColumnDefinitions="*,8,*">
+              <StackPanel Spacing="4">
+                <TextBlock Text="点数成本" FontWeight="SemiBold" />
+                <NumericUpDown Minimum="0" Maximum="2147483647" Increment="1"
+                               Value="{Binding SelectedPointCost, Mode=TwoWay}" />
+              </StackPanel>
+              <StackPanel Grid.Column="2" Spacing="4">
+                <TextBlock Text="资金成本" FontWeight="SemiBold" />
+                <NumericUpDown Minimum="0" Maximum="2147483647" Increment="1"
+                               Value="{Binding SelectedFundCost, Mode=TwoWay}" />
+              </StackPanel>
+            </Grid>
+
+            <TextBlock Text="维护成本" FontWeight="SemiBold" />
+            <NumericUpDown Minimum="0" Maximum="2147483647" Increment="1"
+                           Value="{Binding SelectedMaintenanceCost, Mode=TwoWay}" />
+
+            <Grid ColumnDefinitions="*,8,*">
+              <StackPanel Spacing="4">
+                <TextBlock Text="建设天数" FontWeight="SemiBold" />
+                <NumericUpDown Minimum="0" Maximum="2147483647" Increment="1"
+                               Value="{Binding SelectedDays, Mode=TwoWay}" />
+              </StackPanel>
+              <StackPanel Grid.Column="2" Spacing="4">
+                <TextBlock Text="耐久" FontWeight="SemiBold" />
+                <NumericUpDown Minimum="0" Maximum="2147483647" Increment="1"
+                               Value="{Binding SelectedEndurance, Mode=TwoWay}" />
+              </StackPanel>
+            </Grid>
+
+            <Border Padding="10" Margin="0,4,0,0" CornerRadius="5" Background="#12FFFFFF">
+              <TextBlock Text="{Binding SelectedIssueSummary}" TextWrapping="Wrap" />
+            </Border>
+            <TextBlock Text="科技需求、影响和条件等其余字段可在右侧属性面板继续编辑。"
+                       TextWrapping="Wrap" FontSize="11" Opacity="0.58" />
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+  </Grid>
+</UserControl>
