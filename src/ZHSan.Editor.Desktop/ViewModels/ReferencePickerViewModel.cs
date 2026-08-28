@@ -31,6 +31,7 @@ public sealed class ReferencePickerViewModel : ObservableObject
     public ObservableCollection<ReferenceOptionViewModel> FilteredOptions { get; } = [];
     public ICommand ClearSearchCommand { get; }
     public ICommand NavigateCommand { get; }
+    public bool SupportsNavigation => _navigate is not null;
 
     public string SearchText
     {

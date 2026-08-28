@@ -1,5 +1,6 @@
 using GameDatas;
 using ZHSan.Editor.Application.References;
+using ZHSan.Editor.Desktop.Editors;
 using ZHSan.Editor.Desktop.Services;
 using ZHSan.Editor.Desktop.ViewModels;
 using ZHSan.Editor.Domain.Configuration;
@@ -61,6 +62,36 @@ public sealed class ConfigDocumentViewModelTests
         viewModel.SearchText = "合欢";
 
         Assert.Equal([exact, contains], viewModel.FilteredRecords.Select(record => record.Item));
+    }
+
+    [Fact]
+    public void NavigateToFilteredId_FiltersToTargetAndShowsGenericTable()
+    {
+        var first = new TechniqueConfig { Id = 1, Name = "基础技术" };
+        var target = new TechniqueConfig { Id = 2, Name = "目标技术" };
+        var similar = new TechniqueConfig { Id = 20, Name = "相似 ID 技术" };
+        var document = new ConfigDocument
+        {
+            Definition = new ConfigDefinition(
+                "techniques", "技术", "测试", "Techniques.json", typeof(TechniqueConfig)),
+            Items = [first, target, similar],
+        };
+        var viewModel = new ConfigDocumentViewModel(
+            document,
+            new ReflectionConfigMetadataProvider(),
+            _ => { },
+            editorProviderRegistry: new ConfigEditorProviderRegistry([new TechniqueTreeEditorProvider()]));
+
+        Assert.True(viewModel.IsSpecializedEditorActive);
+
+        var wasLocated = viewModel.NavigateToFilteredId(2);
+
+        Assert.True(wasLocated);
+        Assert.Equal(nameof(TechniqueConfig.Id), viewModel.SelectedFilterField.Property?.Name);
+        Assert.Equal("2", viewModel.SearchText);
+        Assert.Same(target, Assert.Single(viewModel.FilteredRecords).Item);
+        Assert.Same(target, viewModel.SelectedRecord?.Item);
+        Assert.True(viewModel.IsGenericEditorActive);
     }
 
     [Fact]
@@ -386,6 +417,7 @@ public sealed class ConfigDocumentViewModelTests
         Assert.Equal(3, editor.ReferenceOptions.Count);
         Assert.Contains("基础技术", editor.SelectedReference?.Label);
         var picker = Assert.IsType<ReferencePickerViewModel>(editor.ReferencePicker);
+        Assert.True(picker.SupportsNavigation);
 
         picker.SearchText = "进阶";
 

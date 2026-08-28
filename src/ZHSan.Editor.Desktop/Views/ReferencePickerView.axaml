@@ -19,7 +19,8 @@
           </DataTemplate>
         </ComboBox.ItemTemplate>
       </ComboBox>
-      <Button Grid.Column="2" Content="定位" Command="{Binding NavigateCommand}" />
+      <Button Grid.Column="2" Content="定位" Command="{Binding NavigateCommand}"
+              IsVisible="{Binding SupportsNavigation}" />
     </Grid>
     <Grid ColumnDefinitions="*,Auto">
       <TextBlock Text="当前引用无效或目标 ID 重复" Foreground="#E5484D" FontSize="11"

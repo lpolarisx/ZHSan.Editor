@@ -91,6 +91,7 @@ public sealed class StructuredRuleStringEditorViewModelTests
             [new ConditionConfig { Id = 30, Name = "兵力充足" }]);
         var option = Assert.Single(editor.AddPicker.FilteredOptions, item => item.Id == 30);
 
+        Assert.False(editor.AddPicker.SupportsNavigation);
         editor.AddPicker.SelectedOption = option;
 
         Assert.Equal("30 1", technique.AIConditionWeightString);

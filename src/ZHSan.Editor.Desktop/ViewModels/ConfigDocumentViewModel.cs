@@ -1173,6 +1173,30 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         }
     }
 
+    public bool NavigateToFilteredId(int itemId)
+    {
+        var idFilter = FilterFields.FirstOrDefault(field =>
+            string.Equals(field.Property?.Name, "Id", StringComparison.OrdinalIgnoreCase));
+        if (idFilter is null)
+        {
+            return false;
+        }
+
+        SelectedFilterField = idFilter;
+        SearchText = itemId.ToString(CultureInfo.CurrentCulture);
+        var record = FilteredRecords.FirstOrDefault(candidate =>
+            candidate.Item.GetType().GetProperty("Id")?.GetValue(candidate.Item) is int candidateId &&
+            candidateId == itemId);
+        if (record is null)
+        {
+            return false;
+        }
+
+        SelectedRecord = record;
+        IsSpecializedEditorActive = false;
+        return true;
+    }
+
     private static Type? GetCollectionElementType(Type type)
     {
         if (type.IsArray)

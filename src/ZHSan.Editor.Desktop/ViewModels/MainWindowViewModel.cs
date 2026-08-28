@@ -1314,7 +1314,12 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         SelectDocument(document);
-        document.NavigateTo(target.Id, null);
+        if (!document.NavigateToFilteredId(target.Id))
+        {
+            StatusText = $"无法定位：{document.DisplayName} 中不存在 ID {target.Id}";
+            return;
+        }
+
         SelectedDetailsTabIndex = 0;
         StatusText = $"已定位到 {document.DisplayName} · ID {target.Id}";
     }
