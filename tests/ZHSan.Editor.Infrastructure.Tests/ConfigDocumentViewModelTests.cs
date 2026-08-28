@@ -32,6 +32,38 @@ public sealed class ConfigDocumentViewModelTests
     }
 
     [Fact]
+    public void Filter_UsesExactMatchingForIntegersAndFuzzyMatchingForStrings()
+    {
+        var exact = new TitleConfig { Id = 1, Name = "合欢", KindId = 2 };
+        var contains = new TitleConfig { Id = 2, Name = "合欢进阶", KindId = 20 };
+        var another = new TitleConfig { Id = 3, Name = "其他", KindId = 102 };
+        var document = new ConfigDocument
+        {
+            Definition = new ConfigDefinition(
+                "titles", "称号", "测试", "Titles.json", typeof(TitleConfig)),
+            Items = [exact, contains, another],
+        };
+        var viewModel = new ConfigDocumentViewModel(
+            document,
+            new ReflectionConfigMetadataProvider(),
+            _ => { });
+
+        viewModel.SelectedFilterField = Assert.Single(
+            viewModel.FilterFields,
+            field => field.Property?.Name == nameof(TitleConfig.KindId));
+        viewModel.SearchText = "2";
+
+        Assert.Same(exact, Assert.Single(viewModel.FilteredRecords).Item);
+
+        viewModel.SelectedFilterField = Assert.Single(
+            viewModel.FilterFields,
+            field => field.Property?.Name == nameof(TitleConfig.Name));
+        viewModel.SearchText = "合欢";
+
+        Assert.Equal([exact, contains], viewModel.FilteredRecords.Select(record => record.Item));
+    }
+
+    [Fact]
     public void CopyAndDelete_ManageSelectedRecords()
     {
         var viewModel = CreateViewModel([new TechniqueConfig { Id = 1, Name = "技术" }]);

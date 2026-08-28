@@ -478,7 +478,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         FilteredRecords.Clear();
         foreach (var record in Records)
         {
-            if (query.Length == 0 || properties.Any(property => ContainsText(record.Item, property, query)))
+            if (query.Length == 0 || properties.Any(property => MatchesFilter(record.Item, property, query)))
             {
                 FilteredRecords.Add(record);
             }
@@ -1131,17 +1131,70 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
     private bool CanCreateRecord() => Document.Definition.ItemType.GetConstructor(Type.EmptyTypes) is not null;
 
-    private static bool ContainsText(object item, ConfigPropertyDefinition property, string query)
+    private static bool MatchesFilter(object item, ConfigPropertyDefinition property, string query)
     {
         var value = item.GetType().GetProperty(property.Name)?.GetValue(item);
+        var valueType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
+        if (IsIntegerType(valueType))
+        {
+            return MatchesInteger(value, valueType, query);
+        }
+
         if (value is IEnumerable values and not string)
         {
+            var elementType = GetCollectionElementType(property.PropertyType);
+            if (elementType is not null && IsIntegerType(elementType))
+            {
+                return values.Cast<object?>().Any(element => MatchesInteger(element, elementType, query));
+            }
+
             return values.Cast<object?>().Any(element =>
                 element?.ToString()?.Contains(query, StringComparison.CurrentCultureIgnoreCase) == true);
         }
 
         return value?.ToString()?.Contains(query, StringComparison.CurrentCultureIgnoreCase) == true;
     }
+
+    private static bool MatchesInteger(object? value, Type integerType, string query)
+    {
+        if (value is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var expected = Convert.ChangeType(query, integerType, CultureInfo.CurrentCulture);
+            return Equals(value, expected);
+        }
+        catch (Exception exception) when (exception is FormatException or InvalidCastException or OverflowException)
+        {
+            return false;
+        }
+    }
+
+    private static Type? GetCollectionElementType(Type type)
+    {
+        if (type.IsArray)
+        {
+            return type.GetElementType();
+        }
+
+        var enumerableType = type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IEnumerable<>)
+            ? type
+            : type.GetInterfaces().FirstOrDefault(candidate =>
+                candidate.IsGenericType && candidate.GetGenericTypeDefinition() == typeof(IEnumerable<>));
+        return enumerableType is null
+            ? null
+            : Nullable.GetUnderlyingType(enumerableType.GetGenericArguments()[0]) ??
+              enumerableType.GetGenericArguments()[0];
+    }
+
+    private static bool IsIntegerType(Type type) =>
+        type == typeof(byte) || type == typeof(sbyte) ||
+        type == typeof(short) || type == typeof(ushort) ||
+        type == typeof(int) || type == typeof(uint) ||
+        type == typeof(long) || type == typeof(ulong);
 
     private static bool IsSearchable(Type type) =>
         type == typeof(string) || type.IsPrimitive || type.IsEnum ||
