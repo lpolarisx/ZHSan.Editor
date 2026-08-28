@@ -138,29 +138,28 @@
           <Grid RowDefinitions="Auto,*">
             <StackPanel Margin="14,14,14,10" Spacing="3">
               <TextBlock Text="配置导航" FontSize="16" FontWeight="SemiBold" />
-              <TextBlock Text="按游戏数据分类" FontSize="12" Opacity="0.58" />
+              <TextBlock Text="全部配置" FontSize="12" Opacity="0.58" />
             </StackPanel>
             <ScrollViewer Grid.Row="1">
-              <ItemsControl ItemsSource="{Binding Categories}" Margin="8,0,8,12">
+              <ItemsControl ItemsSource="{Binding Documents}" Margin="8,0,8,12">
+                <ItemsControl.Styles>
+                  <Style Selector="ContentPresenter">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                  </Style>
+                </ItemsControl.Styles>
                 <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:ConfigCategoryViewModel">
-                    <Expander Header="{Binding Name}" IsExpanded="True" Margin="0,2">
-                      <ItemsControl ItemsSource="{Binding Documents}">
-                        <ItemsControl.ItemTemplate>
-                          <DataTemplate x:DataType="vm:ConfigDocumentViewModel">
-                            <Button Command="{Binding SelectCommand}" HorizontalContentAlignment="Stretch"
-                                    Padding="10,7" Margin="4,1">
-                              <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="{Binding DisplayLabel}" />
-                                <Border Grid.Column="1" CornerRadius="8" Padding="7,1" Background="#223B82F6">
-                                  <TextBlock Text="{Binding ItemCount}" FontSize="11" />
-                                </Border>
-                              </Grid>
-                            </Button>
-                          </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                      </ItemsControl>
-                    </Expander>
+                  <DataTemplate x:DataType="vm:ConfigDocumentViewModel">
+                    <Button Command="{Binding SelectCommand}"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            Padding="10,7" Margin="4,1">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="{Binding DisplayLabel}" TextTrimming="CharacterEllipsis" />
+                        <Border Grid.Column="1" CornerRadius="8" Padding="7,1" Background="#223B82F6">
+                          <TextBlock Text="{Binding ItemCount}" FontSize="11" />
+                        </Border>
+                      </Grid>
+                    </Button>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>

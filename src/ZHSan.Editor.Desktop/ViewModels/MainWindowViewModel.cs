@@ -147,7 +147,7 @@ public sealed class MainWindowViewModel : ObservableObject
         RefreshRecentProjects();
     }
 
-    public ObservableCollection<ConfigCategoryViewModel> Categories { get; } = [];
+    public ObservableCollection<ConfigDocumentViewModel> Documents { get; } = [];
     public ObservableCollection<GlobalSearchResultViewModel> GlobalSearchResults { get; } = [];
     public ObservableCollection<ValidationIssueViewModel> ValidationIssues { get; } = [];
     public ObservableCollection<RecentProjectViewModel> RecentProjects { get; } = [];
@@ -870,10 +870,10 @@ public sealed class MainWindowViewModel : ObservableObject
             ExternalChangeMessage = null;
             _documents.Clear();
             _documents.AddRange(documents);
-            Categories.Clear();
-            foreach (var group in documents.GroupBy(x => x.Document.Definition.Category))
+            Documents.Clear();
+            foreach (var document in documents)
             {
-                Categories.Add(new ConfigCategoryViewModel(group.Key, group.ToArray()));
+                Documents.Add(document);
             }
 
             AddRecentProject(project.ArchivePath);
@@ -1071,7 +1071,7 @@ public sealed class MainWindowViewModel : ObservableObject
         _project = null;
         _referenceIndex = null;
         _documents.Clear();
-        Categories.Clear();
+        Documents.Clear();
         SelectedDocument = null;
         ExternalChangeMessage = null;
         ErrorMessage = null;

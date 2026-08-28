@@ -33,7 +33,7 @@ public sealed class MainWindowProjectLifecycleTests
 
         Assert.True(closed);
         Assert.True(viewModel.HasNoProject);
-        Assert.Empty(viewModel.Categories);
+        Assert.Empty(viewModel.Documents);
         Assert.True(context.Monitor.WasStopped);
     }
 
