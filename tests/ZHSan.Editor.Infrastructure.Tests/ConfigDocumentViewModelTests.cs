@@ -380,6 +380,48 @@ public sealed class ConfigDocumentViewModelTests
     }
 
     [Fact]
+    public void ReferenceColumns_DisplayIdsWithAssociatedNamesAndRefreshThem()
+    {
+        var first = new TechniqueConfig { Id = 1, Name = "基础技术" };
+        var second = new TechniqueConfig { Id = 2, Name = "进阶技术", PreID = 1, PostID = 404 };
+        var document = new ConfigDocument
+        {
+            Definition = new ConfigDefinition(
+                "techniques", "技术", "测试", "Techniques.json", typeof(TechniqueConfig)),
+            Items = [first, second],
+        };
+        var project = new EditorProject
+        {
+            ArchivePath = "test.dat",
+            Documents = [document],
+        };
+        var metadata = new ReflectionConfigMetadataProvider();
+        var index = new ConfigReferenceIndex(metadata);
+        index.Rebuild(project);
+        var viewModel = new ConfigDocumentViewModel(
+            document,
+            metadata,
+            _ => { },
+            referenceIndex: index);
+        var properties = viewModel.Properties.Select((property, index) => (property, index)).ToArray();
+        var preIdIndex = Assert.Single(
+            properties,
+            item => item.property.Name == nameof(TechniqueConfig.PreID)).index;
+        var postIdIndex = Assert.Single(
+            properties,
+            item => item.property.Name == nameof(TechniqueConfig.PostID)).index;
+
+        Assert.Equal("#1 · 基础技术", viewModel.Records[1].Cells[preIdIndex].DisplayValue);
+        Assert.Equal("#404 · [目标不存在]", viewModel.Records[1].Cells[postIdIndex].DisplayValue);
+
+        first.Name = "基础科技";
+        index.Rebuild(project);
+        viewModel.RefreshReferenceOptions();
+
+        Assert.Equal("#1 · 基础科技", viewModel.Records[1].Cells[preIdIndex].DisplayValue);
+    }
+
+    [Fact]
     public void ReferenceEditor_MarksMissingAndDuplicateTargetsAsInvalid()
     {
         var first = new TechniqueConfig { Id = 1, Name = "重复一" };
@@ -465,9 +507,14 @@ public sealed class ConfigDocumentViewModelTests
             viewModel.PropertyEditors,
             property => property.Definition.Name == nameof(TreasureCreationSettingConfig.EligibleInfluenceIDs));
         var itemEditor = Assert.Single(editor.CollectionItems);
+        var propertyIndex = viewModel.Properties
+            .Select((property, index) => (property, index))
+            .Single(item => item.property.Name == nameof(TreasureCreationSettingConfig.EligibleInfluenceIDs))
+            .index;
 
         Assert.True(itemEditor.ShowReference);
         Assert.Contains("影响一", itemEditor.SelectedReference?.Label);
+        Assert.Equal("#10 · 影响一", viewModel.Records[0].Cells[propertyIndex].DisplayValue);
         var picker = Assert.IsType<ReferencePickerViewModel>(itemEditor.ReferencePicker);
 
         picker.SearchText = "影响二";
@@ -479,6 +526,7 @@ public sealed class ConfigDocumentViewModelTests
             option => option.Id == 20);
 
         Assert.Equal([20], treasure.EligibleInfluenceIDs);
+        Assert.Equal("#20 · 影响二", viewModel.Records[0].Cells[propertyIndex].DisplayValue);
         viewModel.UndoCommand.Execute(null);
         Assert.Equal([10], treasure.EligibleInfluenceIDs);
     }

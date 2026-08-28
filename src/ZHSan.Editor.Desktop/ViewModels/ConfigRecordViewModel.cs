@@ -1,15 +1,19 @@
 using System.Globalization;
+using ZHSan.Editor.Application.References;
 using ZHSan.Editor.Domain.Configuration;
 
 namespace ZHSan.Editor.Desktop.ViewModels;
 
 public sealed class ConfigRecordViewModel
 {
-    public ConfigRecordViewModel(object item, IReadOnlyList<ConfigPropertyDefinition> properties)
+    public ConfigRecordViewModel(
+        object item,
+        IReadOnlyList<ConfigPropertyDefinition> properties,
+        Func<ConfigPropertyDefinition, IReadOnlyList<ConfigReferenceTarget>>? getReferenceTargets = null)
     {
         Item = item;
         Cells = properties
-            .Select(property => new ConfigRecordCellViewModel(item, property))
+            .Select(property => new ConfigRecordCellViewModel(item, property, getReferenceTargets))
             .ToArray();
     }
 
@@ -25,11 +29,33 @@ public sealed class ConfigRecordViewModel
     }
 }
 
-public sealed class ConfigRecordCellViewModel(
-    object item,
-    ConfigPropertyDefinition property) : ObservableObject
+public sealed class ConfigRecordCellViewModel : ObservableObject
 {
-    public string DisplayValue => FormatValue(GetValue());
+    private readonly object _item;
+    private readonly ConfigPropertyDefinition _property;
+    private readonly Func<ConfigPropertyDefinition, IReadOnlyList<ConfigReferenceTarget>>?
+        _getReferenceTargets;
+
+    public ConfigRecordCellViewModel(
+        object item,
+        ConfigPropertyDefinition property,
+        Func<ConfigPropertyDefinition, IReadOnlyList<ConfigReferenceTarget>>? getReferenceTargets = null)
+    {
+        _item = item;
+        _property = property;
+        _getReferenceTargets = getReferenceTargets;
+    }
+
+    public string DisplayValue
+    {
+        get
+        {
+            var value = GetValue();
+            return _property.Reference is null || _getReferenceTargets is null
+                ? FormatValue(value)
+                : FormatReferenceValue(value);
+        }
+    }
 
     public object? SortValue => GetValue();
 
@@ -40,7 +66,55 @@ public sealed class ConfigRecordCellViewModel(
     }
 
     private object? GetValue() =>
-        item.GetType().GetProperty(property.Name)?.GetValue(item);
+        _item.GetType().GetProperty(_property.Name)?.GetValue(_item);
+
+    private string FormatReferenceValue(object? value)
+    {
+        if (value is null)
+        {
+            return string.Empty;
+        }
+
+        if (value is System.Collections.IEnumerable values and not string)
+        {
+            return string.Join(", ", values.Cast<object?>().Select(FormatReferenceItem));
+        }
+
+        return FormatReferenceItem(value);
+    }
+
+    private string FormatReferenceItem(object? value)
+    {
+        if (value is null)
+        {
+            return string.Empty;
+        }
+
+        int id;
+        try
+        {
+            id = Convert.ToInt32(value, CultureInfo.InvariantCulture);
+        }
+        catch (Exception exception) when (exception is FormatException or InvalidCastException or OverflowException)
+        {
+            return FormatValue(value);
+        }
+
+        if (_property.Reference!.IsEmpty(id))
+        {
+            return $"#{id} · （无）";
+        }
+
+        var targets = _getReferenceTargets!(_property)
+            .Where(target => target.Id == id)
+            .ToArray();
+        return targets.Length switch
+        {
+            0 => $"#{id} · [目标不存在]",
+            1 => $"#{id} · {targets[0].DisplayName}",
+            _ => $"#{id} · {targets[0].DisplayName} [目标 ID 重复]"
+        };
+    }
 
     private static string FormatValue(object? value)
     {

@@ -80,7 +80,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
         foreach (var item in document.Items)
         {
-            Records.Add(new ConfigRecordViewModel(item, _properties));
+            Records.Add(CreateRecordViewModel(item));
         }
 
         SelectCommand = new RelayCommand(() => selectDocument(this));
@@ -261,6 +261,11 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
     public void RefreshReferenceOptions()
     {
+        foreach (var record in Records)
+        {
+            record.Refresh();
+        }
+
         foreach (var editor in PropertyEditors.Where(editor => editor.UsesReferenceOptions))
         {
             editor.ReloadReferenceOptions(GetReferenceTargets(editor.Definition));
@@ -539,7 +544,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         }
 
         Document.Items.Add(item);
-        var record = new ConfigRecordViewModel(item, _properties);
+        var record = CreateRecordViewModel(item);
         Records.Add(record);
         FinishRecordMutation(record);
         var index = Records.IndexOf(record);
@@ -564,7 +569,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             {
                 var copy = CloneRecord(source.Item);
                 Document.Items.Add(copy);
-                var copyRecord = new ConfigRecordViewModel(copy, _properties);
+                var copyRecord = CreateRecordViewModel(copy);
                 Records.Add(copyRecord);
                 copies.Add((Records.Count - 1, copyRecord));
             }
@@ -713,7 +718,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         {
             var pasted = _clipboard.Items
                 .Select(CloneRecord)
-                .Select(item => new ConfigRecordViewModel(item, _properties))
+                .Select(CreateRecordViewModel)
                 .ToArray();
             var insertions = new List<(int Index, ConfigRecordViewModel Record)>();
             foreach (var record in pasted)
@@ -1011,7 +1016,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         foreach (var item in items)
         {
             Document.Items.Add(item);
-            Records.Add(new ConfigRecordViewModel(item, _properties));
+            Records.Add(CreateRecordViewModel(item));
         }
 
         FinishRecordMutation(Records.FirstOrDefault());
@@ -1022,6 +1027,9 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         _history.Record(edit);
         SetNotification(message);
     }
+
+    private ConfigRecordViewModel CreateRecordViewModel(object item) =>
+        new(item, _properties, GetReferenceTargets);
 
     private void Undo()
     {

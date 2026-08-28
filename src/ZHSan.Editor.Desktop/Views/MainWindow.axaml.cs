@@ -70,7 +70,7 @@ public sealed partial class MainWindow : Window
                 Binding = new Binding($"Cells[{index}].DisplayValue"),
                 SortMemberPath = $"Cells[{index}].SortValue",
                 IsReadOnly = true,
-                MinWidth = property.PropertyType == typeof(string) ? 150 : 80
+                MinWidth = property.Reference is not null || property.PropertyType == typeof(string) ? 150 : 80
             };
             if (index < document.SavedColumnWidths.Count)
             {
