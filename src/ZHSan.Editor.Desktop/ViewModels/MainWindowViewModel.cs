@@ -59,6 +59,8 @@ public sealed class MainWindowViewModel : ObservableObject
     private ConfigDocumentViewModel? _selectedDocument;
     private EditorProject? _project;
     private ImportStrategyOptionViewModel _selectedImportStrategy;
+    private bool _isNavigationPaneVisible;
+    private bool _isDetailsPaneVisible;
 
     public MainWindowViewModel(
         OpenArchiveService openArchiveService,
@@ -95,6 +97,8 @@ public sealed class MainWindowViewModel : ObservableObject
         _editorSettings = editorSettingsStore.Load();
         _uiStateStore = uiStateStore;
         _uiState = uiStateStore.Load();
+        _isNavigationPaneVisible = _uiState.IsNavigationPaneVisible;
+        _isDetailsPaneVisible = _uiState.IsDetailsPaneVisible;
         OpenArchiveCommand = new AsyncCommand(OpenArchiveAsync, () => !IsBusy);
         CloseProjectCommand = new AsyncCommand(CloseProjectAsync, () => !IsBusy && _project is not null);
         SaveDocumentCommand = new AsyncCommand(SaveDocumentAsync, CanSaveDocument);
@@ -183,6 +187,30 @@ public sealed class MainWindowViewModel : ObservableObject
     public bool HasImportPreview => _importPreview is not null;
     public bool HasImportFailures => ImportFailures.Count > 0;
     public bool HasImportLogEntries => ImportLogEntries.Count > 0;
+
+    public bool IsNavigationPaneVisible
+    {
+        get => _isNavigationPaneVisible;
+        set
+        {
+            if (SetProperty(ref _isNavigationPaneVisible, value))
+            {
+                _uiState.IsNavigationPaneVisible = value;
+            }
+        }
+    }
+
+    public bool IsDetailsPaneVisible
+    {
+        get => _isDetailsPaneVisible;
+        set
+        {
+            if (SetProperty(ref _isDetailsPaneVisible, value))
+            {
+                _uiState.IsDetailsPaneVisible = value;
+            }
+        }
+    }
 
     public ImportStrategyOptionViewModel SelectedImportStrategy
     {
@@ -1349,6 +1377,19 @@ public sealed class MainWindowViewModel : ObservableObject
 
         _uiState.WindowX = x;
         _uiState.WindowY = y;
+    }
+
+    public void UpdateWorkspacePaneWidths(double navigationPaneWidth, double detailsPaneWidth)
+    {
+        if (double.IsFinite(navigationPaneWidth) && navigationPaneWidth >= 180)
+        {
+            _uiState.NavigationPaneWidth = navigationPaneWidth;
+        }
+
+        if (double.IsFinite(detailsPaneWidth) && detailsPaneWidth >= 280)
+        {
+            _uiState.DetailsPaneWidth = detailsPaneWidth;
+        }
     }
 
     public void SaveUiState()

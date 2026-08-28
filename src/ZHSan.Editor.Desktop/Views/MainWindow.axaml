@@ -64,6 +64,14 @@
         <Separator />
         <MenuItem Header="校验项目" Command="{Binding ValidateCommand}" InputGesture="F8" />
       </MenuItem>
+      <MenuItem Header="视图">
+        <MenuItem Header="配置导航侧栏"
+                  ToggleType="CheckBox"
+                  IsChecked="{Binding IsNavigationPaneVisible, Mode=TwoWay}" />
+        <MenuItem Header="属性详情侧栏"
+                  ToggleType="CheckBox"
+                  IsChecked="{Binding IsDetailsPaneVisible, Mode=TwoWay}" />
+      </MenuItem>
       <MenuItem Header="工具">
         <MenuItem Header="关闭项目前确认未保存内容"
                   ToggleType="CheckBox"
@@ -74,17 +82,23 @@
 
     <Border DockPanel.Dock="Top" Padding="14,10" BorderThickness="0,0,0,1"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-      <Grid ColumnDefinitions="Auto,8,Auto,8,Auto,8,Auto,8,Auto,16,*,Auto">
+      <Grid ColumnDefinitions="Auto,8,Auto,8,Auto,8,Auto,8,Auto,16,Auto,6,Auto,16,*,Auto">
         <Button Grid.Column="0" Content="打开数据档案" Command="{Binding OpenArchiveCommand}" />
         <Button Grid.Column="2" Content="保存" Command="{Binding SaveDocumentCommand}" />
         <Button Grid.Column="4" Content="撤销" Command="{Binding SelectedDocument.UndoCommand}" />
         <Button Grid.Column="6" Content="重做" Command="{Binding SelectedDocument.RedoCommand}" />
         <Button Grid.Column="8" Content="校验" Command="{Binding ValidateCommand}" />
-        <StackPanel Grid.Column="10" VerticalAlignment="Center">
+        <ToggleButton Grid.Column="10" Content="导航栏"
+                      IsChecked="{Binding IsNavigationPaneVisible, Mode=TwoWay}"
+                      ToolTip.Tip="显示或隐藏左侧配置导航" />
+        <ToggleButton Grid.Column="12" Content="属性栏"
+                      IsChecked="{Binding IsDetailsPaneVisible, Mode=TwoWay}"
+                      ToolTip.Tip="显示或隐藏右侧属性详情" />
+        <StackPanel Grid.Column="14" VerticalAlignment="Center">
           <TextBlock Text="{Binding ProjectTitle}" FontWeight="SemiBold" />
           <TextBlock Text="GameDataArchive · CommonData.dat" FontSize="12" Opacity="0.58" />
         </StackPanel>
-        <TextBlock Grid.Column="11" Text="NET 9 · Avalonia" VerticalAlignment="Center" Opacity="0.58" />
+        <TextBlock Grid.Column="15" Text="NET 9 · Avalonia" VerticalAlignment="Center" Opacity="0.58" />
       </Grid>
     </Border>
 
@@ -109,8 +123,17 @@
     </Border>
 
     <Grid>
-      <Grid ColumnDefinitions="250,*,380">
+      <Grid x:Name="MainWorkspaceGrid">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="250" MinWidth="180" MaxWidth="520" />
+          <ColumnDefinition Width="5" />
+          <ColumnDefinition Width="*" MinWidth="400" />
+          <ColumnDefinition Width="5" />
+          <ColumnDefinition Width="380" MinWidth="280" MaxWidth="720" />
+        </Grid.ColumnDefinitions>
+
         <Border Grid.Column="0" BorderThickness="0,0,1,0"
+                IsVisible="{Binding IsNavigationPaneVisible}"
                 BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
           <Grid RowDefinitions="Auto,*">
             <StackPanel Margin="14,14,14,10" Spacing="3">
@@ -145,7 +168,15 @@
           </Grid>
         </Border>
 
-        <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*">
+        <GridSplitter Grid.Column="1"
+                      ResizeDirection="Columns"
+                      ResizeBehavior="PreviousAndNext"
+                      IsVisible="{Binding IsNavigationPaneVisible}"
+                      Background="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                      Cursor="SizeWestEast"
+                      ToolTip.Tip="拖动调整配置导航宽度" />
+
+        <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*">
           <Border Padding="18,13" BorderThickness="0,0,0,1"
                   BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
             <Grid ColumnDefinitions="*,Auto,12,Auto">
@@ -250,7 +281,16 @@
           </Grid>
         </Grid>
 
-        <Border Grid.Column="2" BorderThickness="1,0,0,0"
+        <GridSplitter Grid.Column="3"
+                      ResizeDirection="Columns"
+                      ResizeBehavior="PreviousAndNext"
+                      IsVisible="{Binding IsDetailsPaneVisible}"
+                      Background="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                      Cursor="SizeWestEast"
+                      ToolTip.Tip="拖动调整属性详情宽度" />
+
+        <Border Grid.Column="4" BorderThickness="1,0,0,0"
+                IsVisible="{Binding IsDetailsPaneVisible}"
                 BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
           <TabControl x:Name="DetailsTabs"
                       SelectedIndex="{Binding SelectedDetailsTabIndex, Mode=TwoWay}"

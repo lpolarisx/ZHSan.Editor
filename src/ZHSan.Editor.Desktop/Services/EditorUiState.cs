@@ -6,6 +6,10 @@ public sealed class EditorUiState
     public double WindowHeight { get; set; } = 900;
     public int? WindowX { get; set; }
     public int? WindowY { get; set; }
+    public double NavigationPaneWidth { get; set; } = 250;
+    public double DetailsPaneWidth { get; set; } = 380;
+    public bool IsNavigationPaneVisible { get; set; } = true;
+    public bool IsDetailsPaneVisible { get; set; } = true;
     public Dictionary<string, DocumentUiState> Documents { get; set; } = [];
 
     public DocumentUiState GetDocument(string key)

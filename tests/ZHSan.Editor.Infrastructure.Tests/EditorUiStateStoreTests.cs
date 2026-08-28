@@ -17,7 +17,11 @@ public sealed class EditorUiStateStoreTests
                 WindowWidth = 1320,
                 WindowHeight = 780,
                 WindowX = 120,
-                WindowY = 80
+                WindowY = 80,
+                NavigationPaneWidth = 310,
+                DetailsPaneWidth = 460,
+                IsNavigationPaneVisible = false,
+                IsDetailsPaneVisible = true
             };
             state.GetDocument("techniques").SearchText = "技术";
             state.GetDocument("techniques").FilterPropertyName = "Name";
@@ -30,6 +34,10 @@ public sealed class EditorUiStateStoreTests
             Assert.Equal(780, restored.WindowHeight);
             Assert.Equal(120, restored.WindowX);
             Assert.Equal(80, restored.WindowY);
+            Assert.Equal(310, restored.NavigationPaneWidth);
+            Assert.Equal(460, restored.DetailsPaneWidth);
+            Assert.False(restored.IsNavigationPaneVisible);
+            Assert.True(restored.IsDetailsPaneVisible);
             var document = restored.GetDocument("techniques");
             Assert.Equal("技术", document.SearchText);
             Assert.Equal("Name", document.FilterPropertyName);

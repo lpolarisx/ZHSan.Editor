@@ -9,6 +9,14 @@ namespace ZHSan.Editor.Desktop.Views;
 
 public sealed partial class MainWindow : Window
 {
+    private const double NavigationPaneDefaultWidth = 250;
+    private const double NavigationPaneMinWidth = 180;
+    private const double NavigationPaneMaxWidth = 520;
+    private const double DetailsPaneDefaultWidth = 380;
+    private const double DetailsPaneMinWidth = 280;
+    private const double DetailsPaneMaxWidth = 720;
+    private const double SplitterWidth = 5;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -19,6 +27,10 @@ public sealed partial class MainWindow : Window
     private ConfigDocumentViewModel? _columnsDocument;
     private bool _allowWindowClose;
     private bool _isClosePending;
+    private ColumnDefinition NavigationPaneColumn => MainWorkspaceGrid.ColumnDefinitions[0];
+    private ColumnDefinition NavigationSplitterColumn => MainWorkspaceGrid.ColumnDefinitions[1];
+    private ColumnDefinition DetailsSplitterColumn => MainWorkspaceGrid.ColumnDefinitions[3];
+    private ColumnDefinition DetailsPaneColumn => MainWorkspaceGrid.ColumnDefinitions[4];
 
     private void OnDataContextChanged(object? sender, EventArgs eventArgs)
     {
@@ -42,6 +54,12 @@ public sealed partial class MainWindow : Window
         if (eventArgs.PropertyName == nameof(MainWindowViewModel.SelectedDocument))
         {
             BuildRecordColumns();
+        }
+        else if (eventArgs.PropertyName is nameof(MainWindowViewModel.IsNavigationPaneVisible) or
+                 nameof(MainWindowViewModel.IsDetailsPaneVisible))
+        {
+            SaveCurrentWorkspacePaneWidths();
+            ApplyWorkspacePaneLayout();
         }
     }
 
@@ -114,7 +132,67 @@ public sealed partial class MainWindow : Window
         {
             Position = new PixelPoint(state.WindowX.Value, state.WindowY.Value);
         }
+
+        ApplyWorkspacePaneLayout();
     }
+
+    private void ApplyWorkspacePaneLayout()
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        var state = _viewModel.UiState;
+        if (_viewModel.IsNavigationPaneVisible)
+        {
+            NavigationPaneColumn.MinWidth = NavigationPaneMinWidth;
+            NavigationPaneColumn.Width = new GridLength(ClampWidth(
+                state.NavigationPaneWidth,
+                NavigationPaneDefaultWidth,
+                NavigationPaneMinWidth,
+                NavigationPaneMaxWidth));
+            NavigationSplitterColumn.Width = new GridLength(SplitterWidth);
+        }
+        else
+        {
+            NavigationPaneColumn.MinWidth = 0;
+            NavigationPaneColumn.Width = new GridLength(0);
+            NavigationSplitterColumn.Width = new GridLength(0);
+        }
+
+        if (_viewModel.IsDetailsPaneVisible)
+        {
+            DetailsPaneColumn.MinWidth = DetailsPaneMinWidth;
+            DetailsPaneColumn.Width = new GridLength(ClampWidth(
+                state.DetailsPaneWidth,
+                DetailsPaneDefaultWidth,
+                DetailsPaneMinWidth,
+                DetailsPaneMaxWidth));
+            DetailsSplitterColumn.Width = new GridLength(SplitterWidth);
+        }
+        else
+        {
+            DetailsPaneColumn.MinWidth = 0;
+            DetailsPaneColumn.Width = new GridLength(0);
+            DetailsSplitterColumn.Width = new GridLength(0);
+        }
+    }
+
+    private void SaveCurrentWorkspacePaneWidths()
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        _viewModel.UpdateWorkspacePaneWidths(
+            NavigationPaneColumn.ActualWidth,
+            DetailsPaneColumn.ActualWidth);
+    }
+
+    private static double ClampWidth(double width, double defaultWidth, double minWidth, double maxWidth) =>
+        double.IsFinite(width) ? Math.Clamp(width, minWidth, maxWidth) : defaultWidth;
 
     private async void OnWindowClosing(object? sender, WindowClosingEventArgs eventArgs)
     {
@@ -153,6 +231,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        SaveCurrentWorkspacePaneWidths();
         _viewModel.UpdateWindowLayout(Width, Height, Position.X, Position.Y);
         _viewModel.SaveUiState();
     }
