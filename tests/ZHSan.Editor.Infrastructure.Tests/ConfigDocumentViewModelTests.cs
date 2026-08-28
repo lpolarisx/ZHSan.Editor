@@ -33,6 +33,26 @@ public sealed class ConfigDocumentViewModelTests
     }
 
     [Fact]
+    public void PropertyEditors_UseMultilineInputOnlyForDescriptionText()
+    {
+        var viewModel = CreateViewModel(
+            [new TechniqueConfig { Id = 1, Name = "技术", Description = "较长的说明" }]);
+        viewModel.SelectedRecord = viewModel.Records[0];
+
+        var name = Assert.Single(
+            viewModel.PropertyEditors,
+            editor => editor.Definition.Name == nameof(TechniqueConfig.Name));
+        var description = Assert.Single(
+            viewModel.PropertyEditors,
+            editor => editor.Definition.Name == nameof(TechniqueConfig.Description));
+
+        Assert.True(name.ShowString);
+        Assert.False(name.ShowMultilineString);
+        Assert.False(description.ShowString);
+        Assert.True(description.ShowMultilineString);
+    }
+
+    [Fact]
     public void Filter_UsesExactMatchingForIntegersAndFuzzyMatchingForStrings()
     {
         var exact = new TitleConfig { Id = 1, Name = "合欢", KindId = 2 };

@@ -36,6 +36,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
         IsEnum = valueType.IsEnum;
         IsNumber = IsNumeric(valueType);
         IsString = valueType == typeof(string);
+        IsMultilineString = IsString && IsMultilineTextProperty(definition);
         IsCollection = valueType != typeof(string) && typeof(IEnumerable).IsAssignableFrom(valueType);
         IsReference = definition.Reference is not null;
         IsStructuredString = definition.StructuredString is not null;
@@ -80,6 +81,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
     public bool IsEnum { get; }
     public bool IsNumber { get; }
     public bool IsString { get; }
+    public bool IsMultilineString { get; }
     public bool IsCollection { get; }
     public bool IsReference { get; }
     public bool IsStructuredString { get; }
@@ -89,7 +91,8 @@ public sealed class PropertyEditorViewModel : ObservableObject
     public bool ShowEnum => IsEnum && !IsReadOnly;
     public bool ShowNumber => IsNumber && !IsReference && !IsReadOnly;
     public bool ShowReference => IsReference && IsNumber && !IsCollection && !IsReadOnly;
-    public bool ShowString => IsString && !IsStructuredString && !IsReadOnly;
+    public bool ShowString => IsString && !IsMultilineString && !IsStructuredString && !IsReadOnly;
+    public bool ShowMultilineString => IsMultilineString && !IsStructuredString && !IsReadOnly;
     public bool ShowStructuredString => IsStructuredString && !IsReadOnly;
     public bool ShowCollection => IsCollection && !IsReadOnly;
     public bool IsValidationTarget
@@ -194,6 +197,13 @@ public sealed class PropertyEditorViewModel : ObservableObject
     public string ReadOnlyValue => IsCollection
         ? $"{CollectionItems.Count} 项"
         : FormatScalar(_property.GetValue(_owner));
+
+    private static bool IsMultilineTextProperty(ConfigPropertyDefinition definition) =>
+        definition.Name.EndsWith("Description", StringComparison.OrdinalIgnoreCase) ||
+        definition.DisplayName.Contains("描述", StringComparison.Ordinal) ||
+        definition.DisplayName.Contains("说明", StringComparison.Ordinal) ||
+        definition.DisplayName.Contains("简介", StringComparison.Ordinal) ||
+        definition.DisplayName.Contains("备注", StringComparison.Ordinal);
 
     private void SetValue(object? value)
     {

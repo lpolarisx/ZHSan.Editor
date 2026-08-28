@@ -311,6 +311,13 @@
 
                           <TextBox Text="{Binding ValueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                    IsVisible="{Binding ShowString}" />
+                          <TextBox Text="{Binding ValueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                   IsVisible="{Binding ShowMultilineString}"
+                                   AcceptsReturn="True"
+                                   TextWrapping="Wrap"
+                                   VerticalContentAlignment="Top"
+                                   MinHeight="96"
+                                   MaxHeight="280" />
                           <ContentControl Content="{Binding StructuredStringEditor}"
                                           IsVisible="{Binding ShowStructuredString}" />
                           <NumericUpDown Value="{Binding NumericValue, Mode=TwoWay}"
