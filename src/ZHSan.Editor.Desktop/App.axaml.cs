@@ -37,6 +37,7 @@ public sealed partial class App : Avalonia.Application
             services.AddSingleton<IConfigImportReader, GameDataConfigImportReader>();
             services.AddSingleton<IConfigExportWriter, GameDataConfigExportWriter>();
             services.AddSingleton<ILegacyScenarioConverter, LegacyScenarioConverter>();
+            services.AddSingleton<ILegacyCommonDataConverter, LegacyCommonDataConverter>();
             services.AddSingleton<IArchiveChangeMonitor, FileSystemArchiveChangeMonitor>();
             services.AddSingleton<IEditorSettingsStore, JsonEditorSettingsStore>();
             services.AddSingleton<IConfigTransferLogStore, JsonConfigTransferLogStore>();

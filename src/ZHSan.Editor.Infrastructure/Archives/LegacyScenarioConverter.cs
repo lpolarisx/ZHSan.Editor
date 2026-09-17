@@ -254,6 +254,7 @@ public sealed class LegacyScenarioConverter : ILegacyScenarioConverter
         source.Select(node =>
         {
             var projected = Project<PersonConfig>(RequiredItemObject(node, "Persons"));
+            projected.PictureIndex = projected.Id;
             projected.StatusEffects ??= [];
             return projected;
         }).ToList();

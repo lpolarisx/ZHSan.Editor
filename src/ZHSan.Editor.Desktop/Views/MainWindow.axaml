@@ -55,6 +55,7 @@
         <MenuItem Header="删除记录" Command="{Binding SelectedDocument.DeleteCommand}" InputGesture="Ctrl+Delete" />
       </MenuItem>
       <MenuItem Header="数据">
+        <MenuItem Header="转换旧版 CommonData…" Command="{Binding ConvertLegacyCommonDataCommand}" />
         <MenuItem Header="转换旧版游戏剧本…" Command="{Binding ConvertLegacyScenarioCommand}" />
         <Separator />
         <MenuItem Header="导入当前配置 JSON…" Command="{Binding ImportJsonCommand}" InputGesture="Ctrl+I" />

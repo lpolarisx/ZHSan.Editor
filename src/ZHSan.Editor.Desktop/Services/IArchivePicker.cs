@@ -36,4 +36,12 @@ public interface IArchivePicker
         string suggestedFileName,
         CancellationToken cancellationToken = default) =>
         Task.FromResult<string?>(null);
+
+    Task<string?> PickLegacyCommonDataAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<string?>(null);
+
+    Task<string?> PickSaveCommonDataArchiveAsync(
+        string suggestedFileName,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<string?>(null);
 }

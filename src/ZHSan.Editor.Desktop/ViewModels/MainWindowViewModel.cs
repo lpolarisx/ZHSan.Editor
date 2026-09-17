@@ -33,6 +33,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly ConfigExportService? _configExportService;
     private readonly PublishArchiveService? _publishArchiveService;
     private readonly ILegacyScenarioConverter? _legacyScenarioConverter;
+    private readonly ILegacyCommonDataConverter? _legacyCommonDataConverter;
     private readonly IEditorSettingsStore _editorSettingsStore;
     private readonly EditorSettings _editorSettings;
     private readonly EditorUiStateStore _uiStateStore;
@@ -79,7 +80,8 @@ public sealed class MainWindowViewModel : ObservableObject
         ConfigExportService? configExportService = null,
         PublishArchiveService? publishArchiveService = null,
         ConfigEditorProviderRegistry? editorProviderRegistry = null,
-        ILegacyScenarioConverter? legacyScenarioConverter = null)
+        ILegacyScenarioConverter? legacyScenarioConverter = null,
+        ILegacyCommonDataConverter? legacyCommonDataConverter = null)
     {
         _openArchiveService = openArchiveService;
         _saveArchiveService = saveArchiveService;
@@ -95,6 +97,7 @@ public sealed class MainWindowViewModel : ObservableObject
         _configExportService = configExportService;
         _publishArchiveService = publishArchiveService;
         _legacyScenarioConverter = legacyScenarioConverter;
+        _legacyCommonDataConverter = legacyCommonDataConverter;
         _editorProviderRegistry = editorProviderRegistry ?? new ConfigEditorProviderRegistry([]);
         _editorSettingsStore = editorSettingsStore;
         _editorSettings = editorSettingsStore.Load();
@@ -116,6 +119,9 @@ public sealed class MainWindowViewModel : ObservableObject
         ConvertLegacyScenarioCommand = new AsyncCommand(
             ConvertLegacyScenarioAsync,
             () => !IsBusy && _legacyScenarioConverter is not null);
+        ConvertLegacyCommonDataCommand = new AsyncCommand(
+            ConvertLegacyCommonDataAsync,
+            () => !IsBusy && _legacyCommonDataConverter is not null);
         ApplyImportCommand = new RelayCommand(ApplyImport, CanApplyImport);
         CancelImportPreviewCommand = new RelayCommand(ClearImportPreview, () => HasImportPreview);
         ValidateCommand = new RelayCommand(ValidateProject, () => !IsBusy && _project is not null);
@@ -173,6 +179,7 @@ public sealed class MainWindowViewModel : ObservableObject
     public ICommand ExportProjectDirectoryCommand { get; }
     public ICommand PublishCommand { get; }
     public ICommand ConvertLegacyScenarioCommand { get; }
+    public ICommand ConvertLegacyCommonDataCommand { get; }
     public ICommand ApplyImportCommand { get; }
     public ICommand CancelImportPreviewCommand { get; }
     public ICommand ValidateCommand { get; }
@@ -348,6 +355,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 ((AsyncCommand)ExportProjectDirectoryCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)PublishCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)ConvertLegacyScenarioCommand).RaiseCanExecuteChanged();
+                ((AsyncCommand)ConvertLegacyCommonDataCommand).RaiseCanExecuteChanged();
                 ((RelayCommand)ValidateCommand).RaiseCanExecuteChanged();
                 ((RelayCommand)ApplyImportCommand).RaiseCanExecuteChanged();
             }
@@ -636,6 +644,59 @@ public sealed class MainWindowViewModel : ObservableObject
                 "失败",
                 message,
                 "剧本转换");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task ConvertLegacyCommonDataAsync()
+    {
+        if (_legacyCommonDataConverter is null)
+        {
+            return;
+        }
+
+        var sourcePath = await _archivePicker.PickLegacyCommonDataAsync();
+        if (sourcePath is null)
+        {
+            return;
+        }
+
+        var suggestedFileName = Path.ChangeExtension(Path.GetFileName(sourcePath), ".dat");
+        var destinationPath = await _archivePicker.PickSaveCommonDataArchiveAsync(suggestedFileName);
+        if (destinationPath is null)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        ErrorMessage = null;
+        StatusText = "正在转换旧版 CommonData…";
+        try
+        {
+            var result = await _legacyCommonDataConverter.ConvertAsync(sourcePath, destinationPath);
+            StatusText = $"CommonData 转换完成：{result.ConfigCount} 项配置，共 {result.ItemCount} 条记录";
+            AddTransferLog(
+                result.DestinationPath,
+                Path.GetFileName(result.DestinationPath),
+                "成功",
+                $"已转换 {result.ConfigCount} 项配置、{result.EntryCount} 个档案条目、{result.ItemCount} 条记录",
+                "CommonData 转换");
+            SelectedDetailsTabIndex = 6;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            var message = exception.GetBaseException().Message;
+            ErrorMessage = message;
+            StatusText = "旧版 CommonData 转换失败";
+            AddTransferLog(
+                destinationPath,
+                Path.GetFileName(sourcePath),
+                "失败",
+                message,
+                "CommonData 转换");
         }
         finally
         {

@@ -45,6 +45,7 @@ public sealed class LegacyScenarioConverterTests
 
             var person = Assert.Single(archive.Load<List<PersonConfig>>("Persons.json")!);
             Assert.Equal(7, person.Id);
+            Assert.Equal(person.Id, person.PictureIndex);
             Assert.NotNull(person.StatusEffects);
             Assert.Empty(person.StatusEffects);
             Assert.Equal(4, person.ProhibitedFactionID[3]);
@@ -148,7 +149,7 @@ public sealed class LegacyScenarioConverterTests
           "Informations":{"GameObjects":[]}, "Legions":{"GameObjects":[]}, "Militaries":{"GameObjects":[]},
           "NoFoodDictionary":{"Positions":[{"Key":{"X":3,"Y":4},"Value":{"Position":{"X":3,"Y":4},"Days":5}}]},
           "PersonRelationIds":[],
-          "Persons":{"GameObjects":[{"ID":7,"Name":"人物","ProhibitedFactionID":[{"Key":3,"Value":4}]}]},
+          "Persons":{"GameObjects":[{"ID":7,"Name":"人物","PictureIndex":9999,"ProhibitedFactionID":[{"Key":3,"Value":4}]}]},
           "Regions":{"GameObjects":[]}, "Routeways":{"GameObjects":[]}, "Sections":{"GameObjects":[]},
           "States":{"GameObjects":[]}, "Treasures":{"GameObjects":[]}, "TroopEvents":{"GameObjects":[]},
           "Troops":{"GameObjects":[]}, "YearTable":{"GameObjects":[],"yearTableStrings":[]}

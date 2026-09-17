@@ -149,4 +149,34 @@ public sealed class AvaloniaArchivePicker(Window owner) : IArchivePicker
         cancellationToken.ThrowIfCancellationRequested();
         return file?.TryGetLocalPath();
     }
+
+    public async Task<string?> PickLegacyCommonDataAsync(CancellationToken cancellationToken = default)
+    {
+        var files = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "选择旧版 CommonData JSON",
+            AllowMultiple = false,
+            FileTypeFilter = [JsonFileType, FilePickerFileTypes.All]
+        });
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return files.Count == 0 ? null : files[0].TryGetLocalPath();
+    }
+
+    public async Task<string?> PickSaveCommonDataArchiveAsync(
+        string suggestedFileName,
+        CancellationToken cancellationToken = default)
+    {
+        var file = await owner.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "导出新格式 CommonData 档案",
+            SuggestedFileName = suggestedFileName,
+            DefaultExtension = "dat",
+            FileTypeChoices = [ArchiveFileType, FilePickerFileTypes.All],
+            ShowOverwritePrompt = true
+        });
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return file?.TryGetLocalPath();
+    }
 }
