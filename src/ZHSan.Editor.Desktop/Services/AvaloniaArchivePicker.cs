@@ -119,4 +119,34 @@ public sealed class AvaloniaArchivePicker(Window owner) : IArchivePicker
         cancellationToken.ThrowIfCancellationRequested();
         return file?.TryGetLocalPath();
     }
+
+    public async Task<string?> PickLegacyScenarioAsync(CancellationToken cancellationToken = default)
+    {
+        var files = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "选择旧版游戏剧本 JSON",
+            AllowMultiple = false,
+            FileTypeFilter = [JsonFileType, FilePickerFileTypes.All]
+        });
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return files.Count == 0 ? null : files[0].TryGetLocalPath();
+    }
+
+    public async Task<string?> PickSaveScenarioArchiveAsync(
+        string suggestedFileName,
+        CancellationToken cancellationToken = default)
+    {
+        var file = await owner.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "导出新格式游戏剧本",
+            SuggestedFileName = suggestedFileName,
+            DefaultExtension = "dat",
+            FileTypeChoices = [ArchiveFileType, FilePickerFileTypes.All],
+            ShowOverwritePrompt = true
+        });
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return file?.TryGetLocalPath();
+    }
 }

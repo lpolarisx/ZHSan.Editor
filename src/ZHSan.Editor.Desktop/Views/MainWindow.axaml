@@ -55,6 +55,8 @@
         <MenuItem Header="删除记录" Command="{Binding SelectedDocument.DeleteCommand}" InputGesture="Ctrl+Delete" />
       </MenuItem>
       <MenuItem Header="数据">
+        <MenuItem Header="转换旧版游戏剧本…" Command="{Binding ConvertLegacyScenarioCommand}" />
+        <Separator />
         <MenuItem Header="导入当前配置 JSON…" Command="{Binding ImportJsonCommand}" InputGesture="Ctrl+I" />
         <MenuItem Header="从数据档案批量导入…" Command="{Binding ImportArchiveCommand}" InputGesture="Ctrl+Shift+I" />
         <Separator />
@@ -252,6 +254,8 @@
               <TextBlock Text="选择 CommonData.dat 后，可在此搜索、排序、多选和管理配置记录。"
                          TextWrapping="Wrap" TextAlignment="Center" Opacity="0.62" />
               <Button Content="打开数据档案…" Command="{Binding OpenArchiveCommand}"
+                      HorizontalAlignment="Center" />
+              <Button Content="转换旧版游戏剧本…" Command="{Binding ConvertLegacyScenarioCommand}"
                       HorizontalAlignment="Center" />
               <Grid ColumnDefinitions="*,Auto" Margin="0,14,0,0"
                     IsVisible="{Binding HasRecentProjects}">
@@ -541,7 +545,7 @@
 
             <TabItem Header="{Binding ImportLogTabHeader}">
               <Grid RowDefinitions="Auto,*" Margin="12">
-                <TextBlock Text="导入/导出/发布日志与失败详情" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8" />
+                <TextBlock Text="数据操作日志与失败详情" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8" />
                 <ListBox Grid.Row="1" ItemsSource="{Binding ImportLogEntries}">
                   <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:ImportLogEntryViewModel">
@@ -569,7 +573,7 @@
       <Border Background="#D9222222" IsVisible="{Binding IsBusy}">
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
           <ProgressBar IsIndeterminate="True" Width="260" />
-          <TextBlock Text="正在加载数据档案…" FontSize="16" />
+          <TextBlock Text="正在处理，请稍候…" FontSize="16" />
         </StackPanel>
       </Border>
 

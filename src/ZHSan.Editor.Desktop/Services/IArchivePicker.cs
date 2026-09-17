@@ -28,4 +28,12 @@ public interface IArchivePicker
         string suggestedFileName,
         CancellationToken cancellationToken = default) =>
         Task.FromResult<string?>(null);
+
+    Task<string?> PickLegacyScenarioAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<string?>(null);
+
+    Task<string?> PickSaveScenarioArchiveAsync(
+        string suggestedFileName,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<string?>(null);
 }

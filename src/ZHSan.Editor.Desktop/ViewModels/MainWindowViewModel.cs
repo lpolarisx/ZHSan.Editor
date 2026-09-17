@@ -32,6 +32,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly IConfigTransferLogStore? _configTransferLogStore;
     private readonly ConfigExportService? _configExportService;
     private readonly PublishArchiveService? _publishArchiveService;
+    private readonly ILegacyScenarioConverter? _legacyScenarioConverter;
     private readonly IEditorSettingsStore _editorSettingsStore;
     private readonly EditorSettings _editorSettings;
     private readonly EditorUiStateStore _uiStateStore;
@@ -77,7 +78,8 @@ public sealed class MainWindowViewModel : ObservableObject
         IConfigTransferLogStore? configTransferLogStore = null,
         ConfigExportService? configExportService = null,
         PublishArchiveService? publishArchiveService = null,
-        ConfigEditorProviderRegistry? editorProviderRegistry = null)
+        ConfigEditorProviderRegistry? editorProviderRegistry = null,
+        ILegacyScenarioConverter? legacyScenarioConverter = null)
     {
         _openArchiveService = openArchiveService;
         _saveArchiveService = saveArchiveService;
@@ -92,6 +94,7 @@ public sealed class MainWindowViewModel : ObservableObject
         _configTransferLogStore = configTransferLogStore;
         _configExportService = configExportService;
         _publishArchiveService = publishArchiveService;
+        _legacyScenarioConverter = legacyScenarioConverter;
         _editorProviderRegistry = editorProviderRegistry ?? new ConfigEditorProviderRegistry([]);
         _editorSettingsStore = editorSettingsStore;
         _editorSettings = editorSettingsStore.Load();
@@ -110,6 +113,9 @@ public sealed class MainWindowViewModel : ObservableObject
         ExportJsonCommand = new AsyncCommand(ExportJsonAsync, CanExportJson);
         ExportProjectDirectoryCommand = new AsyncCommand(ExportProjectDirectoryAsync, CanExportProjectDirectory);
         PublishCommand = new AsyncCommand(PublishAsync, CanPublish);
+        ConvertLegacyScenarioCommand = new AsyncCommand(
+            ConvertLegacyScenarioAsync,
+            () => !IsBusy && _legacyScenarioConverter is not null);
         ApplyImportCommand = new RelayCommand(ApplyImport, CanApplyImport);
         CancelImportPreviewCommand = new RelayCommand(ClearImportPreview, () => HasImportPreview);
         ValidateCommand = new RelayCommand(ValidateProject, () => !IsBusy && _project is not null);
@@ -166,6 +172,7 @@ public sealed class MainWindowViewModel : ObservableObject
     public ICommand ExportJsonCommand { get; }
     public ICommand ExportProjectDirectoryCommand { get; }
     public ICommand PublishCommand { get; }
+    public ICommand ConvertLegacyScenarioCommand { get; }
     public ICommand ApplyImportCommand { get; }
     public ICommand CancelImportPreviewCommand { get; }
     public ICommand ValidateCommand { get; }
@@ -244,8 +251,8 @@ public sealed class MainWindowViewModel : ObservableObject
         : $"导入预览 ({ImportDifferenceRows.Count})";
 
     public string ImportLogTabHeader => ImportLogEntries.Count == 0
-        ? "导入/导出/发布日志"
-        : $"导入/导出/发布日志 ({ImportLogEntries.Count})";
+        ? "数据操作日志"
+        : $"数据操作日志 ({ImportLogEntries.Count})";
 
     public int SelectedDetailsTabIndex
     {
@@ -340,6 +347,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 ((AsyncCommand)ExportJsonCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)ExportProjectDirectoryCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)PublishCommand).RaiseCanExecuteChanged();
+                ((AsyncCommand)ConvertLegacyScenarioCommand).RaiseCanExecuteChanged();
                 ((RelayCommand)ValidateCommand).RaiseCanExecuteChanged();
                 ((RelayCommand)ApplyImportCommand).RaiseCanExecuteChanged();
             }
@@ -581,6 +589,59 @@ public sealed class MainWindowViewModel : ObservableObject
         result.Successes.Count == 1 && result.Failures.Count == 0
             ? result.Successes[0]
             : throw new InvalidOperationException("单配置导出没有返回唯一成功结果。");
+
+    private async Task ConvertLegacyScenarioAsync()
+    {
+        if (_legacyScenarioConverter is null)
+        {
+            return;
+        }
+
+        var sourcePath = await _archivePicker.PickLegacyScenarioAsync();
+        if (sourcePath is null)
+        {
+            return;
+        }
+
+        var suggestedFileName = Path.ChangeExtension(Path.GetFileName(sourcePath), ".dat");
+        var destinationPath = await _archivePicker.PickSaveScenarioArchiveAsync(suggestedFileName);
+        if (destinationPath is null)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        ErrorMessage = null;
+        StatusText = "正在转换旧版游戏剧本…";
+        try
+        {
+            var result = await _legacyScenarioConverter.ConvertAsync(sourcePath, destinationPath);
+            StatusText = $"剧本转换完成：{result.EntryCount} 个条目，共 {result.ItemCount} 条记录";
+            AddTransferLog(
+                result.DestinationPath,
+                Path.GetFileName(result.DestinationPath),
+                "成功",
+                $"已将旧版剧本转换为 {result.EntryCount} 个条目、{result.ItemCount} 条记录",
+                "剧本转换");
+            SelectedDetailsTabIndex = 6;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            var message = exception.GetBaseException().Message;
+            ErrorMessage = message;
+            StatusText = "旧版剧本转换失败";
+            AddTransferLog(
+                destinationPath,
+                Path.GetFileName(sourcePath),
+                "失败",
+                message,
+                "剧本转换");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
 
     private async Task PublishAsync()
     {
