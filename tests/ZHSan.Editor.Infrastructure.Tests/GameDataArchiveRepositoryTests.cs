@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Reflection;
 using ZHSan.Editor.Application.Abstractions;
 using GameDatas;
 using ZHSan.Editor.Domain.Configuration;
@@ -10,6 +11,111 @@ namespace ZHSan.Editor.Infrastructure.Tests;
 
 public sealed class GameDataArchiveRepositoryTests
 {
+    [Fact]
+    public async Task ScenarioArchive_LoadAndSaveSingleList_PreservesOtherEntriesAndGameMetadata()
+    {
+        var directory = Directory.CreateTempSubdirectory("zhsan-scenario-archive-").FullName;
+        var archivePath = Path.Combine(directory, "Scenario.dat");
+        const string scenarioMetadata = "{\n  \"ScenarioName\": \"仓储回归夹具\",\n  \"Marker\": 904\n}";
+
+        try
+        {
+            var definitions = new GameDataConfigRegistry().GetDefinitions(ConfigScope.Scenario);
+            using (var zip = ZipFile.Open(archivePath, ZipArchiveMode.Create))
+            {
+                foreach (var definition in definitions)
+                {
+                    var json = definition.EntryName switch
+                    {
+                        "Architectures.json" => "[{\"Id\":1,\"Name\":\"原建筑\"}]",
+                        "Persons.json" => "[{\"Id\":7,\"Name\":\"原人物\"}]",
+                        _ => "[]"
+                    };
+                    await WriteEntryAsync(zip, definition.EntryName, json);
+                }
+
+                await WriteEntryAsync(zip, "GameScenarios.json", scenarioMetadata);
+            }
+
+            var before = await ReadEntryContentsAsync(archivePath);
+            var repository = new GameDataArchiveRepository();
+            var project = await repository.LoadAsync(archivePath, definitions);
+
+            Assert.Equal(ConfigScope.Scenario, project.Scope);
+            Assert.Equal(22, project.Documents.Count);
+            Assert.All(project.Documents, document => Assert.Equal(ConfigScope.Scenario, document.Definition.Scope));
+            Assert.Equal(
+                "原建筑",
+                ((ArchitectureConfig)project.Documents.Single(document =>
+                    document.Definition.EntryName == "Architectures.json").Items.Single()).Name);
+            Assert.Equal(
+                "原人物",
+                ((PersonConfig)project.Documents.Single(document =>
+                    document.Definition.EntryName == "Persons.json").Items.Single()).Name);
+
+            var architectureDocument = project.Documents.Single(document =>
+                document.Definition.EntryName == "Architectures.json");
+            ((ArchitectureConfig)architectureDocument.Items.Single()).Name = "已修改建筑";
+            architectureDocument.IsDirty = true;
+
+            await repository.SaveAsync(project);
+
+            Assert.False(architectureDocument.IsDirty);
+            Assert.True(File.Exists(archivePath + ".bak"));
+            Assert.False(File.Exists(archivePath + ".tmp"));
+
+            var after = await ReadEntryContentsAsync(archivePath);
+            Assert.Equal(before.Keys.Order(), after.Keys.Order());
+            foreach (var entry in before.Where(entry => entry.Key != "Architectures.json"))
+            {
+                Assert.Equal(entry.Value, after[entry.Key]);
+            }
+            Assert.Equal(scenarioMetadata, after["GameScenarios.json"]);
+
+            using var savedArchive = GameDataArchive.Open(archivePath);
+            Assert.Equal(
+                "已修改建筑",
+                savedArchive.Load<List<ArchitectureConfig>>("Architectures.json")!.Single().Name);
+            Assert.Equal(
+                "原人物",
+                savedArchive.Load<List<PersonConfig>>("Persons.json")!.Single().Name);
+
+            var loadMethod = typeof(GameDataArchive).GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                .Single(method =>
+                    method.Name == nameof(GameDataArchive.Load) &&
+                    method.IsGenericMethodDefinition &&
+                    method.GetParameters() is [{ ParameterType: var parameterType }] &&
+                    parameterType == typeof(string));
+            foreach (var definition in definitions)
+            {
+                var listType = typeof(List<>).MakeGenericType(definition.ItemType);
+                Assert.NotNull(loadMethod.MakeGenericMethod(listType)
+                    .Invoke(savedArchive, [definition.EntryName]));
+            }
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task LoadAsync_MixedScopeDefinitions_IsRejectedBeforeOpeningArchive()
+    {
+        var definitions = new[]
+        {
+            new ConfigDefinition(
+                "common", "通用", "测试", "Common.json", typeof(TechniqueConfig), ConfigScope.Common),
+            new ConfigDefinition(
+                "scenario", "剧本", "测试", "Scenario.json", typeof(PersonConfig), ConfigScope.Scenario)
+        };
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(
+            () => new GameDataArchiveRepository().LoadAsync("not-created.dat", definitions));
+
+        Assert.Contains("不能在同一档案项目中混用", exception.Message);
+    }
+
     [Fact]
     public async Task LoadAndSaveAs_PreservesMissingNullEmptyAndNullRecords()
     {
@@ -563,6 +669,19 @@ public sealed class GameDataArchiveRepositoryTests
         await using var stream = archive.CreateEntry(name).Open();
         await using var writer = new StreamWriter(stream);
         await writer.WriteAsync(json);
+    }
+
+    private static async Task<Dictionary<string, string>> ReadEntryContentsAsync(string archivePath)
+    {
+        var contents = new Dictionary<string, string>(StringComparer.Ordinal);
+        using var archive = ZipFile.OpenRead(archivePath);
+        foreach (var entry in archive.Entries)
+        {
+            using var reader = new StreamReader(entry.Open());
+            contents.Add(entry.FullName, await reader.ReadToEndAsync());
+        }
+
+        return contents;
     }
 
 }

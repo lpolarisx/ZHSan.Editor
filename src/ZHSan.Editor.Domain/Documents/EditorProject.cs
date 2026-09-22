@@ -1,7 +1,11 @@
+using ZHSan.Editor.Domain.Configuration;
+
 namespace ZHSan.Editor.Domain.Documents;
 
 public sealed class EditorProject
 {
+    public ConfigScope Scope { get; init; } = ConfigScope.Common;
+
     public required string ArchivePath { get; set; }
     public string? ArchiveRevision { get; set; }
     public required IReadOnlyList<ConfigDocument> Documents { get; init; }

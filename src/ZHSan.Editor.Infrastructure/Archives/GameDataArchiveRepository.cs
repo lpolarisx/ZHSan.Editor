@@ -95,6 +95,7 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
         IReadOnlyList<ConfigDefinition> definitions,
         CancellationToken cancellationToken)
     {
+        var scope = GetProjectScope(definitions);
         var documents = new List<ConfigDocument>(definitions.Count);
         using (var archive = GameDataArchive.Open(archivePath))
         {
@@ -137,10 +138,30 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
 
         return new EditorProject
         {
+            Scope = scope,
             ArchivePath = Path.GetFullPath(archivePath),
             ArchiveRevision = ArchiveFileRevision.Read(archivePath),
             Documents = documents
         };
+    }
+
+    private static ConfigScope GetProjectScope(IReadOnlyList<ConfigDefinition> definitions)
+    {
+        ArgumentNullException.ThrowIfNull(definitions);
+        if (definitions.Count == 0)
+        {
+            throw new ArgumentException("至少需要一个配置定义。", nameof(definitions));
+        }
+
+        var scope = definitions[0].Scope;
+        if (definitions.Any(definition => definition.Scope != scope))
+        {
+            throw new ArgumentException(
+                "不能在同一档案项目中混用 Common 与剧本/存档配置定义。",
+                nameof(definitions));
+        }
+
+        return scope;
     }
 
     private static bool PathsEqual(string left, string right) =>
@@ -264,6 +285,8 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
         bool markSaved,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(project);
+        ValidateDocumentScopes(project, documents);
         if (documents.Count == 0)
         {
             return;
@@ -346,6 +369,16 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
             {
                 File.Delete(temporaryPath);
             }
+        }
+    }
+
+    private static void ValidateDocumentScopes(
+        EditorProject project,
+        IReadOnlyCollection<ConfigDocument> documents)
+    {
+        if (documents.Any(document => document.Definition.Scope != project.Scope))
+        {
+            throw new InvalidOperationException("不能把其他作用域的配置写入当前档案。");
         }
     }
 
