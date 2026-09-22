@@ -6,8 +6,7 @@ namespace ZHSan.Editor.Infrastructure.Configuration;
 
 public sealed class GameDataConfigRegistry : IConfigRegistry
 {
-    private readonly IReadOnlyList<ConfigDefinition> _definitions;
-    private readonly IReadOnlyDictionary<string, ConfigDefinition> _byKey;
+    private readonly ConfigDefinitionCatalog _catalog;
 
     public GameDataConfigRegistry()
     {
@@ -53,13 +52,17 @@ public sealed class GameDataConfigRegistry : IConfigRegistry
         Add<CastTargetKindConfig>(definitions, "cast-target-kinds", "施放目标类型", "战斗规则", "CastTargetKinds.json");
         Add<StatusEffectConfig>(definitions, "status-effects", "状态效果", "战斗规则", "StatusEffects.json");
 
-        _definitions = definitions.AsReadOnly();
-        _byKey = definitions.ToDictionary(x => x.Key, StringComparer.OrdinalIgnoreCase);
+        _catalog = new ConfigDefinitionCatalog(definitions);
     }
 
-    public IReadOnlyList<ConfigDefinition> Definitions => _definitions;
+    public IReadOnlyList<ConfigDefinition> Definitions => GetDefinitions(ConfigScope.Common);
 
-    public ConfigDefinition? Find(string key) => _byKey.GetValueOrDefault(key);
+    public IReadOnlyList<ConfigDefinition> GetDefinitions(ConfigScope scope) =>
+        _catalog.GetDefinitions(scope);
+
+    public ConfigDefinition? Find(string key) => Find(new ConfigAddress(ConfigScope.Common, key));
+
+    public ConfigDefinition? Find(ConfigAddress address) => _catalog.Find(address);
 
     private static void Add<T>(
         ICollection<ConfigDefinition> definitions,
@@ -67,5 +70,11 @@ public sealed class GameDataConfigRegistry : IConfigRegistry
         string displayName,
         string category,
         string entryName) =>
-        definitions.Add(new ConfigDefinition(key, displayName, category, entryName, typeof(T)));
+        definitions.Add(new ConfigDefinition(
+            key,
+            displayName,
+            category,
+            entryName,
+            typeof(T),
+            ConfigScope.Common));
 }

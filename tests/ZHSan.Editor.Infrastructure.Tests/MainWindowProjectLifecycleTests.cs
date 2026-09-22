@@ -164,7 +164,11 @@ public sealed class MainWindowProjectLifecycleTests
     private sealed class FakeConfigRegistry(ConfigDefinition definition) : IConfigRegistry
     {
         public IReadOnlyList<ConfigDefinition> Definitions { get; } = [definition];
+        public IReadOnlyList<ConfigDefinition> GetDefinitions(ConfigScope scope) =>
+            definition.Scope == scope ? Definitions : [];
         public ConfigDefinition? Find(string key) => Definitions.SingleOrDefault(item => item.Key == key);
+        public ConfigDefinition? Find(ConfigAddress address) =>
+            Definitions.SingleOrDefault(item => item.Address == address);
     }
 
     private sealed class FakeArchiveRepository : IGameDataArchiveRepository

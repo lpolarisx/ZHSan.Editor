@@ -5,4 +5,8 @@ public sealed record ConfigDefinition(
     string DisplayName,
     string Category,
     string EntryName,
-    Type ItemType);
+    Type ItemType,
+    ConfigScope Scope = ConfigScope.Common)
+{
+    public ConfigAddress Address => new(Scope, Key);
+}
