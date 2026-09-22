@@ -1,4 +1,5 @@
 using GameDatas;
+using Microsoft.Xna.Framework;
 using ZHSan.Editor.Domain.Configuration;
 using ZHSan.Editor.Infrastructure.Configuration;
 
@@ -16,7 +17,6 @@ public sealed class GameDataConfigRegistryTests
         Assert.Equal(39, registry.Definitions.Select(x => x.EntryName).Distinct(StringComparer.OrdinalIgnoreCase).Count());
         Assert.All(registry.Definitions, definition => Assert.Equal(ConfigScope.Common, definition.Scope));
         Assert.Equal(registry.Definitions, registry.GetDefinitions(ConfigScope.Common));
-        Assert.Empty(registry.GetDefinitions(ConfigScope.Scenario));
     }
 
     [Fact]
@@ -31,6 +31,54 @@ public sealed class GameDataConfigRegistryTests
         Assert.Same(byKey, byAddress);
         Assert.Equal("techniques", byKey.Key);
         Assert.Null(registry.Find(new ConfigAddress(ConfigScope.Scenario, "techniques")));
+    }
+
+    [Fact]
+    public void ScenarioDefinitions_RegisterAllListEntriesWithoutScenarioMetadataObject()
+    {
+        var registry = new GameDataConfigRegistry();
+        var expected = new Dictionary<string, Type>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Architectures.json"] = typeof(ArchitectureConfig),
+            ["Biographies.json"] = typeof(BiographyConfig),
+            ["Captives.json"] = typeof(CaptiveConfig),
+            ["DiplomaticRelations.json"] = typeof(DiplomaticRelationConfig),
+            ["Events.json"] = typeof(EventConfig),
+            ["Facilities.json"] = typeof(FacilityConfig),
+            ["Factions.json"] = typeof(FactionConfig),
+            ["FirePositions.json"] = typeof(Point),
+            ["Informations.json"] = typeof(InformationConfig),
+            ["Legions.json"] = typeof(LegionConfig),
+            ["Militaries.json"] = typeof(MilitaryConfig),
+            ["NoFoodPositions.json"] = typeof(NoFoodConfig),
+            ["PersonRelations.json"] = typeof(PersonRelationConfig),
+            ["Persons.json"] = typeof(PersonConfig),
+            ["Regions.json"] = typeof(RegionConfig),
+            ["Routeways.json"] = typeof(RoutewayConfig),
+            ["Sections.json"] = typeof(SectionConfig),
+            ["States.json"] = typeof(StateConfig),
+            ["Treasures.json"] = typeof(TreasureConfig),
+            ["TroopEvents.json"] = typeof(TroopEventConfig),
+            ["Troops.json"] = typeof(TroopConfig),
+            ["YearTables.json"] = typeof(YearTableConfig)
+        };
+
+        var definitions = registry.GetDefinitions(ConfigScope.Scenario);
+
+        Assert.Equal(22, definitions.Count);
+        Assert.Equal(22, definitions.Select(definition => definition.Key)
+            .Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Equal(22, definitions.Select(definition => definition.EntryName)
+            .Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.All(definitions, definition =>
+        {
+            Assert.Equal(ConfigScope.Scenario, definition.Scope);
+            Assert.False(string.IsNullOrWhiteSpace(definition.Category));
+            Assert.Equal(expected[definition.EntryName], definition.ItemType);
+        });
+        Assert.DoesNotContain(definitions, definition =>
+            definition.EntryName.Equals("GameScenarios.json", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(39, registry.Definitions.Count);
     }
 
     [Fact]

@@ -101,10 +101,11 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
             foreach (var definition in definitions)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                IList<object> items;
+                var entryExists = archive.Exists(definition.EntryName);
+                LoadedArchiveItems loaded;
                 try
                 {
-                    items = (IList<object>)LoadMethod
+                    loaded = (LoadedArchiveItems)LoadMethod
                         .MakeGenericMethod(definition.ItemType)
                         .Invoke(null, [archive, definition.EntryName])!;
                 }
@@ -113,11 +114,24 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
                     throw CreateParseException(archivePath, definition.EntryName, jsonException);
                 }
 
-                documents.Add(new ConfigDocument
+                var document = new ConfigDocument
                 {
                     Definition = definition,
-                    Items = items
-                });
+                    Items = loaded.Items,
+                    EntryState = !entryExists
+                        ? ArchiveEntryState.Missing
+                        : loaded.IsNull
+                            ? ArchiveEntryState.Null
+                            : loaded.Items.Count == 0 && loaded.NullRecordIndices.Count == 0
+                                ? ArchiveEntryState.Empty
+                                : ArchiveEntryState.Populated
+                };
+                foreach (var nullRecordIndex in loaded.NullRecordIndices)
+                {
+                    document.NullRecordIndices.Add(nullRecordIndex);
+                }
+
+                documents.Add(document);
             }
         }
 
@@ -274,9 +288,18 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
                 foreach (var document in documents)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    if (document.EntryState is ArchiveEntryState.Missing or ArchiveEntryState.Null)
+                    {
+                        continue;
+                    }
+
                     SaveMethod
                         .MakeGenericMethod(document.Definition.ItemType)
-                        .Invoke(null, [archive, document.Definition.EntryName, document.Items]);
+                        .Invoke(null, [
+                            archive,
+                            document.Definition.EntryName,
+                            BuildSerializableItems(document)
+                        ]);
                 }
             }
 
@@ -326,8 +349,31 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
         }
     }
 
-    private static IList<object> LoadItems<T>(GameDataArchive archive, string entryName) =>
-        archive.Load<List<T>>(entryName)?.Cast<object>().ToList() ?? [];
+    private static LoadedArchiveItems LoadItems<T>(GameDataArchive archive, string entryName)
+    {
+        var loaded = archive.Load<List<T>>(entryName);
+        if (loaded is null)
+        {
+            return new LoadedArchiveItems([], [], true);
+        }
+
+        var items = new List<object>(loaded.Count);
+        var nullRecordIndices = new List<int>();
+        for (var index = 0; index < loaded.Count; index++)
+        {
+            var item = loaded[index];
+            if (item is null)
+            {
+                nullRecordIndices.Add(index);
+            }
+            else
+            {
+                items.Add(item);
+            }
+        }
+
+        return new LoadedArchiveItems(items, nullRecordIndices, false);
+    }
 
     private static ArchiveParseException CreateParseException(
         string archivePath,
@@ -345,6 +391,32 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
     private static void SaveItems<T>(GameDataArchive archive, string entryName, IList<object> items) =>
         archive.Save(entryName, items.Cast<T>().ToList());
 
+    private static IList<object> BuildSerializableItems(ConfigDocument document)
+    {
+        if (document.NullRecordIndices.Count == 0)
+        {
+            return document.Items;
+        }
+
+        var nullIndices = document.NullRecordIndices.ToHashSet();
+        var totalCount = document.Items.Count + nullIndices.Count;
+        var result = new List<object>(totalCount);
+        var itemIndex = 0;
+        for (var index = 0; index < totalCount; index++)
+        {
+            if (nullIndices.Contains(index))
+            {
+                result.Add(null!);
+            }
+            else
+            {
+                result.Add(document.Items[itemIndex++]);
+            }
+        }
+
+        return result;
+    }
+
     private static bool HasRevisionConflict(EditorProject project, string archivePath)
     {
         try
@@ -359,4 +431,9 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
             return true;
         }
     }
+
+    private sealed record LoadedArchiveItems(
+        IList<object> Items,
+        IReadOnlyList<int> NullRecordIndices,
+        bool IsNull);
 }

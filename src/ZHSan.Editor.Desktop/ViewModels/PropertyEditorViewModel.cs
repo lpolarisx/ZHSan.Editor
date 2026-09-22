@@ -41,13 +41,19 @@ public sealed class PropertyEditorViewModel : ObservableObject
         IsReference = definition.Reference is not null;
         IsStructuredString = definition.StructuredString is not null;
         IsReadOnly = !definition.CanWrite || (!IsBoolean && !IsEnum && !IsNumber && !IsString && !IsCollection);
+        CanBeNull = !definition.PropertyType.IsValueType || Nullable.GetUnderlyingType(definition.PropertyType) is not null;
+        SupportsNullEditing = definition.CanWrite && CanBeNull && !IsReadOnly;
 
         if (IsEnum)
         {
             Options = Enum.GetNames(valueType);
         }
 
-        AddCollectionItemCommand = new RelayCommand(AddCollectionItem, () => Definition.CanWrite);
+        AddCollectionItemCommand = new RelayCommand(
+            AddCollectionItem,
+            () => Definition.CanWrite && !IsNull);
+        SetNullCommand = new RelayCommand(SetNull, CanSetNull);
+        InitializeNullCommand = new RelayCommand(InitializeNull, CanInitializeNull);
         if (IsReference && !IsCollection)
         {
             Action<ReferenceOptionViewModel>? navigate = _navigateReference is null
@@ -87,14 +93,28 @@ public sealed class PropertyEditorViewModel : ObservableObject
     public bool IsStructuredString { get; }
     public bool UsesReferenceOptions => IsReference || IsStructuredString;
     public bool IsReadOnly { get; }
-    public bool ShowBoolean => IsBoolean && !IsReadOnly;
-    public bool ShowEnum => IsEnum && !IsReadOnly;
-    public bool ShowNumber => IsNumber && !IsReference && !IsReadOnly;
-    public bool ShowReference => IsReference && IsNumber && !IsCollection && !IsReadOnly;
-    public bool ShowString => IsString && !IsMultilineString && !IsStructuredString && !IsReadOnly;
-    public bool ShowMultilineString => IsMultilineString && !IsStructuredString && !IsReadOnly;
-    public bool ShowStructuredString => IsStructuredString && !IsReadOnly;
-    public bool ShowCollection => IsCollection && !IsReadOnly;
+    public bool CanBeNull { get; }
+    public bool SupportsNullEditing { get; }
+    public bool IsNull => _property.GetValue(_owner) is null;
+    public bool ShowInitializeNull => SupportsNullEditing && IsNull;
+    public bool ShowSetNull => SupportsNullEditing && !IsNull;
+    public string NullStateText => IsNull
+        ? "null（未设置）"
+        : IsCollection && CollectionItems.Count == 0
+            ? "空集合（0 项）"
+            : IsString && string.IsNullOrEmpty(ValueText)
+                ? "空字符串"
+                : string.Empty;
+    public bool HasValueStateText => SupportsNullEditing &&
+        (IsNull || (IsCollection && CollectionItems.Count == 0) || (IsString && string.IsNullOrEmpty(ValueText)));
+    public bool ShowBoolean => IsBoolean && !IsReadOnly && !IsNull;
+    public bool ShowEnum => IsEnum && !IsReadOnly && !IsNull;
+    public bool ShowNumber => IsNumber && !IsReference && !IsReadOnly && !IsNull;
+    public bool ShowReference => IsReference && IsNumber && !IsCollection && !IsReadOnly && !IsNull;
+    public bool ShowString => IsString && !IsMultilineString && !IsStructuredString && !IsReadOnly && !IsNull;
+    public bool ShowMultilineString => IsMultilineString && !IsStructuredString && !IsReadOnly && !IsNull;
+    public bool ShowStructuredString => IsStructuredString && !IsReadOnly && !IsNull;
+    public bool ShowCollection => IsCollection && !IsReadOnly && !IsNull;
     public bool IsValidationTarget
     {
         get => _isValidationTarget;
@@ -106,6 +126,8 @@ public sealed class PropertyEditorViewModel : ObservableObject
     public ReferencePickerViewModel? ReferencePicker { get; }
     public StructuredRuleStringEditorViewModel? StructuredStringEditor { get; }
     public ICommand AddCollectionItemCommand { get; }
+    public ICommand SetNullCommand { get; }
+    public ICommand InitializeNullCommand { get; }
 
     internal void SetValidationTarget(bool isTarget) => IsValidationTarget = isTarget;
 
@@ -194,9 +216,11 @@ public sealed class PropertyEditorViewModel : ObservableObject
         }
     }
 
-    public string ReadOnlyValue => IsCollection
-        ? $"{CollectionItems.Count} 项"
-        : FormatScalar(_property.GetValue(_owner));
+    public string ReadOnlyValue => IsNull
+        ? "null（未设置）"
+        : IsCollection
+            ? $"{CollectionItems.Count} 项"
+            : FormatScalar(_property.GetValue(_owner));
 
     private static bool IsMultilineTextProperty(ConfigPropertyDefinition definition) =>
         definition.Name.EndsWith("Description", StringComparison.OrdinalIgnoreCase) ||
@@ -213,8 +237,37 @@ public sealed class PropertyEditorViewModel : ObservableObject
             return;
         }
 
-        ApplyValue(value, false);
+        ApplyValue(value, IsCollection);
         _changed(this, current, value);
+    }
+
+    private bool CanSetNull() => SupportsNullEditing && !IsNull;
+
+    private void SetNull()
+    {
+        if (!CanSetNull())
+        {
+            return;
+        }
+
+        var current = _property.GetValue(_owner);
+        ApplyValue(null, IsCollection);
+        _changed(this, current, null);
+    }
+
+    private bool CanInitializeNull() =>
+        SupportsNullEditing && IsNull && CanCreateInitialValue(Definition.PropertyType);
+
+    private void InitializeNull()
+    {
+        if (!CanInitializeNull())
+        {
+            return;
+        }
+
+        var value = CreateInitialValue(Definition.PropertyType);
+        ApplyValue(value, IsCollection);
+        _changed(this, null, value);
     }
 
     internal void ApplyHistoryValue(object? value) => ApplyValue(value, true);
@@ -227,6 +280,22 @@ public sealed class PropertyEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(BooleanValue));
         OnPropertyChanged(nameof(SelectedOption));
         OnPropertyChanged(nameof(SelectedReference));
+        OnPropertyChanged(nameof(IsNull));
+        OnPropertyChanged(nameof(ShowInitializeNull));
+        OnPropertyChanged(nameof(ShowSetNull));
+        OnPropertyChanged(nameof(NullStateText));
+        OnPropertyChanged(nameof(HasValueStateText));
+        OnPropertyChanged(nameof(ShowBoolean));
+        OnPropertyChanged(nameof(ShowEnum));
+        OnPropertyChanged(nameof(ShowNumber));
+        OnPropertyChanged(nameof(ShowReference));
+        OnPropertyChanged(nameof(ShowString));
+        OnPropertyChanged(nameof(ShowMultilineString));
+        OnPropertyChanged(nameof(ShowStructuredString));
+        OnPropertyChanged(nameof(ShowCollection));
+        ((RelayCommand)SetNullCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)InitializeNullCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)AddCollectionItemCommand).RaiseCanExecuteChanged();
         ReferencePicker?.RefreshSelection();
         StructuredStringEditor?.ReloadFromValue(FormatScalar(value));
         OnPropertyChanged(nameof(ReadOnlyValue));
@@ -343,6 +412,8 @@ public sealed class PropertyEditorViewModel : ObservableObject
 
         _isSynchronizing = false;
         OnPropertyChanged(nameof(ReadOnlyValue));
+        OnPropertyChanged(nameof(NullStateText));
+        OnPropertyChanged(nameof(HasValueStateText));
     }
 
     private CollectionItemViewModel CreateCollectionItem(object? value)
@@ -452,6 +523,58 @@ public sealed class PropertyEditorViewModel : ObservableObject
         }
 
         return Convert.ChangeType(text, underlyingType, CultureInfo.InvariantCulture);
+    }
+
+    private static bool CanCreateInitialValue(Type type)
+    {
+        var nullableType = Nullable.GetUnderlyingType(type);
+        if (nullableType is not null || type == typeof(string) || type.IsArray)
+        {
+            return true;
+        }
+
+        if (!type.IsAbstract && !type.IsInterface && type.GetConstructor(Type.EmptyTypes) is not null)
+        {
+            return true;
+        }
+
+        var elementType = type.GetInterfaces()
+            .Append(type)
+            .FirstOrDefault(candidate =>
+                candidate.IsGenericType && candidate.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+            ?.GetGenericArguments()[0];
+        return elementType is not null && type.IsAssignableFrom(typeof(List<>).MakeGenericType(elementType));
+    }
+
+    private static object CreateInitialValue(Type type)
+    {
+        var nullableType = Nullable.GetUnderlyingType(type);
+        if (nullableType is not null)
+        {
+            return Activator.CreateInstance(nullableType)!;
+        }
+
+        if (type == typeof(string))
+        {
+            return string.Empty;
+        }
+
+        if (type.IsArray)
+        {
+            return Array.CreateInstance(type.GetElementType()!, 0);
+        }
+
+        if (!type.IsAbstract && !type.IsInterface && type.GetConstructor(Type.EmptyTypes) is not null)
+        {
+            return Activator.CreateInstance(type)!;
+        }
+
+        var elementType = type.GetInterfaces()
+            .Append(type)
+            .First(candidate =>
+                candidate.IsGenericType && candidate.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+            .GetGenericArguments()[0];
+        return Activator.CreateInstance(typeof(List<>).MakeGenericType(elementType))!;
     }
 
     private static string FormatScalar(object? value) => value switch

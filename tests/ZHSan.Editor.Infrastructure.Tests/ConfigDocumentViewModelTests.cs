@@ -774,4 +774,100 @@ public sealed class ConfigDocumentViewModelTests
         Assert.Equal([imported, added], viewModel.Document.Items);
     }
 
+    [Fact]
+    public void NullableProperties_DistinguishNullFromEmptyAndSupportUndo()
+    {
+        var item = new NullableEditorItem();
+        var document = new ConfigDocument
+        {
+            Definition = new ConfigDefinition(
+                "nullable", "可空数据", "测试", "Nullable.json", typeof(NullableEditorItem)),
+            Items = [item]
+        };
+        var viewModel = new ConfigDocumentViewModel(
+            document, new ReflectionConfigMetadataProvider(), _ => { });
+        viewModel.SelectedRecord = Assert.Single(viewModel.Records);
+
+        var textEditor = Assert.Single(
+            viewModel.PropertyEditors,
+            editor => editor.Definition.Name == nameof(NullableEditorItem.Text));
+        Assert.True(textEditor.IsNull);
+        Assert.Equal("null（未设置）", textEditor.NullStateText);
+
+        textEditor.InitializeNullCommand.Execute(null);
+
+        Assert.Equal(string.Empty, item.Text);
+        Assert.False(textEditor.IsNull);
+        Assert.Equal("空字符串", textEditor.NullStateText);
+        Assert.True(document.IsDirty);
+
+        viewModel.UndoCommand.Execute(null);
+        Assert.Null(item.Text);
+        Assert.True(textEditor.IsNull);
+
+        viewModel.RedoCommand.Execute(null);
+        textEditor.SetNullCommand.Execute(null);
+        Assert.Null(item.Text);
+
+        var valuesEditor = Assert.Single(
+            viewModel.PropertyEditors,
+            editor => editor.Definition.Name == nameof(NullableEditorItem.Values));
+        Assert.True(valuesEditor.IsNull);
+        valuesEditor.InitializeNullCommand.Execute(null);
+        Assert.NotNull(item.Values);
+        Assert.Empty(item.Values);
+        Assert.Equal("空集合（0 项）", valuesEditor.NullStateText);
+    }
+
+    [Fact]
+    public void NullArchiveEntry_RequiresExplicitInitializationAndSupportsUndo()
+    {
+        var document = new ConfigDocument
+        {
+            Definition = new ConfigDefinition(
+                "techniques", "技术", "测试", "Techniques.json", typeof(TechniqueConfig)),
+            Items = [],
+            EntryState = ArchiveEntryState.Null
+        };
+        var viewModel = new ConfigDocumentViewModel(
+            document, new ReflectionConfigMetadataProvider(), _ => { });
+
+        Assert.True(viewModel.HasEntryWarning);
+        Assert.True(viewModel.CanInitializeEntry);
+        Assert.False(viewModel.AddCommand.CanExecute(null));
+
+        viewModel.InitializeEntryCommand.Execute(null);
+
+        Assert.Equal(ArchiveEntryState.Empty, document.EntryState);
+        Assert.True(document.IsDirty);
+        Assert.True(viewModel.AddCommand.CanExecute(null));
+
+        viewModel.UndoCommand.Execute(null);
+        Assert.Equal(ArchiveEntryState.Null, document.EntryState);
+        Assert.False(document.IsDirty);
+    }
+
+    [Fact]
+    public void NullListRecord_IsPreservedAsMetadataWithoutCrashing()
+    {
+        var item = new TechniqueConfig { Id = 1, Name = "有效记录" };
+        var items = new List<object> { item, null! };
+        var viewModel = CreateViewModel(items);
+
+        Assert.Single(viewModel.Records);
+        Assert.Same(item, viewModel.Records[0].Item);
+        Assert.Equal([1], viewModel.Document.NullRecordIndices);
+        Assert.Equal(2, viewModel.ItemCount);
+        Assert.True(viewModel.HasNullRecords);
+        Assert.True(viewModel.HasEntryWarning);
+        Assert.False(viewModel.AddCommand.CanExecute(null));
+    }
+
+    private sealed class NullableEditorItem
+    {
+        public string? Text { get; set; }
+        public List<int>? Values { get; set; }
+        public int? OptionalCount { get; set; }
+    }
+
 }

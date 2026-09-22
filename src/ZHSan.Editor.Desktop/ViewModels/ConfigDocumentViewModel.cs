@@ -78,16 +78,24 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             .ToArray();
         _selectedBatchField = BatchEditFields.FirstOrDefault();
 
+        NormalizeNullRecords();
         foreach (var item in document.Items)
         {
             Records.Add(CreateRecordViewModel(item));
         }
 
         SelectCommand = new RelayCommand(() => selectDocument(this));
+        InitializeEntryCommand = new RelayCommand(InitializeEntry, () => CanInitializeEntry);
         AddCommand = new RelayCommand(AddRecord, CanCreateRecord);
-        CopyCommand = new RelayCommand(CopySelectedRecords, () => SelectedRecord is not null);
-        DeleteCommand = new AsyncCommand(DeleteSelectedRecordsAsync, () => SelectedRecord is not null);
-        CutCommand = new AsyncCommand(CutSelectedRecordsAsync, () => SelectedRecord is not null);
+        CopyCommand = new RelayCommand(
+            CopySelectedRecords,
+            () => SelectedRecord is not null && CanMutateRecordStructure);
+        DeleteCommand = new AsyncCommand(
+            DeleteSelectedRecordsAsync,
+            () => SelectedRecord is not null && CanMutateRecordStructure);
+        CutCommand = new AsyncCommand(
+            CutSelectedRecordsAsync,
+            () => SelectedRecord is not null && CanMutateRecordStructure);
         CopyToClipboardCommand = new RelayCommand(CopySelectionToClipboard, () => SelectedRecord is not null);
         PasteCommand = new RelayCommand(PasteRecords, CanPasteRecords);
         ApplyBatchEditCommand = new RelayCommand(ApplyBatchEdit, CanApplyBatchEdit);
@@ -122,6 +130,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     public ObservableCollection<PropertyEditorViewModel> PropertyEditors { get; } = [];
     public ConfigEditorHostViewModel? SpecializedEditor { get; }
     public ICommand SelectCommand { get; }
+    public ICommand InitializeEntryCommand { get; }
     public ICommand AddCommand { get; }
     public ICommand CopyCommand { get; }
     public ICommand DeleteCommand { get; }
@@ -135,8 +144,32 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     public ICommand ShowSpecializedEditorCommand { get; }
     public ICommand ShowGenericEditorCommand { get; }
 
-    public int ItemCount => Records.Count;
+    public int ItemCount => Records.Count + Document.NullRecordIndices.Count;
     public int VisibleItemCount => FilteredRecords.Count;
+    public bool HasNullRecords => Document.NullRecordIndices.Count > 0;
+    public bool CanInitializeEntry =>
+        Document.EntryState is ArchiveEntryState.Missing or ArchiveEntryState.Null;
+    public bool HasEntryWarning => CanInitializeEntry || HasNullRecords;
+    public string EntryStateMessage
+    {
+        get
+        {
+            if (Document.EntryState == ArchiveEntryState.Missing)
+            {
+                return $"档案中缺少 {EntryName}。在明确初始化前，保存不会创建该条目。";
+            }
+
+            if (Document.EntryState == ArchiveEntryState.Null)
+            {
+                return $"{EntryName} 的顶层值为 null。它与空列表不同，在明确初始化前会保持 null。";
+            }
+
+            return HasNullRecords
+                ? $"列表中包含 {Document.NullRecordIndices.Count} 条 null 记录；已保留原位置，并暂时禁用记录结构操作。"
+                : string.Empty;
+        }
+    }
+    private bool CanMutateRecordStructure => !CanInitializeEntry && !HasNullRecords;
     public bool HasMultipleSelection => _selectedRecords.Count > 1;
     public bool IsDirty => Document.IsDirty;
     public string DirtyMarker => IsDirty ? " ●" : string.Empty;
@@ -450,12 +483,13 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         ArgumentNullException.ThrowIfNull(importedItems);
         ArgumentException.ThrowIfNullOrWhiteSpace(description);
 
-        var previousItems = Document.Items.ToArray();
+        var previousItems = GetItemsIncludingNullRecords();
+        var previousEntryState = Document.EntryState;
         var nextItems = importedItems.ToArray();
         ReplaceItems(nextItems);
         RecordEdit(new DelegateUndoableEdit(
             description,
-            () => ReplaceItems(previousItems),
+            () => ReplaceItems(previousItems, previousEntryState),
             () => ReplaceItems(nextItems)),
             description);
     }
@@ -513,6 +547,10 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     {
         ArgumentNullException.ThrowIfNull(initialValues);
         ArgumentException.ThrowIfNullOrWhiteSpace(editDescription);
+        if (!CanMutateRecordStructure)
+        {
+            throw new InvalidOperationException("请先初始化缺失或为 null 的条目，并处理列表中的 null 记录。");
+        }
 
         var item = Activator.CreateInstance(Document.Definition.ItemType)
             ?? throw new InvalidOperationException("无法创建记录实例。");
@@ -660,7 +698,8 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             $"已剪切 {records.Length} 条记录");
     }
 
-    private bool CanPasteRecords() => _clipboard.Contains(Document.Definition.ItemType);
+    private bool CanPasteRecords() =>
+        CanMutateRecordStructure && _clipboard.Contains(Document.Definition.ItemType);
 
     private async Task<bool> ConfirmRemovalAsync(
         string operationName,
@@ -999,6 +1038,13 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
     private void FinishRecordMutation(ConfigRecordViewModel? selection)
     {
+        if (!CanInitializeEntry)
+        {
+            Document.EntryState = ItemCount == 0
+                ? ArchiveEntryState.Empty
+                : ArchiveEntryState.Populated;
+        }
+
         _selectedRecords.Clear();
         SelectedRecord = null;
         ApplyFilter();
@@ -1007,19 +1053,117 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             : FilteredRecords.FirstOrDefault();
         OnPropertyChanged(nameof(ItemCount));
         OnPropertyChanged(nameof(FilterSummary));
+        RaiseEntryStateChanged();
     }
 
-    private void ReplaceItems(IReadOnlyList<object> items)
+    private void ReplaceItems(
+        IReadOnlyList<object> items,
+        ArchiveEntryState? explicitEntryState = null)
     {
         Document.Items.Clear();
+        Document.NullRecordIndices.Clear();
         Records.Clear();
-        foreach (var item in items)
+        for (var index = 0; index < items.Count; index++)
         {
+            var item = items[index];
+            if (item is null)
+            {
+                Document.NullRecordIndices.Add(index);
+                continue;
+            }
+
             Document.Items.Add(item);
             Records.Add(CreateRecordViewModel(item));
         }
 
+        Document.EntryState = explicitEntryState ?? (items.Count == 0
+            ? ArchiveEntryState.Empty
+            : ArchiveEntryState.Populated);
         FinishRecordMutation(Records.FirstOrDefault());
+    }
+
+    private object[] GetItemsIncludingNullRecords()
+    {
+        if (!HasNullRecords)
+        {
+            return Document.Items.ToArray();
+        }
+
+        var nullIndices = Document.NullRecordIndices.ToHashSet();
+        var result = new object[Document.Items.Count + nullIndices.Count];
+        var itemIndex = 0;
+        for (var index = 0; index < result.Length; index++)
+        {
+            result[index] = nullIndices.Contains(index)
+                ? null!
+                : Document.Items[itemIndex++];
+        }
+
+        return result;
+    }
+
+    private void NormalizeNullRecords()
+    {
+        for (var index = Document.Items.Count - 1; index >= 0; index--)
+        {
+            if (Document.Items[index] is not null)
+            {
+                continue;
+            }
+
+            if (!Document.NullRecordIndices.Contains(index))
+            {
+                Document.NullRecordIndices.Add(index);
+            }
+
+            Document.Items.RemoveAt(index);
+        }
+
+        if (Document.NullRecordIndices.Count > 1)
+        {
+            var ordered = Document.NullRecordIndices.Distinct().OrderBy(index => index).ToArray();
+            Document.NullRecordIndices.Clear();
+            foreach (var index in ordered)
+            {
+                Document.NullRecordIndices.Add(index);
+            }
+        }
+    }
+
+    private void InitializeEntry()
+    {
+        if (!CanInitializeEntry)
+        {
+            return;
+        }
+
+        var previousState = Document.EntryState;
+        SetEntryState(ArchiveEntryState.Empty);
+        RecordEdit(new DelegateUndoableEdit(
+            $"初始化 {DisplayName} 列表",
+            () => SetEntryState(previousState),
+            () => SetEntryState(ArchiveEntryState.Empty)),
+            $"已初始化 {DisplayName} 为空列表");
+    }
+
+    private void SetEntryState(ArchiveEntryState state)
+    {
+        Document.EntryState = state;
+        RaiseEntryStateChanged();
+    }
+
+    private void RaiseEntryStateChanged()
+    {
+        OnPropertyChanged(nameof(HasNullRecords));
+        OnPropertyChanged(nameof(CanInitializeEntry));
+        OnPropertyChanged(nameof(HasEntryWarning));
+        OnPropertyChanged(nameof(EntryStateMessage));
+        ((RelayCommand)InitializeEntryCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)AddCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)CopyCommand).RaiseCanExecuteChanged();
+        ((AsyncCommand)DeleteCommand).RaiseCanExecuteChanged();
+        ((AsyncCommand)CutCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)PasteCommand).RaiseCanExecuteChanged();
     }
 
     private void RecordEdit(IUndoableEdit edit, string message)
@@ -1129,7 +1273,9 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         return Convert.ChangeType(text, underlyingType, CultureInfo.CurrentCulture);
     }
 
-    private bool CanCreateRecord() => Document.Definition.ItemType.GetConstructor(Type.EmptyTypes) is not null;
+    private bool CanCreateRecord() =>
+        CanMutateRecordStructure &&
+        Document.Definition.ItemType.GetConstructor(Type.EmptyTypes) is not null;
 
     private static bool MatchesFilter(object item, ConfigPropertyDefinition property, string query)
     {

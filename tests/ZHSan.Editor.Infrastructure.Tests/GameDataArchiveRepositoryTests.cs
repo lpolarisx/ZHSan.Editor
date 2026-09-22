@@ -2,6 +2,7 @@ using System.IO.Compression;
 using ZHSan.Editor.Application.Abstractions;
 using GameDatas;
 using ZHSan.Editor.Domain.Configuration;
+using ZHSan.Editor.Domain.Documents;
 using ZHSan.Editor.Infrastructure.Archives;
 using ZHSan.Editor.Infrastructure.Configuration;
 
@@ -9,6 +10,64 @@ namespace ZHSan.Editor.Infrastructure.Tests;
 
 public sealed class GameDataArchiveRepositoryTests
 {
+    [Fact]
+    public async Task LoadAndSaveAs_PreservesMissingNullEmptyAndNullRecords()
+    {
+        var directory = Directory.CreateTempSubdirectory("zhsan-entry-state-").FullName;
+        var sourcePath = Path.Combine(directory, "source.dat");
+        var destinationPath = Path.Combine(directory, "copy.dat");
+        try
+        {
+            using (var zip = ZipFile.Open(sourcePath, ZipArchiveMode.Create))
+            {
+                await WriteEntryAsync(zip, "Null.json", "null");
+                await WriteEntryAsync(zip, "Empty.json", "[]");
+                await WriteEntryAsync(
+                    zip,
+                    "Populated.json",
+                    "[null,{\"Id\":1,\"Name\":null}]");
+            }
+
+            var definitions = new[]
+            {
+                new ConfigDefinition("missing", "缺失", "测试", "Missing.json", typeof(TechniqueConfig)),
+                new ConfigDefinition("null", "空值", "测试", "Null.json", typeof(TechniqueConfig)),
+                new ConfigDefinition("empty", "空列表", "测试", "Empty.json", typeof(TechniqueConfig)),
+                new ConfigDefinition("populated", "有数据", "测试", "Populated.json", typeof(TechniqueConfig))
+            };
+            var repository = new GameDataArchiveRepository();
+
+            var project = await repository.LoadAsync(sourcePath, definitions);
+
+            Assert.Equal(ArchiveEntryState.Missing, project.Documents[0].EntryState);
+            Assert.Equal(ArchiveEntryState.Null, project.Documents[1].EntryState);
+            Assert.Equal(ArchiveEntryState.Empty, project.Documents[2].EntryState);
+            Assert.Equal(ArchiveEntryState.Populated, project.Documents[3].EntryState);
+            Assert.Single(project.Documents[3].Items);
+            Assert.Equal([0], project.Documents[3].NullRecordIndices);
+
+            await repository.SaveAsAsync(project, destinationPath);
+
+            using (var copiedZip = ZipFile.OpenRead(destinationPath))
+            {
+                Assert.Null(copiedZip.GetEntry("Missing.json"));
+                using var reader = new StreamReader(copiedZip.GetEntry("Null.json")!.Open());
+                Assert.Equal("null", await reader.ReadToEndAsync());
+            }
+
+            using var copiedArchive = GameDataArchive.Open(destinationPath);
+            Assert.Empty(copiedArchive.Load<List<TechniqueConfig>>("Empty.json")!);
+            var populated = copiedArchive.Load<List<TechniqueConfig?>>("Populated.json")!;
+            Assert.Equal(2, populated.Count);
+            Assert.Null(populated[0]);
+            Assert.Null(populated[1]!.Name);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
     [Fact]
     public async Task LoadAsync_InvalidJson_ReportsFileLineAndFieldLocation()
     {
@@ -497,6 +556,13 @@ public sealed class GameDataArchiveRepositoryTests
         {
             Directory.Delete(testDirectory, true);
         }
+    }
+
+    private static async Task WriteEntryAsync(ZipArchive archive, string name, string json)
+    {
+        await using var stream = archive.CreateEntry(name).Open();
+        await using var writer = new StreamWriter(stream);
+        await writer.WriteAsync(json);
     }
 
 }

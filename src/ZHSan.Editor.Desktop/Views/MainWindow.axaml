@@ -186,6 +186,9 @@
               <StackPanel Spacing="3">
                 <TextBlock Text="{Binding SelectedDocumentTitle}" FontSize="21" FontWeight="SemiBold" />
                 <TextBlock Text="{Binding SelectedDocumentSummary}" Opacity="0.62" />
+                <TextBlock Text="{Binding SelectedDocument.EntryStateMessage}"
+                           Foreground="#D97706" TextWrapping="Wrap"
+                           IsVisible="{Binding SelectedDocument.HasEntryWarning}" />
               </StackPanel>
               <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center"
                           IsVisible="{Binding SelectedDocument.HasSpecializedEditor}">
@@ -198,6 +201,9 @@
               </StackPanel>
               <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"
                           IsVisible="{Binding HasSelectedDocument}">
+                <Button Content="初始化为空列表"
+                        Command="{Binding SelectedDocument.InitializeEntryCommand}"
+                        IsVisible="{Binding SelectedDocument.CanInitializeEntry}" />
                 <Button Content="导入 JSON" Command="{Binding ImportJsonCommand}" />
                 <Button Content="新增" Command="{Binding SelectedDocument.AddCommand}" />
                 <Button Content="创建副本" Command="{Binding SelectedDocument.CopyCommand}" />
@@ -313,6 +319,18 @@
                                        Foreground="#E5484D" FontWeight="SemiBold"
                                        IsVisible="{Binding IsValidationTarget}" Margin="0,0,8,0" />
                             <TextBlock Grid.Column="2" Text="{Binding TypeName}" FontSize="11" Opacity="0.55" />
+                          </Grid>
+
+                          <Grid ColumnDefinitions="*,Auto,Auto" IsVisible="{Binding SupportsNullEditing}">
+                            <TextBlock Text="{Binding NullStateText}" Opacity="0.68"
+                                       IsVisible="{Binding HasValueStateText}"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Content="初始化"
+                                    Command="{Binding InitializeNullCommand}"
+                                    IsVisible="{Binding ShowInitializeNull}" />
+                            <Button Grid.Column="2" Content="设为 null"
+                                    Command="{Binding SetNullCommand}"
+                                    IsVisible="{Binding ShowSetNull}" />
                           </Grid>
 
                           <TextBox Text="{Binding ValueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
