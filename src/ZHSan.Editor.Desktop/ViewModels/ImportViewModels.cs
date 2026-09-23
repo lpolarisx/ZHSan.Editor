@@ -1,5 +1,6 @@
 using System.Collections;
 using ZHSan.Editor.Application.Importing;
+using ZHSan.Editor.Domain.Configuration;
 using ZHSan.Editor.Domain.Differences;
 using ZHSan.Editor.Domain.Importing;
 
@@ -129,7 +130,9 @@ public sealed record ImportLogEntryViewModel(
     string TargetName,
     string Status,
     string Message,
-    string Operation)
+    string Operation,
+    ConfigScope Scope)
 {
     public string TimeText => Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+    public string ScopeDisplayName => Scope == ConfigScope.Common ? "Common" : "剧本/存档";
 }

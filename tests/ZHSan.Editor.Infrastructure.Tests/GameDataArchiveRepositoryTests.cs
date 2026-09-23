@@ -476,6 +476,63 @@ public sealed class GameDataArchiveRepositoryTests
     }
 
     [Fact]
+    public async Task ChangeMonitor_WatchesTwoArchivesIndependently()
+    {
+        var testDirectory = Path.Combine(Path.GetTempPath(), "ZHSan.Editor.Tests", Guid.NewGuid().ToString("N"));
+        var commonPath = Path.Combine(testDirectory, "CommonData.dat");
+        var scenarioPath = Path.Combine(testDirectory, "Scenario.dat");
+        Directory.CreateDirectory(testDirectory);
+
+        try
+        {
+            foreach (var path in new[] { commonPath, scenarioPath })
+            {
+                using var archive = GameDataArchive.Open(path);
+                archive.Save("Techniques.json", new List<TechniqueConfig>());
+            }
+
+            var repository = new GameDataArchiveRepository();
+            var common = await repository.LoadAsync(commonPath,
+            [
+                new ConfigDefinition(
+                    "techniques", "Techniques", "Test", "Techniques.json", typeof(TechniqueConfig))
+            ]);
+            var scenario = await repository.LoadAsync(scenarioPath,
+            [
+                new ConfigDefinition(
+                    "techniques", "Techniques", "Test", "Techniques.json", typeof(TechniqueConfig), ConfigScope.Scenario)
+            ]);
+            using var monitor = new FileSystemArchiveChangeMonitor();
+            var detectedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var bothDetected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            monitor.ExternalChangeDetected += (_, eventArgs) =>
+            {
+                lock (detectedPaths)
+                {
+                    detectedPaths.Add(eventArgs.ArchivePath);
+                    if (detectedPaths.Count == 2)
+                    {
+                        bothDetected.TrySetResult();
+                    }
+                }
+            };
+            monitor.Watch(common);
+            monitor.Watch(scenario);
+
+            await File.AppendAllTextAsync(commonPath, "common-change");
+            await File.AppendAllTextAsync(scenarioPath, "scenario-change");
+            await bothDetected.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.Contains(Path.GetFullPath(commonPath), detectedPaths);
+            Assert.Contains(Path.GetFullPath(scenarioPath), detectedPaths);
+        }
+        finally
+        {
+            Directory.Delete(testDirectory, true);
+        }
+    }
+
+    [Fact]
     public async Task RegisteredGameJson_RoundTripsBidirectionallyWithGameDataArchive()
     {
         var testDirectory = Path.Combine(Path.GetTempPath(), "ZHSan.Editor.Tests", Guid.NewGuid().ToString("N"));

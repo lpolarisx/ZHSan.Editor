@@ -212,7 +212,7 @@ public sealed partial class MainWindow : Window
         _isClosePending = true;
         try
         {
-            if (await _viewModel.TryCloseProjectAsync())
+            if (await _viewModel.TryCloseWorkspaceAsync())
             {
                 _allowWindowClose = true;
                 Close();

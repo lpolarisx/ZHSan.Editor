@@ -1,6 +1,7 @@
 using System.Text.Json;
 using ZHSan.Editor.Application.Abstractions;
 using ZHSan.Editor.Application.Settings;
+using ZHSan.Editor.Domain.Configuration;
 
 namespace ZHSan.Editor.Infrastructure.Settings;
 
@@ -33,6 +34,14 @@ public sealed class JsonEditorSettingsStore : IEditorSettingsStore
             var settings = JsonSerializer.Deserialize<EditorSettings>(File.ReadAllText(_path), JsonOptions)
                 ?? new EditorSettings();
             settings.RecentProjects ??= [];
+            foreach (var recentProject in settings.RecentProjects)
+            {
+                if (!Enum.IsDefined(recentProject.Scope))
+                {
+                    recentProject.Scope = ConfigScope.Common;
+                }
+            }
+
             if (settings.RecentProjectLimit <= 0)
             {
                 settings.RecentProjectLimit = EditorSettings.DefaultRecentProjectLimit;

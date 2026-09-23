@@ -21,7 +21,8 @@ public sealed class UniqueIdValidationRule : ITableValidationRule
                     context.Document.Definition.Key,
                     item.Id,
                     "Id",
-                    $"ID {item.Id} 在当前配置表中重复，共出现 {count} 次。");
+                    $"ID {item.Id} 在当前配置表中重复，共出现 {count} 次。",
+                    context.Document.Definition.Scope);
             }
         }
     }

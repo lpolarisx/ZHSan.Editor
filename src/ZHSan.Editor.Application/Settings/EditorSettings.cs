@@ -1,3 +1,5 @@
+using ZHSan.Editor.Domain.Configuration;
+
 namespace ZHSan.Editor.Application.Settings;
 
 public sealed class EditorSettings
@@ -12,5 +14,6 @@ public sealed class EditorSettings
 public sealed class RecentProjectEntry
 {
     public required string ArchivePath { get; set; }
+    public ConfigScope Scope { get; set; } = ConfigScope.Common;
     public DateTimeOffset LastOpenedAt { get; set; }
 }

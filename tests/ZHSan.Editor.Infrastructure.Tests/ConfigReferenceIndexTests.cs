@@ -103,16 +103,59 @@ public sealed class ConfigReferenceIndexTests
         Assert.Single(index.GetDeletionImpacts("influences", [influence]));
     }
 
+    [Fact]
+    public void Rebuild_UsesScopedAddressesForCrossArchiveReferencesAndDeletionImpacts()
+    {
+        var militaryKind = new MilitaryKindConfig { Id = 7, Name = "骑兵" };
+        var person = new PersonConfig { Id = 7, Name = "关羽" };
+        var military = new MilitaryConfig { Id = 1, KindId = 7, LeaderID = 7 };
+        var common = CreateProject(
+            ConfigScope.Common,
+            CreateDocument("military-kinds", typeof(MilitaryKindConfig), ConfigScope.Common, militaryKind));
+        var scenario = CreateProject(
+            ConfigScope.Scenario,
+            CreateDocument("persons", typeof(PersonConfig), ConfigScope.Scenario, person),
+            CreateDocument("militaries", typeof(MilitaryConfig), ConfigScope.Scenario, military));
+        var index = new ConfigReferenceIndex(new ReflectionConfigMetadataProvider());
+
+        index.Rebuild([common, scenario]);
+
+        var kindAddress = new ConfigAddress(ConfigScope.Common, "military-kinds");
+        var personAddress = new ConfigAddress(ConfigScope.Scenario, "persons");
+        Assert.True(index.ContainsTarget(kindAddress, 7));
+        Assert.True(index.ContainsTarget(personAddress, 7));
+        Assert.Contains(index.References, reference =>
+            reference.Property.Name == nameof(MilitaryConfig.KindId) &&
+            reference.TargetAddress == kindAddress);
+        Assert.Contains(index.References, reference =>
+            reference.Property.Name == nameof(MilitaryConfig.LeaderID) &&
+            reference.TargetAddress == personAddress);
+        Assert.Equal(ConfigScope.Scenario, Assert.Single(
+            index.GetDeletionImpacts(kindAddress, [militaryKind])).References.Single().Scope);
+        Assert.Single(index.GetDeletionImpacts(personAddress, [person]));
+    }
+
     private static ConfigDocument CreateDocument(string key, Type itemType, params object[] items) =>
+        CreateDocument(key, itemType, ConfigScope.Common, items);
+
+    private static ConfigDocument CreateDocument(
+        string key,
+        Type itemType,
+        ConfigScope scope,
+        params object[] items) =>
         new()
         {
-            Definition = new ConfigDefinition(key, key, "测试", $"{key}.json", itemType),
+            Definition = new ConfigDefinition(key, key, "测试", $"{key}.json", itemType, scope),
             Items = items,
         };
 
     private static EditorProject CreateProject(params ConfigDocument[] documents) =>
+        CreateProject(ConfigScope.Common, documents);
+
+    private static EditorProject CreateProject(ConfigScope scope, params ConfigDocument[] documents) =>
         new()
         {
+            Scope = scope,
             ArchivePath = "test.dat",
             Documents = documents,
             ActiveDocument = documents.FirstOrDefault(),

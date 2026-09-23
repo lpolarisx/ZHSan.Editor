@@ -14,6 +14,7 @@
     <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenArchiveCommand}" />
     <KeyBinding Gesture="Ctrl+W" Command="{Binding CloseProjectCommand}" />
     <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveDocumentCommand}" />
+    <KeyBinding Gesture="Ctrl+Alt+S" Command="{Binding SaveCurrentArchiveCommand}" />
     <KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveAllCommand}" />
     <KeyBinding Gesture="Ctrl+Z" Command="{Binding SelectedDocument.UndoCommand}" />
     <KeyBinding Gesture="Ctrl+Y" Command="{Binding SelectedDocument.RedoCommand}" />
@@ -36,10 +37,11 @@
         <MenuItem Header="打开当前档案…" Command="{Binding OpenArchiveCommand}" InputGesture="Ctrl+O" />
         <MenuItem Header="打开 CommonData…" Command="{Binding OpenCommonArchiveCommand}" />
         <MenuItem Header="打开剧本 / 存档…" Command="{Binding OpenScenarioArchiveCommand}" />
-        <MenuItem Header="关闭项目" Command="{Binding CloseProjectCommand}" InputGesture="Ctrl+W" />
+        <MenuItem Header="关闭当前档案" Command="{Binding CloseProjectCommand}" InputGesture="Ctrl+W" />
         <Separator />
         <MenuItem Header="保存当前配置" Command="{Binding SaveDocumentCommand}" InputGesture="Ctrl+S" />
-        <MenuItem Header="全部保存" Command="{Binding SaveAllCommand}" InputGesture="Ctrl+Shift+S" />
+        <MenuItem Header="保存当前档案" Command="{Binding SaveCurrentArchiveCommand}" InputGesture="Ctrl+Alt+S" />
+        <MenuItem Header="保存全部档案" Command="{Binding SaveAllCommand}" InputGesture="Ctrl+Shift+S" />
         <Separator />
         <MenuItem Header="另存为…" Command="{Binding SaveAsCommand}" />
         <MenuItem Header="保存副本…" Command="{Binding SaveCopyCommand}" />
@@ -109,6 +111,7 @@
     </Border>
 
     <TabControl DockPanel.Dock="Top" Height="42"
+                IsEnabled="{Binding !IsBusy}"
                 SelectedIndex="{Binding SelectedArchiveTabIndex, Mode=TwoWay}">
       <TabItem Header="{Binding CommonTabHeader}" />
       <TabItem Header="{Binding ScenarioTabHeader}" />
@@ -296,7 +299,12 @@
                             Padding="12,8" Margin="0,2">
                       <Grid ColumnDefinitions="*,Auto">
                         <StackPanel Spacing="2">
-                          <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                          <StackPanel Orientation="Horizontal" Spacing="7">
+                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                            <Border CornerRadius="7" Padding="6,1" Background="#223B82F6">
+                              <TextBlock Text="{Binding ScopeDisplayName}" FontSize="10" />
+                            </Border>
+                          </StackPanel>
                           <TextBlock Text="{Binding DirectoryName}" FontSize="11" Opacity="0.58"
                                      TextTrimming="CharacterEllipsis" />
                         </StackPanel>
@@ -588,11 +596,14 @@
                     <DataTemplate x:DataType="vm:ImportLogEntryViewModel">
                       <Border Padding="9,7" Margin="0,1" CornerRadius="4" Background="#0DFFFFFF">
                         <StackPanel Spacing="3">
-                          <Grid ColumnDefinitions="Auto,8,Auto,8,*,Auto">
+                          <Grid ColumnDefinitions="Auto,8,Auto,8,Auto,8,*,Auto">
                             <TextBlock Text="{Binding Operation}" FontWeight="SemiBold" />
                             <TextBlock Grid.Column="2" Text="{Binding Status}" FontWeight="SemiBold" />
-                            <TextBlock Grid.Column="4" Text="{Binding TargetName}" />
-                            <TextBlock Grid.Column="5" Text="{Binding TimeText}" FontSize="10" Opacity="0.55" />
+                            <Border Grid.Column="4" CornerRadius="7" Padding="6,1" Background="#223B82F6">
+                              <TextBlock Text="{Binding ScopeDisplayName}" FontSize="10" />
+                            </Border>
+                            <TextBlock Grid.Column="6" Text="{Binding TargetName}" />
+                            <TextBlock Grid.Column="7" Text="{Binding TimeText}" FontSize="10" Opacity="0.55" />
                           </Grid>
                           <TextBlock Text="{Binding SourceName}" FontSize="11" Opacity="0.55" />
                           <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="11" Opacity="0.75" />

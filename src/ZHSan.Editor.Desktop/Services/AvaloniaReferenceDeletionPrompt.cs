@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ZHSan.Editor.Application.References;
+using ZHSan.Editor.Domain.Configuration;
 
 namespace ZHSan.Editor.Desktop.Services;
 
@@ -40,7 +41,7 @@ public sealed class AvaloniaReferenceDeletionPrompt(Window owner) : IReferenceDe
             {
                 referencesPanel.Children.Add(new TextBlock
                 {
-                    Text = $"• {reference.ConfigDisplayName} / " +
+                    Text = $"• {GetScopeName(reference.Scope)} / {reference.ConfigDisplayName} / " +
                            $"#{reference.RecordId?.ToString() ?? (reference.RecordIndex + 1).ToString()} " +
                            $"{reference.RecordDisplayName} / {reference.Property.DisplayName}",
                     TextWrapping = TextWrapping.Wrap,
@@ -61,7 +62,8 @@ public sealed class AvaloniaReferenceDeletionPrompt(Window owner) : IReferenceDe
                         new TextBlock
                         {
                             Text = $"{impact.Target.ConfigDisplayName} " +
-                                   $"#{impact.Target.Id} · {impact.Target.DisplayName}",
+                                   $"#{impact.Target.Id} · {impact.Target.DisplayName} " +
+                                   $"({GetScopeName(impact.Target.Scope)})",
                             FontWeight = FontWeight.SemiBold,
                         },
                         new TextBlock
@@ -131,4 +133,7 @@ public sealed class AvaloniaReferenceDeletionPrompt(Window owner) : IReferenceDe
 
         return dialog.ShowDialog<bool>(owner);
     }
+
+    private static string GetScopeName(ConfigScope scope) =>
+        scope == ConfigScope.Common ? "Common" : "剧本/存档";
 }

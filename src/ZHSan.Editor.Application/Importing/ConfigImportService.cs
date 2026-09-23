@@ -1,6 +1,7 @@
 using System.Reflection;
 using ZHSan.Editor.Application.Abstractions;
 using ZHSan.Editor.Application.Differences;
+using ZHSan.Editor.Domain.Configuration;
 using ZHSan.Editor.Domain.Documents;
 using ZHSan.Editor.Domain.Importing;
 
@@ -11,11 +12,13 @@ public sealed class ConfigImportService
     private readonly IConfigImportReader _reader;
     private readonly ConfigDifferenceService _differenceService;
     private readonly ConfigImportMergeService _mergeService;
+    private readonly IArchiveTypeDetector? _archiveTypeDetector;
 
     public ConfigImportService(
         IConfigImportReader reader,
         ConfigDifferenceService differenceService,
-        ConfigImportMergeService mergeService)
+        ConfigImportMergeService mergeService,
+        IArchiveTypeDetector? archiveTypeDetector = null)
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(differenceService);
@@ -23,6 +26,7 @@ public sealed class ConfigImportService
         _reader = reader;
         _differenceService = differenceService;
         _mergeService = mergeService;
+        _archiveTypeDetector = archiveTypeDetector;
     }
 
     public Task<ConfigImportReadResult> ReadJsonAsync(
@@ -31,14 +35,23 @@ public sealed class ConfigImportService
         CancellationToken cancellationToken = default) =>
         _reader.ReadJsonAsync(path, document.Definition, cancellationToken);
 
-    public Task<ConfigImportReadResult> ReadArchiveAsync(
+    public async Task<ConfigImportReadResult> ReadArchiveAsync(
         string path,
         EditorProject project,
-        CancellationToken cancellationToken = default) =>
-        _reader.ReadArchiveAsync(
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        if (_archiveTypeDetector is not null)
+        {
+            var detectedKind = await _archiveTypeDetector.DetectAsync(path, cancellationToken);
+            ValidateArchiveScope(path, project.Scope, detectedKind);
+        }
+
+        return await _reader.ReadArchiveAsync(
             path,
             project.Documents.Select(document => document.Definition).ToArray(),
             cancellationToken);
+    }
 
     public ConfigImportPreview CreatePreview(
         EditorProject project,
@@ -48,6 +61,11 @@ public sealed class ConfigImportService
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(source);
+        if (source.Documents.Any(document => document.Definition.Scope != project.Scope))
+        {
+            throw new InvalidDataException(
+                $"导入源包含不属于 {GetScopeName(project.Scope)} 的配置，已阻止应用。");
+        }
 
         var documentsByKey = project.Documents.ToDictionary(
             document => document.Definition.Key,
@@ -114,4 +132,32 @@ public sealed class ConfigImportService
         itemType.GetProperty(
             "Id",
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase)?.PropertyType == typeof(int);
+
+    private static void ValidateArchiveScope(
+        string path,
+        ConfigScope expectedScope,
+        ArchiveContentKind detectedKind)
+    {
+        var expectedKind = expectedScope == ConfigScope.Common
+            ? ArchiveContentKind.Common
+            : ArchiveContentKind.Scenario;
+        if (detectedKind is ArchiveContentKind.Unknown || detectedKind == expectedKind)
+        {
+            return;
+        }
+
+        var fileName = Path.GetFileName(path);
+        var actualName = detectedKind switch
+        {
+            ArchiveContentKind.Common => "Common",
+            ArchiveContentKind.Scenario => "剧本/存档",
+            ArchiveContentKind.Mixed => "混合",
+            _ => "未知"
+        };
+        throw new InvalidDataException(
+            $"导入档案 {fileName} 是{actualName}档案，不能导入到 {GetScopeName(expectedScope)} 工作区。");
+    }
+
+    private static string GetScopeName(ConfigScope scope) =>
+        scope == ConfigScope.Common ? "Common" : "剧本/存档";
 }

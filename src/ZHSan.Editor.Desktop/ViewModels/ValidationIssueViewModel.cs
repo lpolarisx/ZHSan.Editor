@@ -1,4 +1,5 @@
 using System.Windows.Input;
+using ZHSan.Editor.Domain.Configuration;
 using ZHSan.Editor.Domain.Validation;
 
 namespace ZHSan.Editor.Desktop.ViewModels;
@@ -27,8 +28,9 @@ public sealed class ValidationIssueViewModel
     };
     public string DocumentName { get; }
     public string FieldName { get; }
+    public string ScopeDisplayName => Issue.Scope == ConfigScope.Common ? "Common" : "剧本/存档";
     public string RecordName => Issue.ItemId is { } id ? $"ID {id}" : "整表";
-    public string Location => $"{DocumentName} · {RecordName} · {FieldName}";
+    public string Location => $"{ScopeDisplayName} · {DocumentName} · {RecordName} · {FieldName}";
     public string Message => Issue.Message;
     public ICommand NavigateCommand { get; }
 

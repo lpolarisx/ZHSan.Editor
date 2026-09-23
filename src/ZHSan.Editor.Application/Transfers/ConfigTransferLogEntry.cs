@@ -1,3 +1,5 @@
+using ZHSan.Editor.Domain.Configuration;
+
 namespace ZHSan.Editor.Application.Transfers;
 
 public sealed record ConfigTransferLogEntry(
@@ -6,4 +8,5 @@ public sealed record ConfigTransferLogEntry(
     string TargetName,
     string Status,
     string Message,
-    string Operation = "导入");
+    string Operation = "导入",
+    ConfigScope Scope = ConfigScope.Common);

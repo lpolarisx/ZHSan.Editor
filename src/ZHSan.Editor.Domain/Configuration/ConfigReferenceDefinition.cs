@@ -2,7 +2,10 @@ namespace ZHSan.Editor.Domain.Configuration;
 
 public sealed record ConfigReferenceDefinition
 {
-    public ConfigReferenceDefinition(string targetConfigKey, int? emptyValue = null)
+    public ConfigReferenceDefinition(
+        string targetConfigKey,
+        int? emptyValue = null,
+        ConfigScope targetScope = ConfigScope.Common)
     {
         if (string.IsNullOrWhiteSpace(targetConfigKey))
         {
@@ -11,9 +14,14 @@ public sealed record ConfigReferenceDefinition
 
         TargetConfigKey = targetConfigKey;
         EmptyValue = emptyValue;
+        TargetScope = targetScope;
     }
 
     public string TargetConfigKey { get; }
+
+    public ConfigScope TargetScope { get; }
+
+    public ConfigAddress TargetAddress => new(TargetScope, TargetConfigKey);
 
     public int? EmptyValue { get; }
 

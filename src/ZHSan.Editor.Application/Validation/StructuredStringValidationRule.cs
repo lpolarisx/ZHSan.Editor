@@ -85,5 +85,6 @@ public sealed class StructuredStringValidationRule : IFieldValidationRule
             context.Document.Definition.Key,
             context.Item.Id,
             context.Property.Name,
-            $"{context.Property.DisplayName}：{message}");
+            $"{context.Property.DisplayName}：{message}",
+            context.Document.Definition.Scope);
 }

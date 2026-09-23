@@ -1,4 +1,5 @@
 using ZHSan.Editor.Application.Transfers;
+using ZHSan.Editor.Domain.Configuration;
 using ZHSan.Editor.Infrastructure.Settings;
 
 namespace ZHSan.Editor.Infrastructure.Tests;
@@ -28,14 +29,17 @@ public sealed class JsonConfigTransferLogStoreTests
                 "人物",
                 "失败",
                 "第二条",
-                "导出"));
+                "导出",
+                ConfigScope.Scenario));
 
             var entries = new JsonConfigTransferLogStore(path).Load();
 
             Assert.Equal(2, entries.Count);
             Assert.Equal("第二条", entries[0].Message);
             Assert.Equal("导出", entries[0].Operation);
+            Assert.Equal(ConfigScope.Scenario, entries[0].Scope);
             Assert.Equal("第一条", entries[1].Message);
+            Assert.Equal(ConfigScope.Common, entries[1].Scope);
         }
         finally
         {

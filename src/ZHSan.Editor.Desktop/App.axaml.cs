@@ -45,6 +45,7 @@ public sealed partial class App : Avalonia.Application
             services.AddSingleton<OpenArchiveService>();
             services.AddSingleton<EditorWorkspaceService>();
             services.AddSingleton<SaveArchiveService>();
+            services.AddSingleton<SaveWorkspaceService>();
             services.AddSingleton<IFieldValidationRule, PropertyConstraintValidationRule>();
             services.AddSingleton<IFieldValidationRule, FixedLengthCollectionValidationRule>();
             services.AddSingleton<IFieldValidationRule, StructuredStringValidationRule>();

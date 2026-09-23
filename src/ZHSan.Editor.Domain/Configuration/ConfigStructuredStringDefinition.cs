@@ -9,8 +9,11 @@ public enum ConfigStructuredStringKind
 
 public sealed record ConfigStructuredStringDefinition(
     ConfigStructuredStringKind Kind,
-    string TargetConfigKey)
+    string TargetConfigKey,
+    ConfigScope TargetScope = ConfigScope.Common)
 {
+    public ConfigAddress TargetAddress => new(TargetScope, TargetConfigKey);
+
     public string FormatDescription => Kind switch
     {
         ConfigStructuredStringKind.InfluenceIds =>

@@ -47,7 +47,8 @@ public sealed class PropertyConstraintValidationRule : IFieldValidationRule
             context.Document.Definition.Key,
             context.Item.Id,
             context.Property.Name,
-            message);
+            message,
+            context.Document.Definition.Scope);
 
     private static bool IsMissing(object? value) =>
         value is null || value is string text && string.IsNullOrWhiteSpace(text);

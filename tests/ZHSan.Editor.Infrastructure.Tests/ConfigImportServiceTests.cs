@@ -75,13 +75,55 @@ public sealed class ConfigImportServiceTests
         Assert.Contains("重复 ID", item.ErrorMessage);
     }
 
-    private static ConfigImportService CreateService()
+    [Fact]
+    public async Task ReadArchive_WrongScope_IsRejectedBeforeReadingContents()
+    {
+        var document = CreateDocument<TechniqueConfig>("techniques", "技术");
+        var project = CreateProject(document);
+        var reader = new RecordingReader();
+        var service = CreateService(reader, new StubDetector(ArchiveContentKind.Scenario));
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(
+            () => service.ReadArchiveAsync("Scenario.dat", project));
+
+        Assert.Contains("Common", exception.Message, StringComparison.Ordinal);
+        Assert.False(reader.WasArchiveRead);
+    }
+
+    [Fact]
+    public void CreatePreview_WrongScopeSource_IsRejectedBeforeApply()
+    {
+        var document = CreateDocument<TechniqueConfig>("techniques", "技术");
+        var project = CreateProject(document);
+        var scenarioDefinition = new ConfigDefinition(
+            "techniques",
+            "技术",
+            "测试",
+            "Techniques.json",
+            typeof(TechniqueConfig),
+            ConfigScope.Scenario);
+        var source = new ConfigImportReadResult(
+            "Scenario.dat",
+            [new ConfigImportSourceDocument(scenarioDefinition, [new TechniqueConfig { Id = 1 }])],
+            []);
+
+        var exception = Assert.Throws<InvalidDataException>(
+            () => CreateService().CreatePreview(project, source, ConfigImportStrategy.ReplaceAll));
+
+        Assert.Contains("已阻止应用", exception.Message, StringComparison.Ordinal);
+        Assert.Empty(document.Items);
+    }
+
+    private static ConfigImportService CreateService(
+        IConfigImportReader? reader = null,
+        IArchiveTypeDetector? detector = null)
     {
         var difference = new ConfigDifferenceService(new ReflectionConfigMetadataProvider());
         return new ConfigImportService(
-            new UnusedReader(),
+            reader ?? new UnusedReader(),
             difference,
-            new ConfigImportMergeService(difference));
+            new ConfigImportMergeService(difference),
+            detector);
     }
 
     private static EditorProject CreateProject(params ConfigDocument[] documents) =>
@@ -106,5 +148,31 @@ public sealed class ConfigImportServiceTests
             string archivePath,
             IReadOnlyList<ConfigDefinition> definitions,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class RecordingReader : IConfigImportReader
+    {
+        public bool WasArchiveRead { get; private set; }
+
+        public Task<ConfigImportReadResult> ReadJsonAsync(
+            string jsonPath,
+            ConfigDefinition definition,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<ConfigImportReadResult> ReadArchiveAsync(
+            string archivePath,
+            IReadOnlyList<ConfigDefinition> definitions,
+            CancellationToken cancellationToken = default)
+        {
+            WasArchiveRead = true;
+            return Task.FromResult(new ConfigImportReadResult(archivePath, [], []));
+        }
+    }
+
+    private sealed class StubDetector(ArchiveContentKind kind) : IArchiveTypeDetector
+    {
+        public Task<ArchiveContentKind> DetectAsync(
+            string archivePath,
+            CancellationToken cancellationToken = default) => Task.FromResult(kind);
     }
 }

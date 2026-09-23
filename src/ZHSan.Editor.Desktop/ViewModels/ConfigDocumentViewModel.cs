@@ -711,7 +711,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         }
 
         var impacts = _referenceIndex.GetDeletionImpacts(
-            Document.Definition.Key,
+            Document.Definition.Address,
             records.Select(record => record.Item));
         if (impacts.Count == 0)
         {
@@ -949,7 +949,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         (property.Reference is null && property.StructuredString is null) || _referenceIndex is null
             ? []
             : _referenceIndex.GetTargets(
-                property.Reference?.TargetConfigKey ?? property.StructuredString!.TargetConfigKey);
+                property.Reference?.TargetAddress ?? property.StructuredString!.TargetAddress);
 
     internal IReadOnlyList<ConfigReferenceTarget> GetReferenceTargets(string configKey) =>
         _referenceIndex?.GetTargets(configKey) ?? [];

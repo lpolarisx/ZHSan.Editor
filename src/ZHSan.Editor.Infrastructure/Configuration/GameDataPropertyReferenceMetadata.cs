@@ -35,6 +35,53 @@ internal static class GameDataPropertyReferenceMetadata
                 new("influences"),
             [(typeof(TroopEventEffectConfig), nameof(TroopEventEffectConfig.KindId))] =
                 new("troop-effect-kinds"),
+
+            [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.KindId))] =
+                new("architecture-kinds"),
+            [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.StateId))] =
+                new("states", emptyValue: 0, targetScope: ConfigScope.Scenario),
+            [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.MayorId))] =
+                new("persons", emptyValue: 0, targetScope: ConfigScope.Scenario),
+            [(typeof(DiplomaticRelationConfig), nameof(DiplomaticRelationConfig.RelationFaction1ID))] =
+                new("factions", targetScope: ConfigScope.Scenario),
+            [(typeof(DiplomaticRelationConfig), nameof(DiplomaticRelationConfig.RelationFaction2ID))] =
+                new("factions", targetScope: ConfigScope.Scenario),
+            [(typeof(FactionConfig), nameof(FactionConfig.LeaderID))] =
+                new("persons", emptyValue: 0, targetScope: ConfigScope.Scenario),
+            [(typeof(FactionConfig), nameof(FactionConfig.CapitalID))] =
+                new("architectures", emptyValue: 0, targetScope: ConfigScope.Scenario),
+            [(typeof(FactionConfig), nameof(FactionConfig.UpgradingTechnique))] =
+                new("techniques", emptyValue: 0),
+            [(typeof(MilitaryConfig), nameof(MilitaryConfig.KindId))] =
+                new("military-kinds"),
+            [(typeof(MilitaryConfig), nameof(MilitaryConfig.LeaderID))] =
+                new("persons", emptyValue: 0, targetScope: ConfigScope.Scenario),
+            [(typeof(MilitaryConfig), nameof(MilitaryConfig.BelongedArchitectureID))] =
+                new("architectures", emptyValue: 0, targetScope: ConfigScope.Scenario),
+            [(typeof(PersonRelationConfig), nameof(PersonRelationConfig.PersonID1))] =
+                new("persons", targetScope: ConfigScope.Scenario),
+            [(typeof(PersonRelationConfig), nameof(PersonRelationConfig.PersonID2))] =
+                new("persons", targetScope: ConfigScope.Scenario),
+            [(typeof(SectionConfig), nameof(SectionConfig.OrientationFactionID))] =
+                new("factions", emptyValue: 0, targetScope: ConfigScope.Scenario),
+            [(typeof(SectionConfig), nameof(SectionConfig.OrientationSectionID))] =
+                new("sections", emptyValue: 0, targetScope: ConfigScope.Scenario),
+            [(typeof(SectionConfig), nameof(SectionConfig.OrientationStateID))] =
+                new("states", emptyValue: 0, targetScope: ConfigScope.Scenario),
+            [(typeof(SectionConfig), nameof(SectionConfig.OrientationArchitectureID))] =
+                new("architectures", emptyValue: 0, targetScope: ConfigScope.Scenario),
+            [(typeof(TroopConfig), nameof(TroopConfig.LeaderId))] =
+                new("persons", emptyValue: 0, targetScope: ConfigScope.Scenario),
+            [(typeof(TroopConfig), nameof(TroopConfig.MilitaryID))] =
+                new("militaries", emptyValue: 0, targetScope: ConfigScope.Scenario),
+            [(typeof(TroopConfig), nameof(TroopConfig.TargetTroopID))] =
+                new("troops", emptyValue: 0, targetScope: ConfigScope.Scenario),
+            [(typeof(TroopConfig), nameof(TroopConfig.TargetArchitectureID))] =
+                new("architectures", emptyValue: 0, targetScope: ConfigScope.Scenario),
+            [(typeof(TroopConfig), nameof(TroopConfig.CurrentCombatMethodID))] =
+                new("combat-methods", emptyValue: 0),
+            [(typeof(TroopConfig), nameof(TroopConfig.CurrentStratagemID))] =
+                new("stratagems", emptyValue: 0),
         };
 
     public static ConfigReferenceDefinition? Get(Type itemType, PropertyInfo property) =>

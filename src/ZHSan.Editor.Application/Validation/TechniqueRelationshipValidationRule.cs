@@ -40,7 +40,7 @@ public sealed class TechniqueRelationshipValidationRule : ICrossTableValidationR
         }
 
         issues.AddRange(ValidateCycles(uniqueRecords));
-        return issues;
+        return issues.Select(issue => issue with { Scope = context.Project.Scope });
     }
 
     private static void ValidateSelfReference(

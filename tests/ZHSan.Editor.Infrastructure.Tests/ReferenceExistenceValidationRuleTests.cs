@@ -65,16 +65,67 @@ public sealed class ReferenceExistenceValidationRuleTests
         Assert.DoesNotContain(report.Issues, issue => issue.Message.Contains(" ID 0 "));
     }
 
+    [Fact]
+    public void Validate_ScenarioReference_UsesExplicitTargetScope()
+    {
+        var common = CreateProject(
+            ConfigScope.Common,
+            CreateDocument(
+                "military-kinds",
+                typeof(MilitaryKindConfig),
+                ConfigScope.Common,
+                new MilitaryKindConfig { Id = 7, Name = "骑兵" }));
+        var scenario = CreateProject(
+            ConfigScope.Scenario,
+            CreateDocument(
+                "persons",
+                typeof(PersonConfig),
+                ConfigScope.Scenario,
+                new PersonConfig { Id = 7, Name = "关羽" }),
+            CreateDocument(
+                "militaries",
+                typeof(MilitaryConfig),
+                ConfigScope.Scenario,
+                new MilitaryConfig { Id = 1, KindId = 404, LeaderID = 7 }));
+        var service = new ConfigValidationService(
+            new ReflectionConfigMetadataProvider(),
+            crossTableRules: [new ReferenceExistenceValidationRule()]);
+
+        var report = service.Validate(
+            scenario,
+            [common, scenario],
+            ValidationScope.CrossTable);
+
+        var issue = Assert.Single(report.Issues);
+        Assert.Equal(ConfigScope.Scenario, issue.Scope);
+        Assert.Equal("militaries", issue.ConfigKey);
+        Assert.Equal(nameof(MilitaryConfig.KindId), issue.PropertyName);
+        Assert.Contains("Common:military-kinds", issue.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(report.Issues, candidate =>
+            candidate.PropertyName == nameof(MilitaryConfig.LeaderID));
+    }
+
     private static ConfigDocument CreateDocument(string key, Type itemType, params object[] items) =>
+        CreateDocument(key, itemType, ConfigScope.Common, items);
+
+    private static ConfigDocument CreateDocument(
+        string key,
+        Type itemType,
+        ConfigScope scope,
+        params object[] items) =>
         new()
         {
-            Definition = new ConfigDefinition(key, key, "测试", $"{key}.json", itemType),
+            Definition = new ConfigDefinition(key, key, "测试", $"{key}.json", itemType, scope),
             Items = items,
         };
 
     private static EditorProject CreateProject(params ConfigDocument[] documents) =>
+        CreateProject(ConfigScope.Common, documents);
+
+    private static EditorProject CreateProject(ConfigScope scope, params ConfigDocument[] documents) =>
         new()
         {
+            Scope = scope,
             ArchivePath = "test.dat",
             Documents = documents,
             ActiveDocument = documents.FirstOrDefault(),

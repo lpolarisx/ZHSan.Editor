@@ -10,7 +10,9 @@ public sealed class ReferenceExistenceValidationRule : ICrossTableValidationRule
 
         foreach (var reference in context.ReferenceIndex.References)
         {
-            if (context.ReferenceIndex.ContainsTarget(reference.TargetConfigKey, reference.TargetId))
+            if (reference.Scope != context.Project.Scope ||
+                !context.ReferenceIndex.IsScopeIndexed(reference.TargetScope) ||
+                context.ReferenceIndex.ContainsTarget(reference.TargetAddress, reference.TargetId))
             {
                 continue;
             }
@@ -20,7 +22,8 @@ public sealed class ReferenceExistenceValidationRule : ICrossTableValidationRule
                 reference.ConfigKey,
                 reference.RecordId,
                 reference.Property.Name,
-                $"{reference.Property.DisplayName} 引用的 {reference.TargetConfigKey} ID {reference.TargetId} 不存在。");
+                $"{reference.Property.DisplayName} 引用的 {reference.TargetAddress} ID {reference.TargetId} 不存在。",
+                reference.Scope);
         }
     }
 }

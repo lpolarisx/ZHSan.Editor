@@ -27,6 +27,7 @@ public sealed class FixedLengthCollectionValidationRule : IFieldValidationRule
             context.Document.Definition.Key,
             context.Item.Id,
             context.Property.Name,
-            $"{context.Property.DisplayName} 必须包含 {expectedLength} 个元素，当前为 {actualLength}。");
+            $"{context.Property.DisplayName} 必须包含 {expectedLength} 个元素，当前为 {actualLength}。",
+            context.Document.Definition.Scope);
     }
 }

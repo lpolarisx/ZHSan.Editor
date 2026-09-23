@@ -31,8 +31,16 @@ public sealed class ConfigValidationService
         EditorProject project,
         ValidationScope scope = ValidationScope.All,
         CancellationToken cancellationToken = default)
+        => Validate(project, [project], scope, cancellationToken);
+
+    public ValidationReport Validate(
+        EditorProject project,
+        IEnumerable<EditorProject> referenceProjects,
+        ValidationScope scope = ValidationScope.All,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(referenceProjects);
 
         if ((scope & ~ValidationScope.All) != 0)
         {
@@ -55,7 +63,12 @@ public sealed class ConfigValidationService
         if (scope.HasFlag(ValidationScope.CrossTable))
         {
             var referenceIndex = new ConfigReferenceIndex(_metadataProvider);
-            referenceIndex.Rebuild(project, cancellationToken);
+            var indexedProjects = new[] { project }
+                .Concat(referenceProjects)
+                .GroupBy(candidate => candidate.Scope)
+                .Select(group => group.First())
+                .ToArray();
+            referenceIndex.Rebuild(indexedProjects, cancellationToken);
             var context = new CrossTableValidationContext(project, tables, referenceIndex);
             foreach (var rule in _crossTableRules)
             {

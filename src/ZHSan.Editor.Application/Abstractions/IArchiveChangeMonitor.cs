@@ -8,6 +8,8 @@ public interface IArchiveChangeMonitor : IDisposable
 
     void Watch(EditorProject project);
 
+    void Stop(EditorProject project);
+
     void Stop();
 
     bool HasChanged(EditorProject project);

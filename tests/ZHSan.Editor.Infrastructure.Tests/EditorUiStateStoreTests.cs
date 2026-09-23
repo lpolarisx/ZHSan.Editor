@@ -1,4 +1,5 @@
 using ZHSan.Editor.Desktop.Services;
+using ZHSan.Editor.Domain.Configuration;
 
 namespace ZHSan.Editor.Infrastructure.Tests;
 
@@ -21,11 +22,19 @@ public sealed class EditorUiStateStoreTests
                 NavigationPaneWidth = 310,
                 DetailsPaneWidth = 460,
                 IsNavigationPaneVisible = false,
-                IsDetailsPaneVisible = true
+                IsDetailsPaneVisible = true,
+                ActiveScope = ConfigScope.Scenario
             };
-            state.GetDocument("techniques").SearchText = "技术";
-            state.GetDocument("techniques").FilterPropertyName = "Name";
-            state.GetDocument("techniques").ColumnWidths = [100, 220];
+            state.GetArchive(ConfigScope.Common).ActiveCategory = "技术";
+            state.GetArchive(ConfigScope.Common).ActiveDocumentKey = "techniques";
+            state.GetArchive(ConfigScope.Scenario).ActiveCategory = "人物";
+            state.GetArchive(ConfigScope.Scenario).ActiveDocumentKey = "people";
+            var commonDocument = state.GetDocument(
+                new ConfigAddress(ConfigScope.Common, "people"));
+            commonDocument.SearchText = "技术";
+            commonDocument.FilterPropertyName = "Name";
+            commonDocument.ColumnWidths = [100, 220];
+            state.GetDocument(new ConfigAddress(ConfigScope.Scenario, "people")).SearchText = "刘备";
 
             store.Save(state);
             var restored = store.Load();
@@ -38,10 +47,16 @@ public sealed class EditorUiStateStoreTests
             Assert.Equal(460, restored.DetailsPaneWidth);
             Assert.False(restored.IsNavigationPaneVisible);
             Assert.True(restored.IsDetailsPaneVisible);
-            var document = restored.GetDocument("techniques");
+            Assert.Equal(ConfigScope.Scenario, restored.ActiveScope);
+            Assert.Equal("techniques", restored.GetArchive(ConfigScope.Common).ActiveDocumentKey);
+            Assert.Equal("人物", restored.GetArchive(ConfigScope.Scenario).ActiveCategory);
+            var document = restored.GetDocument(new ConfigAddress(ConfigScope.Common, "people"));
             Assert.Equal("技术", document.SearchText);
             Assert.Equal("Name", document.FilterPropertyName);
             Assert.Equal([100, 220], document.ColumnWidths);
+            Assert.Equal(
+                "刘备",
+                restored.GetDocument(new ConfigAddress(ConfigScope.Scenario, "people")).SearchText);
         }
         finally
         {

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ZHSan.Editor.Domain.Configuration;
 
 namespace ZHSan.Editor.Desktop.Services;
 
@@ -31,6 +32,13 @@ public sealed class EditorUiStateStore
             var state = JsonSerializer.Deserialize<EditorUiState>(File.ReadAllText(_path), JsonOptions)
                 ?? new EditorUiState();
             state.Documents ??= [];
+            state.Common ??= new ArchiveUiState();
+            state.Scenario ??= new ArchiveUiState();
+            if (!Enum.IsDefined(state.ActiveScope))
+            {
+                state.ActiveScope = ConfigScope.Common;
+            }
+
             return state;
         }
         catch

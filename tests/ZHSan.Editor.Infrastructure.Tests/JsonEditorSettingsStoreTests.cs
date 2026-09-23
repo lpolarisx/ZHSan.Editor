@@ -1,4 +1,5 @@
 using ZHSan.Editor.Application.Settings;
+using ZHSan.Editor.Domain.Configuration;
 using ZHSan.Editor.Infrastructure.Settings;
 
 namespace ZHSan.Editor.Infrastructure.Tests;
@@ -23,6 +24,7 @@ public sealed class JsonEditorSettingsStoreTests
                     new RecentProjectEntry
                     {
                         ArchivePath = @"C:\Games\ZHSan\CommonData.dat",
+                        Scope = ConfigScope.Scenario,
                         LastOpenedAt = openedAt
                     }
                 ]
@@ -35,6 +37,7 @@ public sealed class JsonEditorSettingsStoreTests
             Assert.Equal(5, restored.RecentProjectLimit);
             var recent = Assert.Single(restored.RecentProjects);
             Assert.Equal(settings.RecentProjects[0].ArchivePath, recent.ArchivePath);
+            Assert.Equal(ConfigScope.Scenario, recent.Scope);
             Assert.Equal(openedAt, recent.LastOpenedAt);
         }
         finally

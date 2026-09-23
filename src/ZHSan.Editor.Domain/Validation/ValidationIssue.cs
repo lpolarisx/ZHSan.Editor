@@ -1,3 +1,5 @@
+using ZHSan.Editor.Domain.Configuration;
+
 namespace ZHSan.Editor.Domain.Validation;
 
 public enum ValidationSeverity { Information, Warning, Error }
@@ -7,4 +9,8 @@ public sealed record ValidationIssue(
     string ConfigKey,
     int? ItemId,
     string? PropertyName,
-    string Message);
+    string Message,
+    ConfigScope Scope = ConfigScope.Common)
+{
+    public ConfigAddress Address => new(Scope, ConfigKey);
+}

@@ -23,6 +23,7 @@ public sealed class MainWindowViewModel : ObservableObject
 {
     private readonly EditorWorkspaceService _workspaceService;
     private readonly SaveArchiveService _saveArchiveService;
+    private readonly SaveWorkspaceService _saveWorkspaceService;
     private readonly ValidationPreflightService _validationPreflightService;
     private readonly IArchiveChangeMonitor _archiveChangeMonitor;
     private readonly IConfigMetadataProvider _metadataProvider;
@@ -45,6 +46,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly Dictionary<ConfigScope, IReadOnlyList<ConfigDocumentViewModel>> _slotDocuments = [];
     private readonly Dictionary<ConfigScope, IReadOnlyList<ConfigCategoryViewModel>> _slotCategories = [];
     private readonly Dictionary<ConfigScope, ConfigReferenceIndex> _slotReferenceIndexes = [];
+    private readonly HashSet<ConfigScope> _externallyChangedScopes = [];
     private readonly List<ValidationIssueViewModel> _allValidationIssues = [];
     private ConfigReferenceIndex? _referenceIndex;
     private ConfigImportReadResult? _importSource;
@@ -87,10 +89,12 @@ public sealed class MainWindowViewModel : ObservableObject
         ConfigEditorProviderRegistry? editorProviderRegistry = null,
         ILegacyScenarioConverter? legacyScenarioConverter = null,
         ILegacyCommonDataConverter? legacyCommonDataConverter = null,
-        EditorWorkspaceService? workspaceService = null)
+        EditorWorkspaceService? workspaceService = null,
+        SaveWorkspaceService? saveWorkspaceService = null)
     {
         _workspaceService = workspaceService ?? new EditorWorkspaceService(openArchiveService);
         _saveArchiveService = saveArchiveService;
+        _saveWorkspaceService = saveWorkspaceService ?? new SaveWorkspaceService(saveArchiveService);
         _validationPreflightService = validationPreflightService;
         _archiveChangeMonitor = archiveChangeMonitor;
         _archiveChangeMonitor.ExternalChangeDetected += OnExternalChangeDetected;
@@ -109,6 +113,8 @@ public sealed class MainWindowViewModel : ObservableObject
         _editorSettings = editorSettingsStore.Load();
         _uiStateStore = uiStateStore;
         _uiState = uiStateStore.Load();
+        _selectedArchiveTabIndex = _uiState.ActiveScope == ConfigScope.Scenario ? 1 : 0;
+        _workspaceService.SwitchScope(_uiState.ActiveScope);
         _isNavigationPaneVisible = _uiState.IsNavigationPaneVisible;
         _isDetailsPaneVisible = _uiState.IsDetailsPaneVisible;
         OpenArchiveCommand = new AsyncCommand(OpenArchiveAsync, () => !IsBusy);
@@ -120,7 +126,8 @@ public sealed class MainWindowViewModel : ObservableObject
             () => !IsBusy);
         CloseProjectCommand = new AsyncCommand(CloseProjectAsync, () => !IsBusy && _project is not null);
         SaveDocumentCommand = new AsyncCommand(SaveDocumentAsync, CanSaveDocument);
-        SaveAllCommand = new AsyncCommand(SaveAllAsync, CanSaveAll);
+        SaveCurrentArchiveCommand = new AsyncCommand(SaveCurrentArchiveAsync, CanSaveCurrentArchive);
+        SaveAllCommand = new AsyncCommand(SaveAllArchivesAsync, CanSaveAll);
         SaveAsCommand = new AsyncCommand(SaveAsAsync, CanSaveProject);
         SaveCopyCommand = new AsyncCommand(SaveCopyAsync, CanSaveProject);
         ImportJsonCommand = new AsyncCommand(ImportJsonAsync, CanImportJson);
@@ -185,6 +192,7 @@ public sealed class MainWindowViewModel : ObservableObject
     public ICommand OpenScenarioArchiveCommand { get; }
     public ICommand CloseProjectCommand { get; }
     public ICommand SaveDocumentCommand { get; }
+    public ICommand SaveCurrentArchiveCommand { get; }
     public ICommand SaveAllCommand { get; }
     public ICommand SaveAsCommand { get; }
     public ICommand SaveCopyCommand { get; }
@@ -388,6 +396,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 ((AsyncCommand)OpenScenarioArchiveCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)CloseProjectCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)SaveDocumentCommand).RaiseCanExecuteChanged();
+                ((AsyncCommand)SaveCurrentArchiveCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)SaveAllCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)SaveAsCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)SaveCopyCommand).RaiseCanExecuteChanged();
@@ -483,6 +492,12 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         SelectedArchiveTabIndex = scope == ConfigScope.Common ? 0 : 1;
         await OpenArchiveAsync();
+    }
+
+    private async Task OpenRecentArchiveAsync(string path, ConfigScope scope)
+    {
+        SelectedArchiveTabIndex = scope == ConfigScope.Common ? 0 : 1;
+        await OpenArchivePathAsync(path);
     }
 
     private async Task ImportJsonAsync()
@@ -678,7 +693,8 @@ public sealed class MainWindowViewModel : ObservableObject
                 Path.GetFileName(result.DestinationPath),
                 "成功",
                 $"已将旧版剧本转换为 {result.EntryCount} 个条目、{result.ItemCount} 条记录",
-                "剧本转换");
+                "剧本转换",
+                ConfigScope.Scenario);
             SelectedDetailsTabIndex = 6;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -691,7 +707,8 @@ public sealed class MainWindowViewModel : ObservableObject
                 Path.GetFileName(sourcePath),
                 "失败",
                 message,
-                "剧本转换");
+                "剧本转换",
+                ConfigScope.Scenario);
         }
         finally
         {
@@ -731,7 +748,8 @@ public sealed class MainWindowViewModel : ObservableObject
                 Path.GetFileName(result.DestinationPath),
                 "成功",
                 $"已转换 {result.ConfigCount} 项配置、{result.EntryCount} 个档案条目、{result.ItemCount} 条记录",
-                "CommonData 转换");
+                "CommonData 转换",
+                ConfigScope.Common);
             SelectedDetailsTabIndex = 6;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -744,7 +762,8 @@ public sealed class MainWindowViewModel : ObservableObject
                 Path.GetFileName(sourcePath),
                 "失败",
                 message,
-                "CommonData 转换");
+                "CommonData 转换",
+                ConfigScope.Common);
         }
         finally
         {
@@ -946,7 +965,8 @@ public sealed class MainWindowViewModel : ObservableObject
         string targetName,
         string status,
         string message,
-        string operation = "导入")
+        string operation = "导入",
+        ConfigScope? scope = null)
     {
         var entry = new ConfigTransferLogEntry(
             DateTimeOffset.Now,
@@ -954,7 +974,8 @@ public sealed class MainWindowViewModel : ObservableObject
             targetName,
             status,
             message,
-            operation);
+            operation,
+            scope ?? _project?.Scope ?? ActiveScope);
         ImportLogEntries.Insert(0, ToViewModel(entry));
         try
         {
@@ -989,7 +1010,8 @@ public sealed class MainWindowViewModel : ObservableObject
             entry.TargetName,
             entry.Status,
             entry.Message,
-            string.IsNullOrWhiteSpace(entry.Operation) ? "导入" : entry.Operation);
+            string.IsNullOrWhiteSpace(entry.Operation) ? "导入" : entry.Operation,
+            entry.Scope);
 
     private static string GetStrategyName(ConfigImportStrategy strategy) => strategy switch
     {
@@ -1013,16 +1035,17 @@ public sealed class MainWindowViewModel : ObservableObject
         try
         {
             var scope = ActiveScope;
+            var previousProject = _workspaceService.Workspace.GetSlot(scope).Project;
             var project = await _workspaceService.OpenAsync(scope, path);
             var referenceIndex = new ConfigReferenceIndex(_metadataProvider);
-            referenceIndex.Rebuild(project);
+            referenceIndex.Rebuild(GetOpenProjects());
             var documents = project.Documents
                 .Select(document => new ConfigDocumentViewModel(
                     document,
                     _metadataProvider,
                     SelectDocument,
                     _recordClipboard,
-                    _uiState.GetDocument(document.Definition.Key),
+                    _uiState.GetDocument(document.Definition.Address),
                     referenceIndex,
                     _referenceDeletionPrompt,
                     _editorProviderRegistry,
@@ -1035,27 +1058,34 @@ public sealed class MainWindowViewModel : ObservableObject
             }
 
             DetachSlotDocuments(scope);
+            if (previousProject is not null)
+            {
+                _archiveChangeMonitor.Stop(previousProject);
+            }
+
             _slotDocuments[scope] = documents;
             _slotCategories[scope] = CreateCategories(documents);
             _slotReferenceIndexes[scope] = referenceIndex;
+            RebuildReferenceIndexes();
             ActivateScopeState(scope);
-            ExternalChangeMessage = null;
+            _archiveChangeMonitor.Watch(project);
+            _externallyChangedScopes.Remove(scope);
+            RefreshExternalChangeMessage();
 
-            AddRecentProject(project.ArchivePath);
+            AddRecentProject(project.ArchivePath, scope);
             ProjectTitle = Path.GetFileName(project.ArchivePath);
             StatusText = $"已加载 {documents.Length} 项配置，共 {documents.Sum(x => x.ItemCount)} 条记录";
             ClearGlobalSearch();
             ClearValidationResults();
             ClearImportPreview();
             ((RelayCommand)GlobalSearchCommand).RaiseCanExecuteChanged();
-            SelectDocument(documents.FirstOrDefault());
             NotifyProjectChanged();
         }
         catch (Exception exception)
         {
             if (!File.Exists(path))
             {
-                RemoveRecentProject(path);
+                RemoveRecentProject(path, ActiveScope);
             }
 
             ErrorMessage = exception.GetBaseException().Message;
@@ -1069,62 +1099,129 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private async Task SaveDocumentAsync()
     {
-        if (_project is null || SelectedDocument is null)
+        var project = _project;
+        var selectedDocument = SelectedDocument;
+        if (project is null || selectedDocument is null)
         {
             return;
         }
 
         await RunSaveAsync(
-            () => _saveArchiveService.SaveDocumentAsync(_project, SelectedDocument.Document),
-            "\u5df2\u4fdd\u5b58\u914d\u7f6e\uff1a" + SelectedDocument.DisplayName,
-            [SelectedDocument]);
+            project,
+            () => _saveArchiveService.SaveDocumentAsync(project, selectedDocument.Document),
+            "\u5df2\u4fdd\u5b58\u914d\u7f6e\uff1a" + selectedDocument.DisplayName,
+            [selectedDocument]);
     }
 
-    private async Task SaveAllAsync()
+    private async Task SaveCurrentArchiveAsync()
     {
-        if (_project is null)
+        var project = _project;
+        if (project is null)
         {
             return;
         }
 
         var dirtyDocuments = _documents.Where(document => document.IsDirty).ToArray();
         await RunSaveAsync(
-            () => _saveArchiveService.SaveAllAsync(_project),
+            project,
+            () => _saveArchiveService.SaveAllAsync(project),
             $"\u5df2\u4fdd\u5b58 {dirtyDocuments.Length} \u9879\u914d\u7f6e",
             dirtyDocuments);
     }
 
+    private async Task SaveAllArchivesAsync() => await SaveAllArchivesCoreAsync();
+
+    private async Task<bool> SaveAllArchivesCoreAsync()
+    {
+        IsBusy = true;
+        ErrorMessage = null;
+        StatusText = "正在保存全部档案…";
+        try
+        {
+            var result = await _saveWorkspaceService.SaveAllAsync(_workspaceService.Workspace);
+            foreach (var success in result.Successes)
+            {
+                foreach (var document in GetSlotDocuments(success.Scope))
+                {
+                    document.MarkSaved();
+                }
+
+                _archiveChangeMonitor.Watch(success.Project);
+                _externallyChangedScopes.Remove(success.Scope);
+                if (success.Scope == ActiveScope)
+                {
+                    UpdateValidationResults(
+                        success.ValidationReport,
+                        success.ValidationReport.Issues.Count > 0);
+                }
+            }
+
+            foreach (var failure in result.Failures.Where(failure => failure.IsConflict))
+            {
+                _externallyChangedScopes.Add(failure.Scope);
+            }
+
+            RefreshExternalChangeMessage();
+            if (result.Failures.Count == 0)
+            {
+                StatusText = $"全部保存完成：{result.Successes.Count} 个档案";
+            }
+            else
+            {
+                ErrorMessage = string.Join("；", result.Failures.Select(failure =>
+                    $"{GetScopeDisplayName(failure.Scope)} {Path.GetFileName(failure.Project.ArchivePath)}：{failure.Message}"));
+                StatusText = $"保存完成：成功 {result.Successes.Count} 个，失败 {result.Failures.Count} 个档案";
+            }
+
+            RefreshProjectState();
+            return result.Failures.Count == 0;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            ErrorMessage = exception.GetBaseException().Message;
+            StatusText = "保存全部档案失败";
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     private async Task SaveAsAsync()
     {
-        if (_project is null)
+        var project = _project;
+        if (project is null)
         {
             return;
         }
 
-        var path = await _archivePicker.PickSaveArchiveAsync(Path.GetFileName(_project.ArchivePath));
+        var path = await _archivePicker.PickSaveArchiveAsync(Path.GetFileName(project.ArchivePath));
         if (path is null)
         {
             return;
         }
 
         if (await RunSaveAsync(
-            () => _saveArchiveService.SaveAsAsync(_project, path),
+            project,
+            () => _saveArchiveService.SaveAsAsync(project, path),
             "\u5df2\u53e6\u5b58\u4e3a\uff1a" + Path.GetFileName(path),
-            _documents))
+            GetSlotDocuments(project.Scope)))
         {
-            AddRecentProject(_project.ArchivePath);
+            AddRecentProject(project.ArchivePath, project.Scope);
             RefreshProjectState();
         }
     }
 
     private async Task SaveCopyAsync()
     {
-        if (_project is null)
+        var project = _project;
+        if (project is null)
         {
             return;
         }
 
-        var fileName = Path.GetFileNameWithoutExtension(_project.ArchivePath) + ".copy.dat";
+        var fileName = Path.GetFileNameWithoutExtension(project.ArchivePath) + ".copy.dat";
         var path = await _archivePicker.PickSaveArchiveAsync(fileName);
         if (path is null)
         {
@@ -1132,15 +1229,19 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         await RunSaveAsync(
-            () => _saveArchiveService.SaveCopyAsync(_project, path),
+            project,
+            () => _saveArchiveService.SaveCopyAsync(project, path),
             "\u5df2\u4fdd\u5b58\u526f\u672c\uff1a" + Path.GetFileName(path),
-            []);
+            [],
+            refreshMonitor: false);
     }
 
     private async Task<bool> RunSaveAsync(
+        EditorProject project,
         Func<Task<ValidationReport>> saveAction,
         string successMessage,
-        IReadOnlyCollection<ConfigDocumentViewModel> savedDocuments)
+        IReadOnlyCollection<ConfigDocumentViewModel> savedDocuments,
+        bool refreshMonitor = true)
     {
         IsBusy = true;
         ErrorMessage = null;
@@ -1158,10 +1259,11 @@ public sealed class MainWindowViewModel : ObservableObject
             StatusText = validationReport.Issues.Count == 0
                 ? successMessage
                 : $"{successMessage}；{FormatValidationCounts(validationReport)}";
-            ExternalChangeMessage = null;
-            if (_project is not null)
+            if (refreshMonitor)
             {
-                _archiveChangeMonitor.Watch(_project);
+                _archiveChangeMonitor.Watch(project);
+                _externallyChangedScopes.Remove(project.Scope);
+                RefreshExternalChangeMessage();
             }
 
             RefreshProjectState();
@@ -1191,8 +1293,8 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         _workspaceService.SwitchScope(scope);
         ActivateScopeState(scope);
-        ExternalChangeMessage = null;
         ErrorMessage = null;
+        RefreshExternalChangeMessage();
         ClearGlobalSearch();
         ClearValidationResults();
         ClearImportPreview();
@@ -1228,14 +1330,17 @@ public sealed class MainWindowViewModel : ObservableObject
             }
         }
 
-        _archiveChangeMonitor.Stop();
-        if (_project is not null)
-        {
-            _archiveChangeMonitor.Watch(_project);
-        }
-
+        var archiveState = _uiState.GetArchive(scope);
         var activeDocument = documents.FirstOrDefault(document =>
-            ReferenceEquals(document.Document, slot.ActiveDocument));
+            ReferenceEquals(document.Document, slot.ActiveDocument)) ??
+            documents.FirstOrDefault(document => string.Equals(
+                document.Key,
+                archiveState.ActiveDocumentKey,
+                StringComparison.OrdinalIgnoreCase)) ??
+            documents.FirstOrDefault(document => string.Equals(
+                document.Document.Definition.Category,
+                archiveState.ActiveCategory,
+                StringComparison.Ordinal));
         SelectDocument(activeDocument ?? documents.FirstOrDefault());
     }
 
@@ -1267,6 +1372,42 @@ public sealed class MainWindowViewModel : ObservableObject
         return true;
     }
 
+    public async Task<bool> TryCloseWorkspaceAsync()
+    {
+        if (IsBusy)
+        {
+            return false;
+        }
+
+        var dirtySlots = new[] { ConfigScope.Common, ConfigScope.Scenario }
+            .Select(scope => (Scope: scope, Slot: _workspaceService.Workspace.GetSlot(scope)))
+            .Where(item => item.Slot.Project?.HasUnsavedChanges == true)
+            .ToArray();
+        if (dirtySlots.Length == 0 || !ConfirmUnsavedChanges)
+        {
+            return true;
+        }
+
+        var archiveNames = dirtySlots
+            .Select(item => $"{GetScopeDisplayName(item.Scope)} {Path.GetFileName(item.Slot.ArchivePath)}")
+            .ToArray();
+        var dirtyDocuments = dirtySlots
+            .SelectMany(item => item.Slot.Documents
+                .Where(document => document.IsDirty)
+                .Select(document => $"{GetScopeDisplayName(item.Scope)} / {document.Definition.DisplayName}"))
+            .ToArray();
+        var choice = await _unsavedChangesPrompt.ShowAsync(
+            string.Join("、", archiveNames),
+            dirtyDocuments);
+
+        return choice switch
+        {
+            UnsavedChangesChoice.Discard => true,
+            UnsavedChangesChoice.Save => await SaveAllArchivesCoreAsync(),
+            _ => false
+        };
+    }
+
     private async Task<bool> ConfirmProjectCanCloseAsync()
     {
         if (_project is null || !_project.HasUnsavedChanges || !ConfirmUnsavedChanges)
@@ -1286,6 +1427,7 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             UnsavedChangesChoice.Discard => true,
             UnsavedChangesChoice.Save => await RunSaveAsync(
+                _project,
                 () => _saveArchiveService.SaveAllAsync(_project),
                 $"已保存 {dirtyDocuments.Length} 项配置",
                 _documents.Where(document => document.IsDirty).ToArray()),
@@ -1296,19 +1438,27 @@ public sealed class MainWindowViewModel : ObservableObject
     private void CloseCurrentProject()
     {
         var scope = ActiveScope;
+        var project = _project;
         DetachSlotDocuments(scope);
         if (_workspaceService.Workspace.GetSlot(scope).IsOpen)
         {
             _workspaceService.Close(scope);
         }
 
-        _archiveChangeMonitor.Stop();
+        RebuildReferenceIndexes();
+
+        if (project is not null)
+        {
+            _archiveChangeMonitor.Stop(project);
+        }
+
+        _externallyChangedScopes.Remove(scope);
         _project = null;
         _referenceIndex = null;
         _documents.Clear();
         Documents.Clear();
         SelectedDocument = null;
-        ExternalChangeMessage = null;
+        RefreshExternalChangeMessage();
         ErrorMessage = null;
         ClearGlobalSearch();
         ClearValidationResults();
@@ -1354,6 +1504,8 @@ public sealed class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(OpenActiveArchiveLabel));
         OnPropertyChanged(nameof(EmptyArchiveMessage));
         ((AsyncCommand)CloseProjectCommand).RaiseCanExecuteChanged();
+        ((AsyncCommand)SaveCurrentArchiveCommand).RaiseCanExecuteChanged();
+        ((AsyncCommand)SaveAllCommand).RaiseCanExecuteChanged();
         ((AsyncCommand)SaveAsCommand).RaiseCanExecuteChanged();
         ((AsyncCommand)SaveCopyCommand).RaiseCanExecuteChanged();
         ((AsyncCommand)ImportJsonCommand).RaiseCanExecuteChanged();
@@ -1367,8 +1519,11 @@ public sealed class MainWindowViewModel : ObservableObject
     private bool CanSaveDocument() =>
         !IsBusy && _project is not null && SelectedDocument?.IsDirty == true;
 
-    private bool CanSaveAll() =>
+    private bool CanSaveCurrentArchive() =>
         !IsBusy && _project?.Documents.Any(document => document.IsDirty) == true;
+
+    private bool CanSaveAll() =>
+        !IsBusy && _workspaceService.Workspace.HasUnsavedChanges;
 
     private bool CanSaveProject() => !IsBusy && _project is not null;
 
@@ -1394,6 +1549,7 @@ public sealed class MainWindowViewModel : ObservableObject
             ? "\u5c1a\u672a\u6253\u5f00\u6570\u636e\u6863\u6848"
             : $"{Path.GetFileName(_project.ArchivePath)}{(dirtyCount > 0 ? $" \u00b7 {dirtyCount} \u9879\u672a\u4fdd\u5b58" : string.Empty)}";
         ((AsyncCommand)SaveDocumentCommand).RaiseCanExecuteChanged();
+        ((AsyncCommand)SaveCurrentArchiveCommand).RaiseCanExecuteChanged();
         ((AsyncCommand)SaveAllCommand).RaiseCanExecuteChanged();
         ((AsyncCommand)SaveAsCommand).RaiseCanExecuteChanged();
         ((AsyncCommand)SaveCopyCommand).RaiseCanExecuteChanged();
@@ -1408,6 +1564,9 @@ public sealed class MainWindowViewModel : ObservableObject
         if (_project is not null)
         {
             _workspaceService.Workspace.ActiveSlot.ActivateDocument(document?.Document);
+            var archiveState = _uiState.GetArchive(ActiveScope);
+            archiveState.ActiveDocumentKey = document?.Key;
+            archiveState.ActiveCategory = document?.Document.Definition.Category;
         }
 
         if (document is null)
@@ -1466,7 +1625,8 @@ public sealed class MainWindowViewModel : ObservableObject
             ErrorMessage = null;
             var preflight = _validationPreflightService.Evaluate(
                 _project,
-                ValidationOperation.Publish);
+                ValidationOperation.Publish,
+                GetOpenProjects());
             UpdateValidationResults(preflight.Report, true);
             StatusText = preflight.Report.Issues.Count == 0
                 ? "校验通过，未发现问题"
@@ -1484,7 +1644,7 @@ public sealed class MainWindowViewModel : ObservableObject
         _allValidationIssues.Clear();
         foreach (var issue in report.Issues)
         {
-            var document = _documents.FirstOrDefault(candidate =>
+            var document = GetSlotDocuments(issue.Scope).FirstOrDefault(candidate =>
                 string.Equals(candidate.Key, issue.ConfigKey, StringComparison.OrdinalIgnoreCase));
             var fieldName = document?.Properties.FirstOrDefault(property =>
                 string.Equals(property.Name, issue.PropertyName, StringComparison.Ordinal))?.DisplayName
@@ -1572,7 +1732,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private void NavigateToValidationIssue(ValidationIssue issue)
     {
-        var document = _documents.FirstOrDefault(candidate =>
+        var document = GetSlotDocuments(issue.Scope).FirstOrDefault(candidate =>
             string.Equals(candidate.Key, issue.ConfigKey, StringComparison.OrdinalIgnoreCase));
         if (document is null)
         {
@@ -1580,6 +1740,7 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
+        SelectedArchiveTabIndex = issue.Scope == ConfigScope.Common ? 0 : 1;
         SelectDocument(document);
         document.NavigateTo(issue.ItemId, issue.PropertyName);
         SelectedDetailsTabIndex = 0;
@@ -1590,7 +1751,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private void NavigateToReference(ConfigReferenceTarget target)
     {
-        var document = _documents.FirstOrDefault(candidate =>
+        var document = GetSlotDocuments(target.Scope).FirstOrDefault(candidate =>
             string.Equals(candidate.Key, target.ConfigKey, StringComparison.OrdinalIgnoreCase));
         if (document is null)
         {
@@ -1598,6 +1759,7 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
+        SelectedArchiveTabIndex = target.Scope == ConfigScope.Common ? 0 : 1;
         SelectDocument(document);
         if (!document.NavigateToFilteredId(target.Id))
         {
@@ -1651,6 +1813,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public void SaveUiState()
     {
+        _uiState.ActiveScope = ActiveScope;
         try
         {
             _uiStateStore.Save(_uiState);
@@ -1661,13 +1824,15 @@ public sealed class MainWindowViewModel : ObservableObject
         }
     }
 
-    private void AddRecentProject(string archivePath)
+    private void AddRecentProject(string archivePath, ConfigScope scope)
     {
         var fullPath = Path.GetFullPath(archivePath);
-        _editorSettings.RecentProjects.RemoveAll(entry => PathsEqual(entry.ArchivePath, fullPath));
+        _editorSettings.RecentProjects.RemoveAll(entry =>
+            entry.Scope == scope && PathsEqual(entry.ArchivePath, fullPath));
         _editorSettings.RecentProjects.Insert(0, new RecentProjectEntry
         {
             ArchivePath = fullPath,
+            Scope = scope,
             LastOpenedAt = DateTimeOffset.UtcNow
         });
 
@@ -1682,9 +1847,10 @@ public sealed class MainWindowViewModel : ObservableObject
         RefreshRecentProjects();
     }
 
-    private void RemoveRecentProject(string archivePath)
+    private void RemoveRecentProject(string archivePath, ConfigScope scope)
     {
-        _editorSettings.RecentProjects.RemoveAll(entry => PathsEqual(entry.ArchivePath, archivePath));
+        _editorSettings.RecentProjects.RemoveAll(entry =>
+            entry.Scope == scope && PathsEqual(entry.ArchivePath, archivePath));
         SaveEditorSettings();
         RefreshRecentProjects();
     }
@@ -1705,7 +1871,11 @@ public sealed class MainWindowViewModel : ObservableObject
                      .Take(_editorSettings.RecentProjectLimit))
         {
             var path = entry.ArchivePath;
-            RecentProjects.Add(new RecentProjectViewModel(path, () => OpenArchivePathAsync(path)));
+            var scope = entry.Scope;
+            RecentProjects.Add(new RecentProjectViewModel(
+                path,
+                scope,
+                () => OpenRecentArchiveAsync(path, scope)));
         }
 
         OnPropertyChanged(nameof(HasRecentProjects));
@@ -1761,11 +1931,7 @@ public sealed class MainWindowViewModel : ObservableObject
         }
         if (_project is not null && _referenceIndex is not null)
         {
-            _referenceIndex.Rebuild(_project);
-            foreach (var projectDocument in _documents)
-            {
-                projectDocument.RefreshReferenceOptions();
-            }
+            RebuildReferenceIndexes();
         }
 
         RefreshProjectState();
@@ -1776,12 +1942,65 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private void ShowExternalChange(string archivePath)
     {
-        ExternalChangeMessage =
-            $"{Path.GetFileName(archivePath)} 已被外部程序修改。为避免覆盖，保存到原档案将被阻止；可先另存为保留当前编辑，再重新打开外部版本。";
+        foreach (var scope in new[] { ConfigScope.Common, ConfigScope.Scenario })
+        {
+            var slotPath = _workspaceService.Workspace.GetSlot(scope).ArchivePath;
+            if (slotPath is not null && PathsEqual(slotPath, archivePath))
+            {
+                _externallyChangedScopes.Add(scope);
+                break;
+            }
+        }
+
+        RefreshExternalChangeMessage();
         StatusText = "检测到数据档案的外部变更";
     }
 
-    private void DismissExternalChange() => ExternalChangeMessage = null;
+    private void RefreshExternalChangeMessage()
+    {
+        var changedArchives = _externallyChangedScopes
+            .Select(scope =>
+            {
+                var slot = _workspaceService.Workspace.GetSlot(scope);
+                return $"{GetScopeDisplayName(scope)} {Path.GetFileName(slot.ArchivePath)}";
+            })
+            .ToArray();
+        ExternalChangeMessage = changedArchives.Length == 0
+            ? null
+            : $"{string.Join("、", changedArchives)} 已被外部程序修改。为避免覆盖，保存到原档案将被阻止；可先另存为保留当前编辑，再重新打开外部版本。";
+    }
+
+    private IReadOnlyList<ConfigDocumentViewModel> GetSlotDocuments(ConfigScope scope) =>
+        _slotDocuments.TryGetValue(scope, out var documents) ? documents : [];
+
+    private IReadOnlyList<EditorProject> GetOpenProjects() =>
+        new[] { ConfigScope.Common, ConfigScope.Scenario }
+            .Select(scope => _workspaceService.Workspace.GetSlot(scope).Project)
+            .OfType<EditorProject>()
+            .ToArray();
+
+    private void RebuildReferenceIndexes()
+    {
+        var projects = GetOpenProjects();
+        foreach (var index in _slotReferenceIndexes.Values.Distinct())
+        {
+            index.Rebuild(projects);
+        }
+
+        foreach (var document in _slotDocuments.Values.SelectMany(documents => documents))
+        {
+            document.RefreshReferenceOptions();
+        }
+    }
+
+    private static string GetScopeDisplayName(ConfigScope scope) =>
+        scope == ConfigScope.Common ? "Common" : "剧本/存档";
+
+    private void DismissExternalChange()
+    {
+        _externallyChangedScopes.Clear();
+        RefreshExternalChangeMessage();
+    }
 }
 
 public sealed class GlobalSearchResultViewModel
@@ -1805,13 +2024,16 @@ public sealed class GlobalSearchResultViewModel
 
 public sealed class RecentProjectViewModel
 {
-    public RecentProjectViewModel(string archivePath, Func<Task> open)
+    public RecentProjectViewModel(string archivePath, ConfigScope scope, Func<Task> open)
     {
         ArchivePath = archivePath;
+        Scope = scope;
         OpenCommand = new AsyncCommand(open);
     }
 
     public string ArchivePath { get; }
+    public ConfigScope Scope { get; }
+    public string ScopeDisplayName => Scope == ConfigScope.Common ? "Common" : "剧本/存档";
     public string DisplayName => Path.GetFileName(ArchivePath);
     public string DirectoryName => Path.GetDirectoryName(ArchivePath) ?? ArchivePath;
     public bool Exists => File.Exists(ArchivePath);

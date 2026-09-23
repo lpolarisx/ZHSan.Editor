@@ -12,7 +12,11 @@ public sealed record ConfigReferenceTarget(
     string ConfigDisplayName,
     int Id,
     string DisplayName,
-    object Item);
+    object Item,
+    ConfigScope Scope = ConfigScope.Common)
+{
+    public ConfigAddress Address => new(Scope, ConfigKey);
+}
 
 public sealed record ConfigReferenceSource(
     string ConfigKey,
@@ -23,10 +27,14 @@ public sealed record ConfigReferenceSource(
     object Item,
     ConfigPropertyDefinition Property,
     string TargetConfigKey,
-    int TargetId)
+    int TargetId,
+    ConfigScope Scope = ConfigScope.Common,
+    ConfigScope TargetScope = ConfigScope.Common)
 {
+    public ConfigAddress Address => new(Scope, ConfigKey);
+    public ConfigAddress TargetAddress => new(TargetScope, TargetConfigKey);
     public ConfigReferenceDefinition Definition =>
-        Property.Reference ?? new ConfigReferenceDefinition(TargetConfigKey);
+        Property.Reference ?? new ConfigReferenceDefinition(TargetConfigKey, targetScope: TargetScope);
 }
 
 public sealed record ConfigReferenceImpact(
@@ -36,16 +44,16 @@ public sealed record ConfigReferenceImpact(
 public sealed class ConfigReferenceIndex
 {
     private readonly IConfigMetadataProvider _metadataProvider;
-    private IReadOnlyDictionary<string, IReadOnlyList<ConfigReferenceTarget>> _targets =
-        new ReadOnlyDictionary<string, IReadOnlyList<ConfigReferenceTarget>>(
-            new Dictionary<string, IReadOnlyList<ConfigReferenceTarget>>(StringComparer.OrdinalIgnoreCase));
-    private IReadOnlyDictionary<string, IReadOnlySet<int>> _targetIds =
-        new Dictionary<string, IReadOnlySet<int>>(StringComparer.OrdinalIgnoreCase);
-    private IReadOnlyDictionary<string, IReadOnlyDictionary<int, IReadOnlyList<ConfigReferenceSource>>>
+    private IReadOnlyDictionary<ConfigAddress, IReadOnlyList<ConfigReferenceTarget>> _targets =
+        new ReadOnlyDictionary<ConfigAddress, IReadOnlyList<ConfigReferenceTarget>>(
+            new Dictionary<ConfigAddress, IReadOnlyList<ConfigReferenceTarget>>());
+    private IReadOnlyDictionary<ConfigAddress, IReadOnlySet<int>> _targetIds =
+        new Dictionary<ConfigAddress, IReadOnlySet<int>>();
+    private IReadOnlyDictionary<ConfigAddress, IReadOnlyDictionary<int, IReadOnlyList<ConfigReferenceSource>>>
         _referencesByTarget =
-            new Dictionary<string, IReadOnlyDictionary<int, IReadOnlyList<ConfigReferenceSource>>>(
-                StringComparer.OrdinalIgnoreCase);
+            new Dictionary<ConfigAddress, IReadOnlyDictionary<int, IReadOnlyList<ConfigReferenceSource>>>();
     private IReadOnlyList<ConfigReferenceSource> _references = [];
+    private IReadOnlySet<ConfigScope> _indexedScopes = new HashSet<ConfigScope>();
 
     public ConfigReferenceIndex(IConfigMetadataProvider metadataProvider)
     {
@@ -56,96 +64,118 @@ public sealed class ConfigReferenceIndex
     public IReadOnlyList<ConfigReferenceSource> References => _references;
 
     public void Rebuild(EditorProject project, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(project);
+        => Rebuild([project], cancellationToken);
 
-        var targets = new Dictionary<string, IReadOnlyList<ConfigReferenceTarget>>(
-            StringComparer.OrdinalIgnoreCase);
-        foreach (var document in project.Documents)
+    public void Rebuild(
+        IEnumerable<EditorProject> projects,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(projects);
+        var projectList = projects.ToArray();
+        if (projectList.Select(project => project.Scope).Distinct().Count() != projectList.Length)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            targets[document.Definition.Key] = document.Items
-                .Select(item => CreateTarget(
-                    document.Definition.Key,
-                    document.Definition.DisplayName,
-                    item))
-                .OfType<ConfigReferenceTarget>()
-                .ToArray();
+            throw new ArgumentException("每个数据作用域只能索引一个项目。", nameof(projects));
+        }
+
+        var targets = new Dictionary<ConfigAddress, IReadOnlyList<ConfigReferenceTarget>>();
+        foreach (var project in projectList)
+        {
+            foreach (var document in project.Documents)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                targets[document.Definition.Address] = document.Items
+                    .Select(item => CreateTarget(document.Definition, item))
+                    .OfType<ConfigReferenceTarget>()
+                    .ToArray();
+            }
         }
 
         var references = new List<ConfigReferenceSource>();
-        foreach (var document in project.Documents)
+        foreach (var project in projectList)
         {
-            var properties = _metadataProvider
-                .GetProperties(document.Definition.ItemType)
-                .Where(property => property.Reference is not null || property.StructuredString is not null)
-                .ToArray();
-
-            for (var itemIndex = 0; itemIndex < document.Items.Count; itemIndex++)
+            foreach (var document in project.Documents)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var item = document.Items[itemIndex];
-                var recordId = GetIntProperty(item, "Id");
-                foreach (var property in properties)
+                var properties = _metadataProvider
+                    .GetProperties(document.Definition.ItemType)
+                    .Where(property => property.Reference is not null || property.StructuredString is not null)
+                    .ToArray();
+
+                for (var itemIndex = 0; itemIndex < document.Items.Count; itemIndex++)
                 {
-                    var propertyInfo = item.GetType().GetProperty(
-                        property.Name,
-                        BindingFlags.Instance | BindingFlags.Public)
-                        ?? throw new InvalidOperationException(
-                            $"类型 {item.GetType().FullName} 不包含引用元数据声明的属性 {property.Name}。");
-                    foreach (var targetId in GetReferenceIds(propertyInfo.GetValue(item), property))
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var item = document.Items[itemIndex];
+                    var recordId = GetIntProperty(item, "Id");
+                    foreach (var property in properties)
                     {
-                        var targetConfigKey = property.Reference?.TargetConfigKey ??
-                                              property.StructuredString!.TargetConfigKey;
-                        if (property.Reference?.IsEmpty(targetId) != true)
+                        var propertyInfo = item.GetType().GetProperty(
+                            property.Name,
+                            BindingFlags.Instance | BindingFlags.Public)
+                            ?? throw new InvalidOperationException(
+                                $"类型 {item.GetType().FullName} 不包含引用元数据声明的属性 {property.Name}。");
+                        foreach (var targetId in GetReferenceIds(propertyInfo.GetValue(item), property))
                         {
-                            references.Add(new ConfigReferenceSource(
-                                document.Definition.Key,
-                                document.Definition.DisplayName,
-                                recordId,
-                                GetRecordDisplayName(item, recordId),
-                                itemIndex,
-                                item,
-                                property,
-                                targetConfigKey,
-                                targetId));
+                            var targetAddress = property.Reference?.TargetAddress ??
+                                                property.StructuredString!.TargetAddress;
+                            if (property.Reference?.IsEmpty(targetId) != true)
+                            {
+                                references.Add(new ConfigReferenceSource(
+                                    document.Definition.Key,
+                                    document.Definition.DisplayName,
+                                    recordId,
+                                    GetRecordDisplayName(item, recordId),
+                                    itemIndex,
+                                    item,
+                                    property,
+                                    targetAddress.Key,
+                                    targetId,
+                                    document.Definition.Scope,
+                                    targetAddress.Scope));
+                            }
                         }
                     }
                 }
             }
         }
 
-        _targets = new ReadOnlyDictionary<string, IReadOnlyList<ConfigReferenceTarget>>(targets);
+        _targets = new ReadOnlyDictionary<ConfigAddress, IReadOnlyList<ConfigReferenceTarget>>(targets);
         _targetIds = targets.ToDictionary(
             pair => pair.Key,
-            pair => (IReadOnlySet<int>)pair.Value.Select(target => target.Id).ToHashSet(),
-            StringComparer.OrdinalIgnoreCase);
+            pair => (IReadOnlySet<int>)pair.Value.Select(target => target.Id).ToHashSet());
         _referencesByTarget = references
-            .GroupBy(reference => reference.TargetConfigKey, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(reference => reference.TargetAddress)
             .ToDictionary(
                 group => group.Key,
                 group => (IReadOnlyDictionary<int, IReadOnlyList<ConfigReferenceSource>>)group
                     .GroupBy(reference => reference.TargetId)
                     .ToDictionary(
                         idGroup => idGroup.Key,
-                        idGroup => (IReadOnlyList<ConfigReferenceSource>)idGroup.ToArray()),
-                StringComparer.OrdinalIgnoreCase);
+                        idGroup => (IReadOnlyList<ConfigReferenceSource>)idGroup.ToArray()));
         _references = references.AsReadOnly();
+        _indexedScopes = projectList.Select(project => project.Scope).ToHashSet();
     }
 
-    public IReadOnlyList<ConfigReferenceTarget> GetTargets(string configKey)
+    public bool IsScopeIndexed(ConfigScope scope) => _indexedScopes.Contains(scope);
+
+    public IReadOnlyList<ConfigReferenceTarget> GetTargets(string configKey) =>
+        GetTargets(new ConfigAddress(ConfigScope.Common, configKey));
+
+    public IReadOnlyList<ConfigReferenceTarget> GetTargets(ConfigAddress address)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(configKey);
-        return _targets.GetValueOrDefault(configKey) ?? [];
+        return _targets.GetValueOrDefault(address) ?? [];
     }
 
     public bool ContainsTarget(string configKey, int id) =>
-        _targetIds.TryGetValue(configKey, out var ids) && ids.Contains(id);
+        ContainsTarget(new ConfigAddress(ConfigScope.Common, configKey), id);
 
-    public IReadOnlyList<ConfigReferenceSource> GetReferencesTo(string configKey, int id)
+    public bool ContainsTarget(ConfigAddress address, int id) =>
+        _targetIds.TryGetValue(address, out var ids) && ids.Contains(id);
+
+    public IReadOnlyList<ConfigReferenceSource> GetReferencesTo(string configKey, int id) =>
+        GetReferencesTo(new ConfigAddress(ConfigScope.Common, configKey), id);
+
+    public IReadOnlyList<ConfigReferenceSource> GetReferencesTo(ConfigAddress address, int id)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(configKey);
-        return _referencesByTarget.TryGetValue(configKey, out var byId) &&
+        return _referencesByTarget.TryGetValue(address, out var byId) &&
                byId.TryGetValue(id, out var references)
             ? references
             : [];
@@ -153,18 +183,22 @@ public sealed class ConfigReferenceIndex
 
     public IReadOnlyList<ConfigReferenceImpact> GetDeletionImpacts(
         string configKey,
+        IEnumerable<object> items) =>
+        GetDeletionImpacts(new ConfigAddress(ConfigScope.Common, configKey), items);
+
+    public IReadOnlyList<ConfigReferenceImpact> GetDeletionImpacts(
+        ConfigAddress address,
         IEnumerable<object> items)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(configKey);
         ArgumentNullException.ThrowIfNull(items);
 
         var selectedItems = items.ToArray();
-        return GetTargets(configKey)
+        return GetTargets(address)
             .Where(target => selectedItems.Any(item => ReferenceEquals(item, target.Item)))
             .GroupBy(target => target.Id)
             .Select(group =>
             {
-                var references = GetReferencesTo(configKey, group.Key)
+                var references = GetReferencesTo(address, group.Key)
                     .Where(reference => selectedItems.All(item => !ReferenceEquals(item, reference.Item)))
                     .ToArray();
                 return new ConfigReferenceImpact(group.First(), references);
@@ -174,8 +208,7 @@ public sealed class ConfigReferenceIndex
     }
 
     private static ConfigReferenceTarget? CreateTarget(
-        string configKey,
-        string configDisplayName,
+        ConfigDefinition definition,
         object item)
     {
         var id = GetIntProperty(item, "Id");
@@ -188,11 +221,12 @@ public sealed class ConfigReferenceIndex
             "Name",
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase)?.GetValue(item)?.ToString();
         return new ConfigReferenceTarget(
-            configKey,
-            configDisplayName,
+            definition.Key,
+            definition.DisplayName,
             id.Value,
             string.IsNullOrWhiteSpace(name) ? $"#{id.Value}" : name,
-            item);
+            item,
+            definition.Scope);
     }
 
     private static string GetRecordDisplayName(object item, int? id)
