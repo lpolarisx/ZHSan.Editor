@@ -33,7 +33,9 @@
   <DockPanel>
     <Menu DockPanel.Dock="Top">
       <MenuItem Header="文件">
-        <MenuItem Header="打开数据档案…" Command="{Binding OpenArchiveCommand}" InputGesture="Ctrl+O" />
+        <MenuItem Header="打开当前档案…" Command="{Binding OpenArchiveCommand}" InputGesture="Ctrl+O" />
+        <MenuItem Header="打开 CommonData…" Command="{Binding OpenCommonArchiveCommand}" />
+        <MenuItem Header="打开剧本 / 存档…" Command="{Binding OpenScenarioArchiveCommand}" />
         <MenuItem Header="关闭项目" Command="{Binding CloseProjectCommand}" InputGesture="Ctrl+W" />
         <Separator />
         <MenuItem Header="保存当前配置" Command="{Binding SaveDocumentCommand}" InputGesture="Ctrl+S" />
@@ -100,11 +102,17 @@
                       ToolTip.Tip="显示或隐藏右侧属性详情" />
         <StackPanel Grid.Column="14" VerticalAlignment="Center">
           <TextBlock Text="{Binding ProjectTitle}" FontWeight="SemiBold" />
-          <TextBlock Text="GameDataArchive · CommonData.dat" FontSize="12" Opacity="0.58" />
+          <TextBlock Text="{Binding ActiveScopeDisplayName}" FontSize="12" Opacity="0.58" />
         </StackPanel>
         <TextBlock Grid.Column="15" Text="NET 9 · Avalonia" VerticalAlignment="Center" Opacity="0.58" />
       </Grid>
     </Border>
+
+    <TabControl DockPanel.Dock="Top" Height="42"
+                SelectedIndex="{Binding SelectedArchiveTabIndex, Mode=TwoWay}">
+      <TabItem Header="{Binding CommonTabHeader}" />
+      <TabItem Header="{Binding ScenarioTabHeader}" />
+    </TabControl>
 
     <Border DockPanel.Dock="Top" Padding="14,10" Background="#FFF4CE"
             IsVisible="{Binding HasExternalChange}">
@@ -142,28 +150,38 @@
           <Grid RowDefinitions="Auto,*">
             <StackPanel Margin="14,14,14,10" Spacing="3">
               <TextBlock Text="配置导航" FontSize="16" FontWeight="SemiBold" />
-              <TextBlock Text="全部配置" FontSize="12" Opacity="0.58" />
+              <TextBlock Text="{Binding ActiveScopeDisplayName}" FontSize="12" Opacity="0.58" />
             </StackPanel>
             <ScrollViewer Grid.Row="1">
-              <ItemsControl ItemsSource="{Binding Documents}" Margin="8,0,8,12">
+              <ItemsControl ItemsSource="{Binding ArchiveCategories}" Margin="8,0,8,12">
                 <ItemsControl.Styles>
                   <Style Selector="ContentPresenter">
                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                   </Style>
                 </ItemsControl.Styles>
                 <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:ConfigDocumentViewModel">
-                    <Button Command="{Binding SelectCommand}"
-                            HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Stretch"
-                            Padding="10,7" Margin="4,1">
-                      <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="{Binding DisplayLabel}" TextTrimming="CharacterEllipsis" />
-                        <Border Grid.Column="1" CornerRadius="8" Padding="7,1" Background="#223B82F6">
-                          <TextBlock Text="{Binding ItemCount}" FontSize="11" />
-                        </Border>
-                      </Grid>
-                    </Button>
+                  <DataTemplate x:DataType="vm:ConfigCategoryViewModel">
+                    <StackPanel Margin="0,4,0,5">
+                      <TextBlock Text="{Binding Header}" FontSize="12" FontWeight="SemiBold"
+                                 Opacity="0.68" Margin="8,5,8,3" />
+                      <ItemsControl ItemsSource="{Binding Documents}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:ConfigDocumentViewModel">
+                            <Button Command="{Binding SelectCommand}"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch"
+                                    Padding="10,7" Margin="4,1">
+                              <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="{Binding DisplayLabel}" TextTrimming="CharacterEllipsis" />
+                                <Border Grid.Column="1" CornerRadius="8" Padding="7,1" Background="#223B82F6">
+                                  <TextBlock Text="{Binding ItemCount}" FontSize="11" />
+                                </Border>
+                              </Grid>
+                            </Button>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
@@ -256,11 +274,11 @@
                 <TextBlock Text="数" FontSize="32" FontWeight="Bold" HorizontalAlignment="Center"
                            VerticalAlignment="Center" Foreground="#6EA8FE" />
               </Border>
-              <TextBlock Text="打开数据档案开始编辑" FontSize="18" FontWeight="SemiBold"
+              <TextBlock Text="{Binding EmptyArchiveMessage}" FontSize="18" FontWeight="SemiBold"
                          HorizontalAlignment="Center" />
-              <TextBlock Text="选择 CommonData.dat 后，可在此搜索、排序、多选和管理配置记录。"
+              <TextBlock Text="当前槽位独立保存活动配置和编辑状态；可随时切换上方档案 Tab。"
                          TextWrapping="Wrap" TextAlignment="Center" Opacity="0.62" />
-              <Button Content="打开数据档案…" Command="{Binding OpenArchiveCommand}"
+              <Button Content="{Binding OpenActiveArchiveLabel}" Command="{Binding OpenArchiveCommand}"
                       HorizontalAlignment="Center" />
               <Button Content="转换旧版游戏剧本…" Command="{Binding ConvertLegacyScenarioCommand}"
                       HorizontalAlignment="Center" />

@@ -117,6 +117,36 @@ public sealed class MainWindowProjectLifecycleTests
         Assert.DoesNotContain("过期", viewModel.ValidationSummary);
     }
 
+    [Fact]
+    public void ArchiveTabs_GroupDocumentsAndPreserveSelectionAndEditsAcrossScopes()
+    {
+        using var context = new TestContext();
+        var viewModel = context.CreateViewModel(includeScenario: true);
+        viewModel.OpenArchiveCommand.Execute(null);
+
+        Assert.Equal(2, viewModel.ArchiveCategories.Count);
+        Assert.Equal(2, viewModel.Documents.Count);
+        var selectedCommon = viewModel.Documents[1];
+        selectedCommon.SelectCommand.Execute(null);
+        selectedCommon.Document.IsDirty = true;
+
+        context.Picker.ArchivePath = context.ScenarioArchivePath;
+        viewModel.OpenScenarioArchiveCommand.Execute(null);
+
+        Assert.Equal(1, viewModel.SelectedArchiveTabIndex);
+        Assert.Equal("剧本 / 存档", viewModel.ActiveScopeDisplayName);
+        Assert.Single(viewModel.ArchiveCategories);
+        Assert.Single(viewModel.Documents);
+        Assert.Contains("Scenario.dat", viewModel.ScenarioTabHeader, StringComparison.Ordinal);
+
+        viewModel.SelectedArchiveTabIndex = 0;
+
+        Assert.Same(selectedCommon, viewModel.SelectedDocument);
+        Assert.True(selectedCommon.Document.IsDirty);
+        Assert.Equal(2, viewModel.ArchiveCategories.Count);
+        Assert.Contains("●", viewModel.CommonTabHeader, StringComparison.Ordinal);
+    }
+
     private sealed class TestContext : IDisposable
     {
         private readonly string _directory = Directory.CreateTempSubdirectory("zhsan-lifecycle-").FullName;
@@ -124,21 +154,35 @@ public sealed class MainWindowProjectLifecycleTests
         public TestContext()
         {
             ArchivePath = Path.Combine(_directory, "CommonData.dat");
+            ScenarioArchivePath = Path.Combine(_directory, "Scenario.dat");
             File.WriteAllBytes(ArchivePath, []);
+            File.WriteAllBytes(ScenarioArchivePath, []);
             Repository = new FakeArchiveRepository();
+            Picker = new FakeArchivePicker(ArchivePath);
         }
 
         public string ArchivePath { get; }
+        public string ScenarioArchivePath { get; }
         public FakeArchiveRepository Repository { get; }
+        public FakeArchivePicker Picker { get; }
         public FakeArchiveChangeMonitor Monitor { get; } = new();
         public FakeUnsavedChangesPrompt Prompt { get; } = new();
         public MemoryEditorSettingsStore Settings { get; } = new();
 
-        public MainWindowViewModel CreateViewModel()
+        public MainWindowViewModel CreateViewModel(bool includeScenario = false)
         {
             var definition = new ConfigDefinition(
                 "techniques", "技术", "测试", "Techniques.json", typeof(TechniqueConfig));
-            var registry = new FakeConfigRegistry(definition);
+            var definitions = new List<ConfigDefinition> { definition };
+            if (includeScenario)
+            {
+                definitions.Add(new ConfigDefinition(
+                    "statuses", "状态", "其他", "Statuses.json", typeof(TechniqueConfig)));
+                definitions.Add(new ConfigDefinition(
+                    "people", "人物", "人物", "Persons.json", typeof(TechniqueConfig), ConfigScope.Scenario));
+            }
+
+            var registry = new FakeConfigRegistry(definitions);
             var metadataProvider = new ReflectionConfigMetadataProvider();
             var validationService = new ConfigValidationService(
                 metadataProvider,
@@ -152,7 +196,7 @@ public sealed class MainWindowProjectLifecycleTests
                 validationPreflightService,
                 Monitor,
                 metadataProvider,
-                new FakeArchivePicker(ArchivePath),
+                Picker,
                 Prompt,
                 Settings,
                 new EditorUiStateStore(Path.Combine(_directory, "ui-state.json")));
@@ -161,14 +205,15 @@ public sealed class MainWindowProjectLifecycleTests
         public void Dispose() => Directory.Delete(_directory, true);
     }
 
-    private sealed class FakeConfigRegistry(ConfigDefinition definition) : IConfigRegistry
+    private sealed class FakeConfigRegistry(IReadOnlyList<ConfigDefinition> definitions) : IConfigRegistry
     {
-        public IReadOnlyList<ConfigDefinition> Definitions { get; } = [definition];
+        public IReadOnlyList<ConfigDefinition> Definitions { get; } =
+            definitions.Where(item => item.Scope == ConfigScope.Common).ToArray();
         public IReadOnlyList<ConfigDefinition> GetDefinitions(ConfigScope scope) =>
-            definition.Scope == scope ? Definitions : [];
+            definitions.Where(item => item.Scope == scope).ToArray();
         public ConfigDefinition? Find(string key) => Definitions.SingleOrDefault(item => item.Key == key);
         public ConfigDefinition? Find(ConfigAddress address) =>
-            Definitions.SingleOrDefault(item => item.Address == address);
+            definitions.SingleOrDefault(item => item.Address == address);
     }
 
     private sealed class FakeArchiveRepository : IGameDataArchiveRepository
@@ -181,15 +226,15 @@ public sealed class MainWindowProjectLifecycleTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new EditorProject
             {
+                Scope = definitions[0].Scope,
                 ArchivePath = Path.GetFullPath(archivePath),
-                Documents =
-                [
-                    new ConfigDocument
+                Documents = definitions
+                    .Select((definition, index) => new ConfigDocument
                     {
-                        Definition = definitions[0],
-                        Items = [new TechniqueConfig { Id = 1, Name = "技术" }]
-                    }
-                ]
+                        Definition = definition,
+                        Items = [new TechniqueConfig { Id = index + 1, Name = definition.DisplayName }]
+                    })
+                    .ToArray()
             });
 
         public Task SaveAsync(EditorProject project, CancellationToken cancellationToken = default)
@@ -235,8 +280,10 @@ public sealed class MainWindowProjectLifecycleTests
 
     private sealed class FakeArchivePicker(string archivePath) : IArchivePicker
     {
+        public string ArchivePath { get; set; } = archivePath;
+
         public Task<string?> PickArchiveAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<string?>(archivePath);
+            Task.FromResult<string?>(ArchivePath);
 
         public Task<string?> PickSaveArchiveAsync(
             string suggestedFileName,

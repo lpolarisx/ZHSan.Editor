@@ -12,6 +12,7 @@ using ZHSan.Editor.Application.Transfers;
 using ZHSan.Editor.Application.Validation;
 using ZHSan.Editor.Desktop.Services;
 using ZHSan.Editor.Desktop.Editors;
+using ZHSan.Editor.Domain.Configuration;
 using ZHSan.Editor.Domain.Documents;
 using ZHSan.Editor.Domain.Importing;
 using ZHSan.Editor.Domain.Validation;
@@ -20,7 +21,7 @@ namespace ZHSan.Editor.Desktop.ViewModels;
 
 public sealed class MainWindowViewModel : ObservableObject
 {
-    private readonly OpenArchiveService _openArchiveService;
+    private readonly EditorWorkspaceService _workspaceService;
     private readonly SaveArchiveService _saveArchiveService;
     private readonly ValidationPreflightService _validationPreflightService;
     private readonly IArchiveChangeMonitor _archiveChangeMonitor;
@@ -41,6 +42,9 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly RecordClipboard _recordClipboard = new();
     private readonly ConfigEditorProviderRegistry _editorProviderRegistry;
     private readonly List<ConfigDocumentViewModel> _documents = [];
+    private readonly Dictionary<ConfigScope, IReadOnlyList<ConfigDocumentViewModel>> _slotDocuments = [];
+    private readonly Dictionary<ConfigScope, IReadOnlyList<ConfigCategoryViewModel>> _slotCategories = [];
+    private readonly Dictionary<ConfigScope, ConfigReferenceIndex> _slotReferenceIndexes = [];
     private readonly List<ValidationIssueViewModel> _allValidationIssues = [];
     private ConfigReferenceIndex? _referenceIndex;
     private ConfigImportReadResult? _importSource;
@@ -63,6 +67,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private ImportStrategyOptionViewModel _selectedImportStrategy;
     private bool _isNavigationPaneVisible;
     private bool _isDetailsPaneVisible;
+    private int _selectedArchiveTabIndex;
 
     public MainWindowViewModel(
         OpenArchiveService openArchiveService,
@@ -81,9 +86,10 @@ public sealed class MainWindowViewModel : ObservableObject
         PublishArchiveService? publishArchiveService = null,
         ConfigEditorProviderRegistry? editorProviderRegistry = null,
         ILegacyScenarioConverter? legacyScenarioConverter = null,
-        ILegacyCommonDataConverter? legacyCommonDataConverter = null)
+        ILegacyCommonDataConverter? legacyCommonDataConverter = null,
+        EditorWorkspaceService? workspaceService = null)
     {
-        _openArchiveService = openArchiveService;
+        _workspaceService = workspaceService ?? new EditorWorkspaceService(openArchiveService);
         _saveArchiveService = saveArchiveService;
         _validationPreflightService = validationPreflightService;
         _archiveChangeMonitor = archiveChangeMonitor;
@@ -106,6 +112,12 @@ public sealed class MainWindowViewModel : ObservableObject
         _isNavigationPaneVisible = _uiState.IsNavigationPaneVisible;
         _isDetailsPaneVisible = _uiState.IsDetailsPaneVisible;
         OpenArchiveCommand = new AsyncCommand(OpenArchiveAsync, () => !IsBusy);
+        OpenCommonArchiveCommand = new AsyncCommand(
+            () => OpenArchiveForScopeAsync(ConfigScope.Common),
+            () => !IsBusy);
+        OpenScenarioArchiveCommand = new AsyncCommand(
+            () => OpenArchiveForScopeAsync(ConfigScope.Scenario),
+            () => !IsBusy);
         CloseProjectCommand = new AsyncCommand(CloseProjectAsync, () => !IsBusy && _project is not null);
         SaveDocumentCommand = new AsyncCommand(SaveDocumentAsync, CanSaveDocument);
         SaveAllCommand = new AsyncCommand(SaveAllAsync, CanSaveAll);
@@ -160,6 +172,7 @@ public sealed class MainWindowViewModel : ObservableObject
     }
 
     public ObservableCollection<ConfigDocumentViewModel> Documents { get; } = [];
+    public ObservableCollection<ConfigCategoryViewModel> ArchiveCategories { get; } = [];
     public ObservableCollection<GlobalSearchResultViewModel> GlobalSearchResults { get; } = [];
     public ObservableCollection<ValidationIssueViewModel> ValidationIssues { get; } = [];
     public ObservableCollection<RecentProjectViewModel> RecentProjects { get; } = [];
@@ -168,6 +181,8 @@ public sealed class MainWindowViewModel : ObservableObject
     public ObservableCollection<ImportFailureViewModel> ImportFailures { get; } = [];
     public ObservableCollection<ImportLogEntryViewModel> ImportLogEntries { get; } = [];
     public ICommand OpenArchiveCommand { get; }
+    public ICommand OpenCommonArchiveCommand { get; }
+    public ICommand OpenScenarioArchiveCommand { get; }
     public ICommand CloseProjectCommand { get; }
     public ICommand SaveDocumentCommand { get; }
     public ICommand SaveAllCommand { get; }
@@ -201,6 +216,31 @@ public sealed class MainWindowViewModel : ObservableObject
     public bool HasImportPreview => _importPreview is not null;
     public bool HasImportFailures => ImportFailures.Count > 0;
     public bool HasImportLogEntries => ImportLogEntries.Count > 0;
+
+    public int SelectedArchiveTabIndex
+    {
+        get => _selectedArchiveTabIndex;
+        set
+        {
+            if (value is < 0 or > 1 || !SetProperty(ref _selectedArchiveTabIndex, value))
+            {
+                return;
+            }
+
+            SwitchActiveScope(value == 0 ? ConfigScope.Common : ConfigScope.Scenario);
+        }
+    }
+
+    public string CommonTabHeader => GetArchiveTabHeader(ConfigScope.Common, "Common");
+    public string ScenarioTabHeader => GetArchiveTabHeader(ConfigScope.Scenario, "剧本 / 存档");
+    public string ActiveScopeDisplayName => ActiveScope == ConfigScope.Common ? "Common" : "剧本 / 存档";
+    public string OpenActiveArchiveLabel => ActiveScope == ConfigScope.Common
+        ? "打开 CommonData.dat"
+        : "打开剧本 / 存档";
+    public string EmptyArchiveMessage => $"尚未打开{ActiveScopeDisplayName}档案";
+    private ConfigScope ActiveScope => SelectedArchiveTabIndex == 0
+        ? ConfigScope.Common
+        : ConfigScope.Scenario;
 
     public bool IsNavigationPaneVisible
     {
@@ -344,6 +384,8 @@ public sealed class MainWindowViewModel : ObservableObject
             if (SetProperty(ref _isBusy, value))
             {
                 ((AsyncCommand)OpenArchiveCommand).RaiseCanExecuteChanged();
+                ((AsyncCommand)OpenCommonArchiveCommand).RaiseCanExecuteChanged();
+                ((AsyncCommand)OpenScenarioArchiveCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)CloseProjectCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)SaveDocumentCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)SaveAllCommand).RaiseCanExecuteChanged();
@@ -423,7 +465,7 @@ public sealed class MainWindowViewModel : ObservableObject
     public string SelectedDocumentTitle => SelectedDocument?.DisplayName ?? "欢迎使用 ZHSan 编辑器";
 
     public string SelectedDocumentSummary => SelectedDocument is null
-        ? "打开 CommonData.dat 后，从左侧选择一项配置开始查看和编辑。"
+        ? $"打开{ActiveScopeDisplayName}档案后，从左侧选择一项配置开始查看和编辑。"
         : $"{SelectedDocument.EntryName} · {SelectedDocument.ItemCount} 条记录";
 
     private async Task OpenArchiveAsync()
@@ -435,6 +477,12 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         await OpenArchivePathAsync(path);
+    }
+
+    private async Task OpenArchiveForScopeAsync(ConfigScope scope)
+    {
+        SelectedArchiveTabIndex = scope == ConfigScope.Common ? 0 : 1;
+        await OpenArchiveAsync();
     }
 
     private async Task ImportJsonAsync()
@@ -964,7 +1012,8 @@ public sealed class MainWindowViewModel : ObservableObject
 
         try
         {
-            var project = await _openArchiveService.OpenAsync(path);
+            var scope = ActiveScope;
+            var project = await _workspaceService.OpenAsync(scope, path);
             var referenceIndex = new ConfigReferenceIndex(_metadataProvider);
             referenceIndex.Rebuild(project);
             var documents = project.Documents
@@ -985,18 +1034,12 @@ public sealed class MainWindowViewModel : ObservableObject
                 document.StateChanged += DocumentStateChanged;
             }
 
-            DetachCurrentDocuments();
-            _project = project;
-            _referenceIndex = referenceIndex;
-            _archiveChangeMonitor.Watch(project);
+            DetachSlotDocuments(scope);
+            _slotDocuments[scope] = documents;
+            _slotCategories[scope] = CreateCategories(documents);
+            _slotReferenceIndexes[scope] = referenceIndex;
+            ActivateScopeState(scope);
             ExternalChangeMessage = null;
-            _documents.Clear();
-            _documents.AddRange(documents);
-            Documents.Clear();
-            foreach (var document in documents)
-            {
-                Documents.Add(document);
-            }
 
             AddRecentProject(project.ArchivePath);
             ProjectTitle = Path.GetFileName(project.ArchivePath);
@@ -1144,6 +1187,70 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private async Task CloseProjectAsync() => await TryCloseProjectAsync();
 
+    private void SwitchActiveScope(ConfigScope scope)
+    {
+        _workspaceService.SwitchScope(scope);
+        ActivateScopeState(scope);
+        ExternalChangeMessage = null;
+        ErrorMessage = null;
+        ClearGlobalSearch();
+        ClearValidationResults();
+        ClearImportPreview();
+        StatusText = _project is null
+            ? $"{ActiveScopeDisplayName} 档案尚未打开"
+            : $"已切换到 {ActiveScopeDisplayName}：{Path.GetFileName(_project.ArchivePath)}";
+        NotifyProjectChanged();
+        RefreshProjectState();
+    }
+
+    private void ActivateScopeState(ConfigScope scope)
+    {
+        var slot = _workspaceService.Workspace.GetSlot(scope);
+        _project = slot.Project;
+        _slotReferenceIndexes.TryGetValue(scope, out _referenceIndex);
+        _slotDocuments.TryGetValue(scope, out var documents);
+        documents ??= [];
+
+        _documents.Clear();
+        _documents.AddRange(documents);
+        Documents.Clear();
+        foreach (var document in documents)
+        {
+            Documents.Add(document);
+        }
+
+        ArchiveCategories.Clear();
+        if (_slotCategories.TryGetValue(scope, out var categories))
+        {
+            foreach (var category in categories)
+            {
+                ArchiveCategories.Add(category);
+            }
+        }
+
+        _archiveChangeMonitor.Stop();
+        if (_project is not null)
+        {
+            _archiveChangeMonitor.Watch(_project);
+        }
+
+        var activeDocument = documents.FirstOrDefault(document =>
+            ReferenceEquals(document.Document, slot.ActiveDocument));
+        SelectDocument(activeDocument ?? documents.FirstOrDefault());
+    }
+
+    private string GetArchiveTabHeader(ConfigScope scope, string displayName)
+    {
+        var slot = _workspaceService.Workspace.GetSlot(scope);
+        if (!slot.IsOpen)
+        {
+            return displayName;
+        }
+
+        var dirtyMarker = slot.HasUnsavedChanges ? " ●" : string.Empty;
+        return $"{displayName} · {Path.GetFileName(slot.ArchivePath)}{dirtyMarker}";
+    }
+
     public async Task<bool> TryCloseProjectAsync()
     {
         if (IsBusy)
@@ -1188,7 +1295,13 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private void CloseCurrentProject()
     {
-        DetachCurrentDocuments();
+        var scope = ActiveScope;
+        DetachSlotDocuments(scope);
+        if (_workspaceService.Workspace.GetSlot(scope).IsOpen)
+        {
+            _workspaceService.Close(scope);
+        }
+
         _archiveChangeMonitor.Stop();
         _project = null;
         _referenceIndex = null;
@@ -1207,19 +1320,39 @@ public sealed class MainWindowViewModel : ObservableObject
         RefreshProjectState();
     }
 
-    private void DetachCurrentDocuments()
+    private void DetachSlotDocuments(ConfigScope scope)
     {
-        foreach (var document in _documents)
+        if (!_slotDocuments.Remove(scope, out var documents))
+        {
+            return;
+        }
+
+        foreach (var document in documents)
         {
             document.StateChanged -= DocumentStateChanged;
             document.Dispose();
         }
+
+        _slotReferenceIndexes.Remove(scope);
+        _slotCategories.Remove(scope);
     }
+
+    private static IReadOnlyList<ConfigCategoryViewModel> CreateCategories(
+        IReadOnlyList<ConfigDocumentViewModel> documents) =>
+        documents
+            .GroupBy(document => document.Document.Definition.Category)
+            .Select(group => new ConfigCategoryViewModel(group.Key, group))
+            .ToArray();
 
     private void NotifyProjectChanged()
     {
         OnPropertyChanged(nameof(HasProject));
         OnPropertyChanged(nameof(HasNoProject));
+        OnPropertyChanged(nameof(CommonTabHeader));
+        OnPropertyChanged(nameof(ScenarioTabHeader));
+        OnPropertyChanged(nameof(ActiveScopeDisplayName));
+        OnPropertyChanged(nameof(OpenActiveArchiveLabel));
+        OnPropertyChanged(nameof(EmptyArchiveMessage));
         ((AsyncCommand)CloseProjectCommand).RaiseCanExecuteChanged();
         ((AsyncCommand)SaveAsCommand).RaiseCanExecuteChanged();
         ((AsyncCommand)SaveCopyCommand).RaiseCanExecuteChanged();
@@ -1265,6 +1398,8 @@ public sealed class MainWindowViewModel : ObservableObject
         ((AsyncCommand)SaveAsCommand).RaiseCanExecuteChanged();
         ((AsyncCommand)SaveCopyCommand).RaiseCanExecuteChanged();
         OnPropertyChanged(nameof(SelectedDocumentSummary));
+        OnPropertyChanged(nameof(CommonTabHeader));
+        OnPropertyChanged(nameof(ScenarioTabHeader));
     }
 
     private void SelectDocument(ConfigDocumentViewModel? document)
@@ -1272,7 +1407,7 @@ public sealed class MainWindowViewModel : ObservableObject
         SelectedDocument = document;
         if (_project is not null)
         {
-            _project.ActiveDocument = document?.Document;
+            _workspaceService.Workspace.ActiveSlot.ActivateDocument(document?.Document);
         }
 
         if (document is null)
@@ -1607,6 +1742,13 @@ public sealed class MainWindowViewModel : ObservableObject
     private void DocumentStateChanged(object? sender, EventArgs eventArgs)
     {
         if (sender is not ConfigDocumentViewModel document)
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(CommonTabHeader));
+        OnPropertyChanged(nameof(ScenarioTabHeader));
+        if (!_documents.Contains(document))
         {
             return;
         }

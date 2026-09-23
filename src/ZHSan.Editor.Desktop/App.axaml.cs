@@ -43,6 +43,7 @@ public sealed partial class App : Avalonia.Application
             services.AddSingleton<IEditorSettingsStore, JsonEditorSettingsStore>();
             services.AddSingleton<IConfigTransferLogStore, JsonConfigTransferLogStore>();
             services.AddSingleton<OpenArchiveService>();
+            services.AddSingleton<EditorWorkspaceService>();
             services.AddSingleton<SaveArchiveService>();
             services.AddSingleton<IFieldValidationRule, PropertyConstraintValidationRule>();
             services.AddSingleton<IFieldValidationRule, FixedLengthCollectionValidationRule>();
