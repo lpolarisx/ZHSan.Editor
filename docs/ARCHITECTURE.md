@@ -43,6 +43,7 @@ Desktop ───────→ Application ───────→ Domain
 
 - `ConfigDefinition`：配置键、显示名、分类、档案条目名和记录类型。
 - `ConfigDocument`：当前文件、记录集合和未保存状态。
+- `EditorWorkspace`：分别持有 Common 与剧本/存档两个 `ArchiveSlot`，每个槽位独立保存路径、文档、活动文档、内容指纹、未保存状态和生命周期；两个物理档案不会合并为一个 `EditorProject`。
 - `ValidationIssue`：错误级别、记录及字段定位。
 - `ConfigPropertyDefinition`、`ConfigReferenceDefinition`：属性约束及显式跨表引用元数据。
 - `ConfigDifference`、`ConfigRecordDifference`、`ConfigPropertyDifference`：导入前的配置、记录和属性三级差异。
