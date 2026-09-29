@@ -1005,6 +1005,10 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         record.Refresh();
         if (ReferenceEquals(SelectedRecord, record))
         {
+            foreach (var editor in PropertyEditors.Where(editor => editor.Definition.ValueGetter is not null))
+            {
+                editor.RefreshValue();
+            }
             RefreshRawJson();
         }
     }
@@ -1279,7 +1283,9 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
     private static bool MatchesFilter(object item, ConfigPropertyDefinition property, string query)
     {
-        var value = item.GetType().GetProperty(property.Name)?.GetValue(item);
+        var value = property.ValueGetter is { } getter
+            ? getter(item)
+            : item.GetType().GetProperty(property.Name)?.GetValue(item);
         var valueType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
         if (IsIntegerType(valueType))
         {

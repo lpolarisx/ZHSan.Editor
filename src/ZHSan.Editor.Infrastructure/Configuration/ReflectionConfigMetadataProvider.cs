@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json.Serialization;
+using GameDatas;
 using ZHSan.Editor.Application.Abstractions;
 using ZHSan.Editor.Domain.Configuration;
 
@@ -21,9 +22,12 @@ public sealed class ReflectionConfigMetadataProvider : IConfigMetadataProvider
                 property.Name,
                 property.Name,
                 property.PropertyType,
-                property.CanWrite,
+                property.CanWrite && !(itemType == typeof(PersonConfig) && property.Name == nameof(PersonConfig.Name)),
                 property.GetCustomAttribute<JsonPropertyOrderAttribute>()?.Order ?? index)
             {
+                ValueGetter = itemType == typeof(PersonConfig) && property.Name == nameof(PersonConfig.Name)
+                    ? item => ((PersonConfig)item).SurName + ((PersonConfig)item).GivenName
+                    : null,
                 Validation = GameDataPropertyValidationMetadata.Get(property),
                 Reference = GameDataPropertyReferenceMetadata.Get(itemType, property),
                 StructuredString = GameDataStructuredStringMetadata.Get(itemType, property),

@@ -53,6 +53,40 @@ public sealed class ConfigDocumentViewModelTests
     }
 
     [Fact]
+    public void PersonName_DisplaysSurnameAndGivenNameWithoutNullEditing()
+    {
+        var person = new PersonConfig { Id = 7, SurName = "诸葛", GivenName = "亮" };
+        var document = new ConfigDocument
+        {
+            Definition = new ConfigDefinition(
+                "persons", "人物", "测试", "Persons.json", typeof(PersonConfig), ConfigScope.Scenario),
+            Items = [person]
+        };
+        var viewModel = new ConfigDocumentViewModel(
+            document, new ReflectionConfigMetadataProvider(), _ => { });
+        viewModel.SelectedRecord = viewModel.Records[0];
+
+        var name = Assert.Single(viewModel.PropertyEditors,
+            editor => editor.Definition.Name == nameof(PersonConfig.Name));
+        Assert.True(name.IsReadOnly);
+        Assert.False(name.SupportsNullEditing);
+        Assert.Equal("诸葛亮", name.ReadOnlyValue);
+        Assert.Equal("诸葛亮", Assert.Single(viewModel.Records[0].Cells,
+            cell => cell.SortValue?.ToString() == "诸葛亮").DisplayValue);
+
+        var givenName = Assert.Single(viewModel.PropertyEditors,
+            editor => editor.Definition.Name == nameof(PersonConfig.GivenName));
+        givenName.ValueText = "瑾";
+        Assert.Equal("诸葛瑾", name.ReadOnlyValue);
+        Assert.Null(person.Name);
+
+        viewModel.SelectedFilterField = Assert.Single(viewModel.FilterFields,
+            field => field.Property?.Name == nameof(PersonConfig.Name));
+        viewModel.SearchText = "诸葛瑾";
+        Assert.Same(person, Assert.Single(viewModel.FilteredRecords).Item);
+    }
+
+    [Fact]
     public void Filter_UsesExactMatchingForIntegersAndFuzzyMatchingForStrings()
     {
         var exact = new TitleConfig { Id = 1, Name = "合欢", KindId = 2 };

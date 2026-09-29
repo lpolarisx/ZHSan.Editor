@@ -9,6 +9,8 @@ public sealed record ConfigPropertyDefinition(
 {
     public ConfigPropertyValidation Validation { get; init; } = ConfigPropertyValidation.None;
 
+    public Func<object, object?>? ValueGetter { get; init; }
+
     public ConfigReferenceDefinition? Reference { get; init; }
 
     public ConfigStructuredStringDefinition? StructuredString { get; init; }

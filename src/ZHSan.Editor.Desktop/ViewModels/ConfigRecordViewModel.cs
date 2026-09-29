@@ -66,7 +66,9 @@ public sealed class ConfigRecordCellViewModel : ObservableObject
     }
 
     private object? GetValue() =>
-        _item.GetType().GetProperty(_property.Name)?.GetValue(_item);
+        _property.ValueGetter is { } getter
+            ? getter(_item)
+            : _item.GetType().GetProperty(_property.Name)?.GetValue(_item);
 
     private string FormatReferenceValue(object? value)
     {

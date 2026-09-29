@@ -95,7 +95,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
     public bool IsReadOnly { get; }
     public bool CanBeNull { get; }
     public bool SupportsNullEditing { get; }
-    public bool IsNull => _property.GetValue(_owner) is null;
+    public bool IsNull => GetCurrentValue() is null;
     public bool ShowInitializeNull => SupportsNullEditing && IsNull;
     public bool ShowSetNull => SupportsNullEditing && !IsNull;
     public string NullStateText => IsNull
@@ -220,7 +220,16 @@ public sealed class PropertyEditorViewModel : ObservableObject
         ? "null（未设置）"
         : IsCollection
             ? $"{CollectionItems.Count} 项"
-            : FormatScalar(_property.GetValue(_owner));
+            : FormatScalar(GetCurrentValue());
+
+    internal void RefreshValue()
+    {
+        OnPropertyChanged(nameof(IsNull));
+        OnPropertyChanged(nameof(ReadOnlyValue));
+    }
+
+    private object? GetCurrentValue() =>
+        Definition.ValueGetter is { } getter ? getter(_owner) : _property.GetValue(_owner);
 
     private static bool IsMultilineTextProperty(ConfigPropertyDefinition definition) =>
         definition.Name.EndsWith("Description", StringComparison.OrdinalIgnoreCase) ||
