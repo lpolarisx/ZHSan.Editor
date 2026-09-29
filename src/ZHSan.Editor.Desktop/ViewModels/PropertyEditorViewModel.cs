@@ -115,7 +115,8 @@ public sealed class PropertyEditorViewModel : ObservableObject
         (!IsNull || !Definition.AllowNullEditing);
     public bool ShowMultilineString => IsMultilineString && !IsStructuredString && !IsReadOnly &&
         (!IsNull || !Definition.AllowNullEditing);
-    public bool ShowStructuredString => IsStructuredString && !IsReadOnly && !IsNull;
+    public bool ShowStructuredString => IsStructuredString && !IsReadOnly &&
+        (!IsNull || !Definition.AllowNullEditing);
     public bool ShowCollection => IsCollection && !IsReadOnly && !IsNull;
     public bool IsValidationTarget
     {

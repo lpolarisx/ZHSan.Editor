@@ -9,11 +9,6 @@ namespace ZHSan.Editor.Infrastructure.Configuration;
 
 public sealed class ReflectionConfigMetadataProvider : IConfigMetadataProvider
 {
-    private static readonly IReadOnlySet<Type> ScenarioTypes =
-        new GameDataConfigRegistry().GetDefinitions(ConfigScope.Scenario)
-            .Select(definition => definition.ItemType)
-            .ToHashSet();
-
     private readonly ConcurrentDictionary<Type, IReadOnlyList<ConfigPropertyDefinition>> _cache = new();
 
     public IReadOnlyList<ConfigPropertyDefinition> GetProperties(Type itemType) =>
@@ -34,8 +29,7 @@ public sealed class ReflectionConfigMetadataProvider : IConfigMetadataProvider
                     ? item => GetPersonName((PersonConfig)item)
                     : null,
                 IsMultilineText = IsBiographyText(itemType, property.Name),
-                AllowNullEditing = property.PropertyType != typeof(string) ||
-                    !ScenarioTypes.Contains(itemType),
+                AllowNullEditing = property.PropertyType != typeof(string),
                 Validation = GameDataPropertyValidationMetadata.Get(property),
                 Reference = GameDataPropertyReferenceMetadata.Get(itemType, property),
                 StructuredString = GameDataStructuredStringMetadata.Get(itemType, property),

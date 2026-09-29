@@ -329,14 +329,15 @@ public sealed class ConfigDocumentViewModelTests
     }
 
     [Fact]
-    public void ScenarioStringProperties_DisallowNullEditing_WithoutChangingCommonProperties()
+    public void AllStringProperties_DisallowNullEditing()
     {
         var metadata = new ReflectionConfigMetadataProvider();
         var registry = new GameDataConfigRegistry();
         Assert.Empty(registry.GetDefinitions(ConfigScope.Common).Select(definition => definition.ItemType)
             .Intersect(registry.GetDefinitions(ConfigScope.Scenario).Select(definition => definition.ItemType)));
 
-        foreach (var definition in registry.GetDefinitions(ConfigScope.Scenario))
+        foreach (var definition in registry.GetDefinitions(ConfigScope.Common)
+                     .Concat(registry.GetDefinitions(ConfigScope.Scenario)))
         {
             Assert.All(metadata.GetProperties(definition.ItemType)
                 .Where(property => property.PropertyType == typeof(string)),
@@ -345,7 +346,7 @@ public sealed class ConfigDocumentViewModelTests
 
         var commonName = Assert.Single(metadata.GetProperties(typeof(TechniqueConfig)),
             property => property.Name == nameof(TechniqueConfig.Name));
-        Assert.True(commonName.AllowNullEditing);
+        Assert.False(commonName.AllowNullEditing);
     }
 
     [Fact]
@@ -1071,7 +1072,7 @@ public sealed class ConfigDocumentViewModelTests
     }
 
     [Fact]
-    public void NullableProperties_DistinguishNullFromEmptyAndSupportUndo()
+    public void Strings_EditAsEmptyWhileCollectionsRetainNullEditingAndUndo()
     {
         var item = new NullableEditorItem();
         var document = new ConfigDocument
@@ -1088,9 +1089,11 @@ public sealed class ConfigDocumentViewModelTests
             viewModel.PropertyEditors,
             editor => editor.Definition.Name == nameof(NullableEditorItem.Text));
         Assert.True(textEditor.IsNull);
-        Assert.Equal("null（未设置）", textEditor.NullStateText);
-
-        textEditor.InitializeNullCommand.Execute(null);
+        Assert.True(textEditor.ShowString);
+        Assert.False(textEditor.SupportsNullEditing);
+        Assert.False(textEditor.ShowInitializeNull);
+        Assert.False(textEditor.ShowSetNull);
+        textEditor.ValueText = string.Empty;
 
         Assert.Equal(string.Empty, item.Text);
         Assert.False(textEditor.IsNull);
@@ -1103,7 +1106,7 @@ public sealed class ConfigDocumentViewModelTests
 
         viewModel.RedoCommand.Execute(null);
         textEditor.SetNullCommand.Execute(null);
-        Assert.Null(item.Text);
+        Assert.Equal(string.Empty, item.Text);
 
         var valuesEditor = Assert.Single(
             viewModel.PropertyEditors,
@@ -1113,6 +1116,40 @@ public sealed class ConfigDocumentViewModelTests
         Assert.NotNull(item.Values);
         Assert.Empty(item.Values);
         Assert.Equal("空集合（0 项）", valuesEditor.NullStateText);
+    }
+
+    [Theory]
+    [InlineData(nameof(TechniqueConfig.Name))]
+    [InlineData(nameof(TechniqueConfig.Description))]
+    [InlineData(nameof(TechniqueConfig.InfluencesString))]
+    public void CommonStrings_ShowEmptyEditorAndClearToEmptyString(string propertyName)
+    {
+        var item = new TechniqueConfig();
+        var property = typeof(TechniqueConfig).GetProperty(propertyName)!;
+        property.SetValue(item, null);
+        var document = CreateViewModel([item]);
+        document.SelectedRecord = document.Records[0];
+        var editor = Assert.Single(document.PropertyEditors, candidate => candidate.Definition.Name == propertyName);
+
+        Assert.False(editor.SupportsNullEditing);
+        Assert.False(editor.SetNullCommand.CanExecute(null));
+        Assert.False(editor.ShowInitializeNull);
+        Assert.True(editor.ShowString || editor.ShowMultilineString || editor.ShowStructuredString);
+        Assert.Equal(string.Empty, editor.ValueText);
+        if (editor.StructuredStringEditor is { } structured)
+        {
+            structured.RawText = "1";
+            structured.RawText = string.Empty;
+        }
+        else
+        {
+            editor.ValueText = "文本";
+            editor.ValueText = null!;
+        }
+
+        Assert.Equal(string.Empty, property.GetValue(item));
+        editor.SetNullCommand.Execute(null);
+        Assert.Equal(string.Empty, property.GetValue(item));
     }
 
     [Fact]
