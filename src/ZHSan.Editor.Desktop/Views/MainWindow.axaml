@@ -283,8 +283,6 @@
                          TextWrapping="Wrap" TextAlignment="Center" Opacity="0.62" />
               <Button Content="{Binding OpenActiveArchiveLabel}" Command="{Binding OpenArchiveCommand}"
                       HorizontalAlignment="Center" />
-              <Button Content="转换旧版游戏剧本…" Command="{Binding ConvertLegacyScenarioCommand}"
-                      HorizontalAlignment="Center" />
               <Grid ColumnDefinitions="*,Auto" Margin="0,14,0,0"
                     IsVisible="{Binding HasRecentProjects}">
                 <TextBlock Text="最近打开" FontSize="16" FontWeight="SemiBold"

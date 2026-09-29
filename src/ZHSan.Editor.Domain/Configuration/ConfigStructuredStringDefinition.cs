@@ -5,6 +5,7 @@ public enum ConfigStructuredStringKind
     InfluenceIds,
     ConditionIds,
     WeightedConditionPairs,
+    ReferenceIds,
 }
 
 public sealed record ConfigStructuredStringDefinition(
@@ -16,6 +17,8 @@ public sealed record ConfigStructuredStringDefinition(
 
     public string FormatDescription => Kind switch
     {
+        ConfigStructuredStringKind.ReferenceIds =>
+            "以半角空格、换行或制表符分隔目标 ID；顺序不限，ID 不可重复；空文本表示无关联。",
         ConfigStructuredStringKind.InfluenceIds =>
             "以半角空格、换行或制表符分隔影响 ID；顺序即游戏应用顺序。",
         ConfigStructuredStringKind.ConditionIds =>

@@ -64,6 +64,10 @@ internal static class GameDataPropertyReferenceMetadata
                 new("persons", targetScope: ConfigScope.Scenario),
             [(typeof(PersonRelationConfig), nameof(PersonRelationConfig.PersonID2))] =
                 new("persons", targetScope: ConfigScope.Scenario),
+            [(typeof(RegionConfig), nameof(RegionConfig.RegionCoreID))] =
+                new("architectures", emptyValue: -1, targetScope: ConfigScope.Scenario),
+            [(typeof(StateConfig), nameof(StateConfig.StateAdminID))] =
+                new("architectures", emptyValue: -1, targetScope: ConfigScope.Scenario),
             [(typeof(SectionConfig), nameof(SectionConfig.OrientationFactionID))] =
                 new("factions", emptyValue: -1, targetScope: ConfigScope.Scenario),
             [(typeof(SectionConfig), nameof(SectionConfig.OrientationSectionID))] =

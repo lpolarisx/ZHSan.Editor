@@ -56,7 +56,7 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
     public bool HasConditionGroups => ConditionGroups.Count > 0;
     public bool HasParseErrors => _parseErrors.Count > 0;
     public bool CanToggleRawEditor => IsConditionExpression || IsWeighted;
-    public bool ShowRawEditor => IsInfluenceList || HasParseErrors || _isRawEditorExpanded;
+    public bool ShowRawEditor => ShowFlatList || HasParseErrors || _isRawEditorExpanded;
     public string RawEditorToggleText => ShowRawEditor ? "隐藏底层文本" : "显示底层文本（高级）";
     public bool CanUseStructuredEditor => _parseErrors.Count == 0;
     public bool HasIssues => IssueCount > 0;
@@ -68,7 +68,7 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
         ? $"{ConditionGroups.Count} 个或分组，{ConditionGroups.Sum(group => group.Terms.Count)} 个条件"
         : IsWeighted
             ? $"{Entries.Count} 组条件权重"
-            : $"{Entries.Count} 个影响";
+            : IsInfluenceList ? $"{Entries.Count} 个影响" : $"{Entries.Count} 个关联";
 
     public ConditionExpressionGroupViewModel? SelectedAddGroup
     {
@@ -298,7 +298,7 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
             weight,
             IsWeighted,
             canReplaceReference: !IsInfluenceList,
-            canReorder: !IsInfluenceList,
+            canReorder: IsWeighted,
             _options,
             _navigateReference,
             entry => ReplaceId(entry, entry.Id),
@@ -376,7 +376,7 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
 
     private void Move(StructuredRuleStringEntryViewModel entry, int offset)
     {
-        if (!CanUseStructuredEditor || IsInfluenceList)
+        if (!CanUseStructuredEditor || !IsWeighted)
         {
             return;
         }
@@ -544,7 +544,9 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
         {
             issues.Add(IsWeighted
                 ? $"条件 ID {duplicate.Key} 重复，会导致游戏加载该权重字段失败。"
-                : $"ID {duplicate.Key} 重复，游戏加载时只保留第一次出现的位置。");
+                : IsInfluenceList
+                    ? $"ID {duplicate.Key} 重复，游戏加载时只保留第一次出现的位置。"
+                    : $"ID {duplicate.Key} 重复。");
         }
 
         return issues.Distinct(StringComparer.Ordinal).ToArray();

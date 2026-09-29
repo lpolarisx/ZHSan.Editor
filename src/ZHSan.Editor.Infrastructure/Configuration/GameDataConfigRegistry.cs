@@ -54,6 +54,8 @@ public sealed class GameDataConfigRegistry : IConfigRegistry
         Add<StatusEffectConfig>(definitions, "status-effects", "状态效果", "战斗规则", "StatusEffects.json");
 
         Add<ArchitectureConfig>(definitions, "architectures", "建筑", "世界与地图", "Architectures.json", ConfigScope.Scenario);
+        Add<RegionConfig>(definitions, "regions", "地区", "世界与地图", "Regions.json", ConfigScope.Scenario);
+        Add<StateConfig>(definitions, "states", "州域", "世界与地图", "States.json", ConfigScope.Scenario);
         Add<BiographyConfig>(definitions, "biographies", "列传", "人物", "Biographies.json", ConfigScope.Scenario);
         Add<CaptiveConfig>(definitions, "captives", "俘虏", "人物", "Captives.json", ConfigScope.Scenario);
         Add<DiplomaticRelationConfig>(definitions, "diplomatic-relations", "外交关系", "势力与组织", "DiplomaticRelations.json", ConfigScope.Scenario);
@@ -67,10 +69,8 @@ public sealed class GameDataConfigRegistry : IConfigRegistry
         Add<NoFoodConfig>(definitions, "no-food-positions", "禁粮位置", "世界与地图", "NoFoodPositions.json", ConfigScope.Scenario);
         Add<PersonRelationConfig>(definitions, "person-relations", "人物关系", "人物", "PersonRelations.json", ConfigScope.Scenario);
         Add<PersonConfig>(definitions, "persons", "人物", "人物", "Persons.json", ConfigScope.Scenario);
-        Add<RegionConfig>(definitions, "regions", "地区", "世界与地图", "Regions.json", ConfigScope.Scenario);
         Add<RoutewayConfig>(definitions, "routeways", "路径", "世界与地图", "Routeways.json", ConfigScope.Scenario);
         Add<SectionConfig>(definitions, "sections", "军势", "势力与组织", "Sections.json", ConfigScope.Scenario);
-        Add<StateConfig>(definitions, "states", "州域", "世界与地图", "States.json", ConfigScope.Scenario);
         Add<TreasureConfig>(definitions, "treasures", "宝物", "宝物", "Treasures.json", ConfigScope.Scenario);
         Add<TroopEventConfig>(definitions, "troop-events", "部队事件", "事件与情报", "TroopEvents.json", ConfigScope.Scenario);
         Add<TroopConfig>(definitions, "troops", "部队", "军事", "Troops.json", ConfigScope.Scenario);

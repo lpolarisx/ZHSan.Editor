@@ -70,8 +70,12 @@ public sealed class StructuredStringValidationRule : IFieldValidationRule
         {
             yield return CreateIssue(
                 context,
-                ValidationSeverity.Warning,
-                $"ID {duplicate.Key} 重复；游戏加载时只保留第一次出现的位置。");
+                definition.Kind == ConfigStructuredStringKind.ReferenceIds
+                    ? ValidationSeverity.Error
+                    : ValidationSeverity.Warning,
+                definition.Kind == ConfigStructuredStringKind.ReferenceIds
+                    ? $"ID {duplicate.Key} 重复。"
+                    : $"ID {duplicate.Key} 重复；游戏加载时只保留第一次出现的位置。");
         }
 
     }
