@@ -156,6 +156,73 @@ public sealed class ConfigDocumentViewModelTests
     }
 
     [Fact]
+    public void TreasureText_DoesNotAllowSettingNull()
+    {
+        var treasure = new TreasureConfig
+        {
+            Id = 3,
+            Name = "青釭剑",
+            InfluencesString = "1",
+            Description = "宝物描述"
+        };
+        var document = new ConfigDocument
+        {
+            Definition = new ConfigDefinition(
+                "treasures", "宝物", "测试", "Treasures.json", typeof(TreasureConfig), ConfigScope.Scenario),
+            Items = [treasure]
+        };
+        var viewModel = new ConfigDocumentViewModel(
+            document, new ReflectionConfigMetadataProvider(), _ => { });
+        viewModel.SelectedRecord = viewModel.Records[0];
+
+        foreach (var field in new[] { nameof(TreasureConfig.Name),
+                     nameof(TreasureConfig.InfluencesString), nameof(TreasureConfig.Description) })
+        {
+            var editor = Assert.Single(viewModel.PropertyEditors,
+                candidate => candidate.Definition.Name == field);
+            var original = editor.ValueText;
+            Assert.False(editor.SupportsNullEditing);
+            Assert.False(editor.SetNullCommand.CanExecute(null));
+            editor.SetNullCommand.Execute(null);
+            Assert.Equal(original, editor.ValueText);
+            Assert.Throws<ArgumentException>(() =>
+                viewModel.SetPropertyValue(viewModel.Records[0], field, null));
+        }
+
+        Assert.Equal("青釭剑", treasure.Name);
+        Assert.Equal("1", treasure.InfluencesString);
+        Assert.Equal("宝物描述", treasure.Description);
+        Assert.False(document.IsDirty);
+
+        var name = Assert.Single(viewModel.PropertyEditors,
+            editor => editor.Definition.Name == nameof(TreasureConfig.Name));
+        name.ValueText = null!;
+        Assert.Equal(string.Empty, treasure.Name);
+        name.ValueText = "倚天剑";
+        Assert.Equal("倚天剑", treasure.Name);
+    }
+
+    [Fact]
+    public void ScenarioStringProperties_DisallowNullEditing_WithoutChangingCommonProperties()
+    {
+        var metadata = new ReflectionConfigMetadataProvider();
+        var registry = new GameDataConfigRegistry();
+        Assert.Empty(registry.GetDefinitions(ConfigScope.Common).Select(definition => definition.ItemType)
+            .Intersect(registry.GetDefinitions(ConfigScope.Scenario).Select(definition => definition.ItemType)));
+
+        foreach (var definition in registry.GetDefinitions(ConfigScope.Scenario))
+        {
+            Assert.All(metadata.GetProperties(definition.ItemType)
+                .Where(property => property.PropertyType == typeof(string)),
+                property => Assert.False(property.AllowNullEditing));
+        }
+
+        var commonName = Assert.Single(metadata.GetProperties(typeof(TechniqueConfig)),
+            property => property.Name == nameof(TechniqueConfig.Name));
+        Assert.True(commonName.AllowNullEditing);
+    }
+
+    [Fact]
     public void Filter_UsesExactMatchingForIntegersAndFuzzyMatchingForStrings()
     {
         var exact = new TitleConfig { Id = 1, Name = "合欢", KindId = 2 };

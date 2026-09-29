@@ -411,8 +411,8 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
             var property = change.Record.Item.GetType().GetProperty(change.PropertyName)
                 ?? throw new InvalidOperationException($"找不到属性 {change.PropertyName}。");
-            if (change.Value is null && property.PropertyType.IsValueType &&
-                Nullable.GetUnderlyingType(property.PropertyType) is null)
+            if (change.Value is null && (!definition.AllowNullEditing ||
+                property.PropertyType.IsValueType && Nullable.GetUnderlyingType(property.PropertyType) is null))
             {
                 throw new ArgumentException($"属性 {change.PropertyName} 不接受空值。", nameof(changes));
             }
@@ -567,8 +567,8 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
             var property = Document.Definition.ItemType.GetProperty(propertyName)
                 ?? throw new InvalidOperationException($"找不到属性 {propertyName}。");
-            if (value is null && property.PropertyType.IsValueType &&
-                Nullable.GetUnderlyingType(property.PropertyType) is null)
+            if (value is null && (!definition.AllowNullEditing ||
+                property.PropertyType.IsValueType && Nullable.GetUnderlyingType(property.PropertyType) is null))
             {
                 throw new ArgumentException($"属性 {propertyName} 不接受空值。", nameof(initialValues));
             }

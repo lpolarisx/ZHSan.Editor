@@ -111,7 +111,8 @@ public sealed class PropertyEditorViewModel : ObservableObject
     public bool ShowEnum => IsEnum && !IsReadOnly && !IsNull;
     public bool ShowNumber => IsNumber && !IsReference && !IsReadOnly && !IsNull;
     public bool ShowReference => IsReference && IsNumber && !IsCollection && !IsReadOnly && !IsNull;
-    public bool ShowString => IsString && !IsMultilineString && !IsStructuredString && !IsReadOnly && !IsNull;
+    public bool ShowString => IsString && !IsMultilineString && !IsStructuredString && !IsReadOnly &&
+        (!IsNull || !Definition.AllowNullEditing);
     public bool ShowMultilineString => IsMultilineString && !IsStructuredString && !IsReadOnly &&
         (!IsNull || !Definition.AllowNullEditing);
     public bool ShowStructuredString => IsStructuredString && !IsReadOnly && !IsNull;
@@ -142,7 +143,9 @@ public sealed class PropertyEditorViewModel : ObservableObject
                 return;
             }
 
-            SetValue(value);
+            SetValue(value is null && IsString && !Definition.AllowNullEditing
+                ? string.Empty
+                : value);
         }
     }
 
@@ -242,6 +245,11 @@ public sealed class PropertyEditorViewModel : ObservableObject
 
     private void SetValue(object? value)
     {
+        if (value is null && !Definition.AllowNullEditing)
+        {
+            return;
+        }
+
         var current = _property.GetValue(_owner);
         if (Equals(current, value))
         {
