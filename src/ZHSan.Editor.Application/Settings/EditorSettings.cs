@@ -15,5 +15,6 @@ public sealed class RecentProjectEntry
 {
     public required string ArchivePath { get; set; }
     public ConfigScope Scope { get; set; } = ConfigScope.Common;
+    public string? CommonArchivePath { get; set; }
     public DateTimeOffset LastOpenedAt { get; set; }
 }

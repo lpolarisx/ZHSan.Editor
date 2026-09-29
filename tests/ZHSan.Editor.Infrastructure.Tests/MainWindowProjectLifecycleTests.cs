@@ -337,12 +337,195 @@ public sealed class MainWindowProjectLifecycleTests
         Assert.Equal("剧本搜索", viewModel.SelectedDocument.SearchText);
 
         viewModel.SelectedArchiveTabIndex = 0;
-        context.Picker.ArchivePath = context.ArchivePath;
-        viewModel.OpenArchiveCommand.Execute(null);
 
         Assert.Equal("statuses", viewModel.SelectedDocument!.Key);
         Assert.Equal("Common 搜索", viewModel.SelectedDocument.SearchText);
         Assert.Equal([111, 222], viewModel.SelectedDocument.SavedColumnWidths);
+    }
+
+    [Fact]
+    public void OpenScenario_LoadsSelectedCommonAndRemembersAssociation()
+    {
+        using var context = new TestContext();
+        var viewModel = context.CreateViewModel(includeScenario: true, includeCrossScopeReferences: true);
+        context.Picker.ArchivePath = context.ScenarioArchivePath;
+
+        viewModel.OpenScenarioArchiveCommand.Execute(null);
+
+        Assert.False(viewModel.IsBusy);
+        Assert.Null(viewModel.ErrorMessage);
+        Assert.Equal(1, context.Picker.ScenarioDialogCount);
+        Assert.Equal(0, context.Picker.ArchivePickCount);
+        Assert.Equal([context.ArchivePath, context.ScenarioArchivePath], context.Repository.LoadedPaths);
+        var recent = Assert.Single(context.Settings.Settings.RecentProjects,
+            entry => entry.Scope == ConfigScope.Scenario);
+        Assert.Equal(context.ArchivePath, recent.CommonArchivePath);
+        var military = Assert.Single(viewModel.Documents, document => document.Key == "militaries");
+        military.SelectCommand.Execute(null);
+        military.SelectedRecord = Assert.Single(military.Records);
+        var kind = Assert.Single(military.PropertyEditors,
+            editor => editor.Definition.Name == nameof(MilitaryConfig.KindId));
+        Assert.Contains(kind.ReferenceOptions, option => option.Target?.ConfigKey == "military-kinds");
+        Assert.Contains(viewModel.ValidationIssues,
+            issue => issue.Message.Contains("military-kinds", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void OpenRecentScenario_UsesAssociationOrPromptsWhenMissing(bool commonExists)
+    {
+        using var context = new TestContext();
+        context.Settings.Settings.RecentProjects.Add(new RecentProjectEntry
+        {
+            ArchivePath = context.ScenarioArchivePath,
+            Scope = ConfigScope.Scenario,
+            CommonArchivePath = commonExists ? context.ArchivePath : context.ArchivePath + ".missing"
+        });
+        var viewModel = context.CreateViewModel(includeScenario: true);
+
+        Assert.Single(viewModel.RecentProjects).OpenCommand.Execute(null);
+
+        Assert.Null(viewModel.ErrorMessage);
+        Assert.True(viewModel.HasProject);
+        Assert.Equal(1, context.Picker.ScenarioDialogCount);
+        Assert.Equal(0, context.Picker.ArchivePickCount);
+        Assert.Equal(context.ScenarioArchivePath, context.Picker.InitialScenarioPath);
+        Assert.Equal(context.Settings.Settings.RecentProjects.First(entry => entry.Scope == ConfigScope.Scenario).CommonArchivePath,
+            context.ArchivePath);
+        Assert.Equal([context.ArchivePath, context.ScenarioArchivePath], context.Repository.LoadedPaths);
+    }
+
+    [Fact]
+    public void OpenScenario_CancelCommonSelection_LeavesWorkspaceEmpty()
+    {
+        using var context = new TestContext();
+        context.Picker.CommonArchivePath = null;
+        context.Picker.ArchivePath = context.ScenarioArchivePath;
+        var viewModel = context.CreateViewModel(includeScenario: true);
+
+        viewModel.OpenScenarioArchiveCommand.Execute(null);
+
+        Assert.False(viewModel.IsBusy);
+        Assert.True(viewModel.HasNoProject);
+        Assert.Empty(context.Repository.LoadedPaths);
+        Assert.Empty(viewModel.RecentProjects);
+        viewModel.SelectedArchiveTabIndex = 0;
+        Assert.True(viewModel.HasNoProject);
+    }
+
+    [Theory]
+    [InlineData(ConfigScope.Common)]
+    [InlineData(ConfigScope.Scenario)]
+    public void OpenScenario_LoadFailure_DoesNotAttachEitherArchive(ConfigScope failedScope)
+    {
+        using var context = new TestContext();
+        context.Repository.FailLoadScope = failedScope;
+        context.Picker.ArchivePath = context.ScenarioArchivePath;
+        var viewModel = context.CreateViewModel(includeScenario: true);
+
+        viewModel.OpenScenarioArchiveCommand.Execute(null);
+
+        Assert.False(viewModel.IsBusy);
+        Assert.Contains("加载失败", viewModel.ErrorMessage);
+        Assert.True(viewModel.HasNoProject);
+        Assert.Empty(viewModel.RecentProjects);
+        viewModel.SelectedArchiveTabIndex = 0;
+        Assert.True(viewModel.HasNoProject);
+        context.Repository.FailLoadScope = null;
+        viewModel.OpenScenarioArchiveCommand.Execute(null);
+        Assert.True(viewModel.HasProject);
+        Assert.Null(viewModel.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task CommonDependency_BlocksCloseAndReplacementWithoutDiscardingEdits()
+    {
+        using var context = new TestContext();
+        var viewModel = context.CreateViewModel(includeScenario: true);
+        viewModel.OpenCommonArchiveCommand.Execute(null);
+        var common = viewModel.SelectedDocument!;
+        common.Document.IsDirty = true;
+        context.Picker.ArchivePath = context.ScenarioArchivePath;
+        viewModel.OpenScenarioArchiveCommand.Execute(null);
+        var scenario = viewModel.SelectedDocument!;
+        scenario.Document.IsDirty = true;
+        Assert.Equal(1, context.Picker.ScenarioDialogCount);
+
+        viewModel.SelectedArchiveTabIndex = 0;
+        Assert.False(await viewModel.TryCloseProjectAsync());
+        context.Picker.ArchivePath = context.ArchivePath;
+        viewModel.OpenCommonArchiveCommand.Execute(null);
+
+        Assert.Contains("请先关闭剧本", viewModel.ErrorMessage);
+        Assert.Equal(0, context.Prompt.CallCount);
+        Assert.Equal(2, context.Repository.LoadedPaths.Count);
+        Assert.Same(common, viewModel.SelectedDocument);
+        Assert.True(common.Document.IsDirty);
+        viewModel.SelectedArchiveTabIndex = 1;
+        Assert.Same(scenario, viewModel.SelectedDocument);
+        Assert.True(scenario.Document.IsDirty);
+    }
+
+    [Fact]
+    public void ReplaceScenario_Failure_PreservesExistingDocumentsAndEdits()
+    {
+        using var context = new TestContext();
+        var viewModel = context.CreateViewModel(includeScenario: true);
+        context.Picker.ArchivePath = context.ScenarioArchivePath;
+        viewModel.OpenScenarioArchiveCommand.Execute(null);
+        var document = viewModel.SelectedDocument!;
+        document.Document.IsDirty = true;
+        context.Prompt.Choice = UnsavedChangesChoice.Discard;
+        context.Repository.FailLoadScope = ConfigScope.Scenario;
+
+        viewModel.OpenScenarioArchiveCommand.Execute(null);
+
+        Assert.Same(document, viewModel.SelectedDocument);
+        Assert.True(document.Document.IsDirty);
+        Assert.Contains("加载失败", viewModel.ErrorMessage);
+    }
+
+    [Theory]
+    [InlineData(UnsavedChangesChoice.Cancel)]
+    [InlineData(UnsavedChangesChoice.Discard)]
+    public void OpenPanel_ChangeCommon_ConfirmsBothDirtyArchives(UnsavedChangesChoice choice)
+    {
+        using var context = new TestContext();
+        var viewModel = context.CreateViewModel(includeScenario: true);
+        context.Picker.ArchivePath = context.ScenarioArchivePath;
+        viewModel.OpenScenarioArchiveCommand.Execute(null);
+        var scenario = viewModel.SelectedDocument!;
+        scenario.Document.IsDirty = true;
+        viewModel.SelectedArchiveTabIndex = 0;
+        var common = viewModel.SelectedDocument!;
+        common.Document.IsDirty = true;
+        var replacement = Path.Combine(Path.GetDirectoryName(context.ArchivePath)!, "OtherCommon.dat");
+        File.WriteAllBytes(replacement, []);
+        context.Picker.CommonArchiveOverride = replacement;
+        context.Prompt.Choice = choice;
+
+        viewModel.OpenScenarioArchiveCommand.Execute(null);
+
+        Assert.Equal(1, context.Prompt.CallCount);
+        Assert.Contains("Common", context.Prompt.LastProjectName);
+        Assert.Contains("剧本/存档", context.Prompt.LastProjectName);
+        if (choice == UnsavedChangesChoice.Cancel)
+        {
+            Assert.Same(scenario, viewModel.SelectedDocument);
+            Assert.True(scenario.Document.IsDirty);
+            Assert.True(common.Document.IsDirty);
+            Assert.Equal(2, context.Repository.LoadedPaths.Count);
+        }
+        else
+        {
+            Assert.NotSame(scenario, viewModel.SelectedDocument);
+            Assert.Equal(replacement, context.Settings.Settings.RecentProjects
+                .Single(entry => entry.Scope == ConfigScope.Scenario).CommonArchivePath);
+            viewModel.SelectedArchiveTabIndex = 0;
+            Assert.NotSame(common, viewModel.SelectedDocument);
+            Assert.Contains("OtherCommon.dat", viewModel.CommonTabHeader);
+        }
     }
 
     private sealed class TestContext : IDisposable
@@ -357,7 +540,7 @@ public sealed class MainWindowProjectLifecycleTests
             File.WriteAllBytes(ArchivePath, []);
             File.WriteAllBytes(ScenarioArchivePath, []);
             Repository = new FakeArchiveRepository();
-            Picker = new FakeArchivePicker(ArchivePath);
+            Picker = new FakeArchivePicker(ArchivePath) { CommonArchivePath = ArchivePath };
         }
 
         public string ArchivePath { get; }
@@ -430,13 +613,22 @@ public sealed class MainWindowProjectLifecycleTests
     {
         public int SaveCount { get; private set; }
         public ConfigScope? FailSaveScope { get; set; }
+        public ConfigScope? FailLoadScope { get; set; }
+        public List<string> LoadedPaths { get; } = [];
         public List<ConfigScope> SavedScopes { get; } = [];
 
         public Task<EditorProject> LoadAsync(
             string archivePath,
             IReadOnlyList<ConfigDefinition> definitions,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new EditorProject
+            CancellationToken cancellationToken = default)
+        {
+            LoadedPaths.Add(archivePath);
+            if (definitions[0].Scope == FailLoadScope)
+            {
+                throw new InvalidDataException("模拟档案加载失败");
+            }
+
+            return Task.FromResult(new EditorProject
             {
                 Scope = definitions[0].Scope,
                 ArchivePath = Path.GetFullPath(archivePath),
@@ -448,6 +640,7 @@ public sealed class MainWindowProjectLifecycleTests
                     })
                     .ToArray()
             });
+        }
 
         private static object CreateItem(ConfigDefinition definition, int id)
         {
@@ -509,9 +702,38 @@ public sealed class MainWindowProjectLifecycleTests
     private sealed class FakeArchivePicker(string archivePath) : IArchivePicker
     {
         public string ArchivePath { get; set; } = archivePath;
+        public string? CommonArchivePath { get; set; }
+        public int ScenarioDialogCount { get; private set; }
+        public int ArchivePickCount { get; private set; }
+        public string? InitialScenarioPath { get; private set; }
+        public string? CommonArchiveOverride { get; set; }
 
-        public Task<string?> PickArchiveAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<string?>(ArchivePath);
+        public Task<ScenarioArchiveSelection?> PickScenarioArchiveAsync(
+            string? scenarioPath,
+            string? currentCommonPath,
+            Func<string, string?> findAssociatedCommon,
+            CancellationToken cancellationToken = default)
+        {
+            ScenarioDialogCount++;
+            InitialScenarioPath = scenarioPath;
+            var model = new OpenScenarioViewModel(scenarioPath ?? ArchivePath, currentCommonPath, findAssociatedCommon);
+            if (CommonArchiveOverride is not null)
+            {
+                model.CommonPath = CommonArchiveOverride;
+            }
+            else if (!model.CanLoad && CommonArchivePath is not null)
+            {
+                model.CommonPath = CommonArchivePath;
+            }
+
+            return Task.FromResult(model.GetSelection());
+        }
+
+        public Task<string?> PickArchiveAsync(CancellationToken cancellationToken = default)
+        {
+            ArchivePickCount++;
+            return Task.FromResult<string?>(ArchivePath);
+        }
 
         public Task<string?> PickSaveArchiveAsync(
             string suggestedFileName,

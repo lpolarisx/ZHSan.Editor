@@ -1,5 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using ZHSan.Editor.Desktop.ViewModels;
+using ZHSan.Editor.Desktop.Views;
 
 namespace ZHSan.Editor.Desktop.Services;
 
@@ -26,6 +28,21 @@ public sealed class AvaloniaArchivePicker(Window owner) : IArchivePicker
 
         cancellationToken.ThrowIfCancellationRequested();
         return files.Count == 0 ? null : files[0].TryGetLocalPath();
+    }
+
+    public async Task<ScenarioArchiveSelection?> PickScenarioArchiveAsync(
+        string? scenarioPath,
+        string? currentCommonPath,
+        Func<string, string?> findAssociatedCommon,
+        CancellationToken cancellationToken = default)
+    {
+        var dialog = new OpenScenarioWindow
+        {
+            DataContext = new OpenScenarioViewModel(scenarioPath, currentCommonPath, findAssociatedCommon)
+        };
+        var selection = await dialog.ShowDialog<ScenarioArchiveSelection?>(owner);
+        cancellationToken.ThrowIfCancellationRequested();
+        return selection;
     }
 
     public async Task<string?> PickSaveArchiveAsync(

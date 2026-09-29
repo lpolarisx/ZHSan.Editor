@@ -25,6 +25,7 @@ public sealed class JsonEditorSettingsStoreTests
                     {
                         ArchivePath = @"C:\Games\ZHSan\CommonData.dat",
                         Scope = ConfigScope.Scenario,
+                        CommonArchivePath = @"C:\Games\ZHSan\CommonData.dat",
                         LastOpenedAt = openedAt
                     }
                 ]
@@ -38,6 +39,7 @@ public sealed class JsonEditorSettingsStoreTests
             var recent = Assert.Single(restored.RecentProjects);
             Assert.Equal(settings.RecentProjects[0].ArchivePath, recent.ArchivePath);
             Assert.Equal(ConfigScope.Scenario, recent.Scope);
+            Assert.Equal(settings.RecentProjects[0].CommonArchivePath, recent.CommonArchivePath);
             Assert.Equal(openedAt, recent.LastOpenedAt);
         }
         finally

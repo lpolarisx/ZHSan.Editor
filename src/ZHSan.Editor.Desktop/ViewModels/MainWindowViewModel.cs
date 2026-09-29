@@ -479,6 +479,17 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private async Task OpenArchiveAsync()
     {
+        if (ActiveScope == ConfigScope.Scenario)
+        {
+            await OpenScenarioArchiveAsync();
+            return;
+        }
+
+        if (!CheckCommonDependency())
+        {
+            return;
+        }
+
         var path = await _archivePicker.PickArchiveAsync();
         if (path is null)
         {
@@ -497,7 +508,46 @@ public sealed class MainWindowViewModel : ObservableObject
     private async Task OpenRecentArchiveAsync(string path, ConfigScope scope)
     {
         SelectedArchiveTabIndex = scope == ConfigScope.Common ? 0 : 1;
-        await OpenArchivePathAsync(path);
+        if (scope == ConfigScope.Scenario)
+        {
+            await OpenScenarioArchiveAsync(path);
+        }
+        else
+        {
+            await OpenArchivePathAsync(path);
+        }
+    }
+
+    private async Task OpenScenarioArchiveAsync(string? initialPath = null)
+    {
+        ScenarioArchiveSelection? selection;
+        IsBusy = true;
+        ErrorMessage = null;
+        try
+        {
+            selection = await _archivePicker.PickScenarioArchiveAsync(
+                initialPath,
+                _workspaceService.Workspace.Common.ArchivePath,
+                path => _editorSettings.RecentProjects.FirstOrDefault(entry =>
+                    entry.Scope == ConfigScope.Scenario && PathsEqual(entry.ArchivePath, path))?.CommonArchivePath);
+        }
+        catch (Exception exception)
+        {
+            ErrorMessage = exception.GetBaseException().Message;
+            return;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+
+        if (selection is null)
+        {
+            StatusText = "已取消打开剧本 / 存档";
+            return;
+        }
+
+        await OpenArchivePathAsync(selection.ScenarioPath, selection.CommonPath);
     }
 
     private async Task ImportJsonAsync()
@@ -1021,9 +1071,15 @@ public sealed class MainWindowViewModel : ObservableObject
         _ => strategy.ToString()
     };
 
-    private async Task OpenArchivePathAsync(string path)
+    private async Task OpenArchivePathAsync(string path, string? commonArchivePath = null)
     {
-        if (!await ConfirmProjectCanCloseAsync())
+        var scope = ActiveScope;
+        var previousCommon = _workspaceService.Workspace.Common.Project;
+        var replaceCommon = scope == ConfigScope.Scenario && previousCommon is not null &&
+            commonArchivePath is not null && !PathsEqual(previousCommon.ArchivePath, commonArchivePath);
+        if (!CheckCommonDependency() || !(replaceCommon
+                ? await TryCloseWorkspaceAsync()
+                : await ConfirmProjectCanCloseAsync()))
         {
             return;
         }
@@ -1034,49 +1090,43 @@ public sealed class MainWindowViewModel : ObservableObject
 
         try
         {
-            var scope = ActiveScope;
             var previousProject = _workspaceService.Workspace.GetSlot(scope).Project;
-            var project = await _workspaceService.OpenAsync(scope, path);
-            var referenceIndex = new ConfigReferenceIndex(_metadataProvider);
-            referenceIndex.Rebuild(GetOpenProjects());
-            var documents = project.Documents
-                .Select(document => new ConfigDocumentViewModel(
-                    document,
-                    _metadataProvider,
-                    SelectDocument,
-                    _recordClipboard,
-                    _uiState.GetDocument(document.Definition.Address),
-                    referenceIndex,
-                    _referenceDeletionPrompt,
-                    _editorProviderRegistry,
-                    NavigateToReference))
-                .ToArray();
-
-            foreach (var document in documents)
+            var project = await _workspaceService.OpenAsync(scope, path,
+                commonArchivePath: commonArchivePath,
+                loadingScopeChanged: loadingScope => StatusText = loadingScope == ConfigScope.Common
+                    ? "正在加载公共配置 CommonData…"
+                    : "正在加载剧本 / 存档…");
+            if (scope == ConfigScope.Scenario &&
+                !ReferenceEquals(previousCommon, _workspaceService.Workspace.Common.Project))
             {
-                document.StateChanged += DocumentStateChanged;
+                var common = _workspaceService.Workspace.Common.Project!;
+                AttachProjectDocuments(common, previousCommon);
+                AddRecentProject(common.ArchivePath, ConfigScope.Common);
             }
 
-            DetachSlotDocuments(scope);
-            if (previousProject is not null)
-            {
-                _archiveChangeMonitor.Stop(previousProject);
-            }
-
-            _slotDocuments[scope] = documents;
-            _slotCategories[scope] = CreateCategories(documents);
-            _slotReferenceIndexes[scope] = referenceIndex;
+            AttachProjectDocuments(project, previousProject);
             RebuildReferenceIndexes();
+            SelectedArchiveTabIndex = scope == ConfigScope.Common ? 0 : 1;
             ActivateScopeState(scope);
-            _archiveChangeMonitor.Watch(project);
-            _externallyChangedScopes.Remove(scope);
             RefreshExternalChangeMessage();
 
             AddRecentProject(project.ArchivePath, scope);
             ProjectTitle = Path.GetFileName(project.ArchivePath);
-            StatusText = $"已加载 {documents.Length} 项配置，共 {documents.Sum(x => x.ItemCount)} 条记录";
+            var documents = GetSlotDocuments(scope);
+            StatusText = $"已加载 {documents.Count} 项配置，共 {documents.Sum(x => x.ItemCount)} 条记录";
             ClearGlobalSearch();
             ClearValidationResults();
+            if (scope == ConfigScope.Scenario)
+            {
+                var report = _validationPreflightService.Evaluate(
+                    project, ValidationOperation.Save, GetOpenProjects()).Report;
+                UpdateValidationResults(report, report.HasErrors);
+                if (report.Issues.Count > 0)
+                {
+                    StatusText += $"；{FormatValidationCounts(report)}";
+                }
+            }
+
             ClearImportPreview();
             ((RelayCommand)GlobalSearchCommand).RaiseCanExecuteChanged();
             NotifyProjectChanged();
@@ -1085,7 +1135,7 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             if (!File.Exists(path))
             {
-                RemoveRecentProject(path, ActiveScope);
+                RemoveRecentProject(path, scope);
             }
 
             ErrorMessage = exception.GetBaseException().Message;
@@ -1095,6 +1145,43 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             IsBusy = false;
         }
+    }
+
+    private void AttachProjectDocuments(EditorProject project, EditorProject? previousProject)
+    {
+        var referenceIndex = new ConfigReferenceIndex(_metadataProvider);
+        referenceIndex.Rebuild(GetOpenProjects());
+        var documents = project.Documents.Select(document => new ConfigDocumentViewModel(
+            document, _metadataProvider, SelectDocument, _recordClipboard,
+            _uiState.GetDocument(document.Definition.Address), referenceIndex,
+            _referenceDeletionPrompt, _editorProviderRegistry, NavigateToReference)).ToArray();
+        foreach (var document in documents)
+        {
+            document.StateChanged += DocumentStateChanged;
+        }
+
+        DetachSlotDocuments(project.Scope);
+        if (previousProject is not null)
+        {
+            _archiveChangeMonitor.Stop(previousProject);
+        }
+
+        _slotDocuments[project.Scope] = documents;
+        _slotCategories[project.Scope] = CreateCategories(documents);
+        _slotReferenceIndexes[project.Scope] = referenceIndex;
+        _archiveChangeMonitor.Watch(project);
+        _externallyChangedScopes.Remove(project.Scope);
+    }
+
+    private bool CheckCommonDependency()
+    {
+        if (ActiveScope != ConfigScope.Common || !_workspaceService.Workspace.Scenario.IsOpen)
+        {
+            return true;
+        }
+
+        ErrorMessage = "请先关闭剧本 / 存档，再关闭或更换 CommonData。";
+        return false;
     }
 
     private async Task SaveDocumentAsync()
@@ -1209,6 +1296,11 @@ public sealed class MainWindowViewModel : ObservableObject
             GetSlotDocuments(project.Scope)))
         {
             AddRecentProject(project.ArchivePath, project.Scope);
+            if (project.Scope == ConfigScope.Common && _workspaceService.Workspace.Scenario.Project is { } scenario)
+            {
+                AddRecentProject(scenario.ArchivePath, ConfigScope.Scenario);
+            }
+
             RefreshProjectState();
         }
     }
@@ -1358,7 +1450,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public async Task<bool> TryCloseProjectAsync()
     {
-        if (IsBusy)
+        if (IsBusy || !CheckCommonDependency())
         {
             return false;
         }
@@ -1833,6 +1925,9 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             ArchivePath = fullPath,
             Scope = scope,
+            CommonArchivePath = scope == ConfigScope.Scenario
+                ? _workspaceService.Workspace.Common.ArchivePath
+                : null,
             LastOpenedAt = DateTimeOffset.UtcNow
         });
 

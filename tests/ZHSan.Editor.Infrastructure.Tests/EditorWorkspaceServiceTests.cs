@@ -62,6 +62,117 @@ public sealed class EditorWorkspaceServiceTests
         Assert.False(service.Workspace.Scenario.IsOpen);
     }
 
+    [Fact]
+    public async Task OpenScenario_WithoutCommon_RejectsBeforeReadingArchive()
+    {
+        using var files = new TemporaryArchives();
+        var repository = new FakeRepository();
+        var service = CreateService(repository, CreateDefinition(ConfigScope.Scenario, "scenario"));
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.OpenAsync(ConfigScope.Scenario, files.ScenarioPath));
+
+        Assert.Contains("CommonData", error.Message);
+        Assert.Empty(repository.LoadedScopes);
+        Assert.Equal(ArchiveSlotLifecycle.Empty, service.Workspace.Scenario.Lifecycle);
+    }
+
+    [Fact]
+    public async Task OpenScenario_WithCommonPath_LoadsCommonFirst()
+    {
+        using var files = new TemporaryArchives();
+        var repository = new FakeRepository();
+        var service = CreateService(repository,
+            CreateDefinition(ConfigScope.Common, "common"), CreateDefinition(ConfigScope.Scenario, "scenario"));
+
+        await service.OpenAsync(ConfigScope.Scenario, files.ScenarioPath, commonArchivePath: files.CommonPath);
+
+        Assert.Equal([ConfigScope.Common, ConfigScope.Scenario], repository.LoadedScopes);
+        Assert.Equal(files.CommonPath, service.Workspace.Common.ArchivePath);
+        Assert.Equal(files.ScenarioPath, service.Workspace.Scenario.ArchivePath);
+    }
+
+    [Theory]
+    [InlineData(ConfigScope.Common)]
+    [InlineData(ConfigScope.Scenario)]
+    public async Task OpenScenario_WhenEitherArchiveFails_LeavesBothSlotsEmpty(ConfigScope failedScope)
+    {
+        using var files = new TemporaryArchives();
+        var repository = new FakeRepository { FailScope = failedScope };
+        var service = CreateService(repository,
+            CreateDefinition(ConfigScope.Common, "common"), CreateDefinition(ConfigScope.Scenario, "scenario"));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => service.OpenAsync(
+            ConfigScope.Scenario, files.ScenarioPath, commonArchivePath: files.CommonPath));
+
+        Assert.Null(service.Workspace.Common.Project);
+        Assert.Null(service.Workspace.Scenario.Project);
+        Assert.Equal(ArchiveSlotLifecycle.Empty, service.Workspace.Common.Lifecycle);
+        Assert.Equal(ArchiveSlotLifecycle.Empty, service.Workspace.Scenario.Lifecycle);
+    }
+
+    [Fact]
+    public async Task Common_CannotCloseOrReplaceWhileScenarioIsOpen()
+    {
+        using var files = new TemporaryArchives();
+        var service = CreateService(new FakeRepository(),
+            CreateDefinition(ConfigScope.Common, "common"), CreateDefinition(ConfigScope.Scenario, "scenario"));
+        await service.OpenAsync(ConfigScope.Scenario, files.ScenarioPath, commonArchivePath: files.CommonPath);
+        var common = service.Workspace.Common.Project;
+        var scenario = service.Workspace.Scenario.Project;
+
+        Assert.Throws<InvalidOperationException>(() => service.Close(ConfigScope.Common));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.OpenAsync(ConfigScope.Common, files.ReplacementPath));
+
+        Assert.Same(common, service.Workspace.Common.Project);
+        Assert.Same(scenario, service.Workspace.Scenario.Project);
+        service.Close(ConfigScope.Scenario);
+        service.Close(ConfigScope.Common);
+        Assert.False(service.Workspace.Common.IsOpen);
+    }
+
+    [Theory]
+    [InlineData(ConfigScope.Common)]
+    [InlineData(ConfigScope.Scenario)]
+    public async Task ReplaceBothArchives_FailureRetainsBothOriginalProjects(ConfigScope failedScope)
+    {
+        using var files = new TemporaryArchives();
+        var repository = new FakeRepository();
+        var service = CreateService(repository,
+            CreateDefinition(ConfigScope.Common, "common"), CreateDefinition(ConfigScope.Scenario, "scenario"));
+        await service.OpenAsync(ConfigScope.Scenario, files.ScenarioPath, commonArchivePath: files.CommonPath);
+        var common = service.Workspace.Common.Project;
+        var scenario = service.Workspace.Scenario.Project;
+        repository.FailScope = failedScope;
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => service.OpenAsync(
+            ConfigScope.Scenario, files.ScenarioPath, commonArchivePath: files.ReplacementPath));
+
+        Assert.Same(common, service.Workspace.Common.Project);
+        Assert.Same(scenario, service.Workspace.Scenario.Project);
+        Assert.Equal(ArchiveSlotLifecycle.Open, service.Workspace.Common.Lifecycle);
+        Assert.Equal(ArchiveSlotLifecycle.Open, service.Workspace.Scenario.Lifecycle);
+    }
+
+    [Fact]
+    public async Task ReplaceBothArchives_SuccessUpdatesBothAndReportsLoadOrder()
+    {
+        using var files = new TemporaryArchives();
+        var service = CreateService(new FakeRepository(),
+            CreateDefinition(ConfigScope.Common, "common"), CreateDefinition(ConfigScope.Scenario, "scenario"));
+        await service.OpenAsync(ConfigScope.Scenario, files.ScenarioPath, commonArchivePath: files.CommonPath);
+        var scenario = service.Workspace.Scenario.Project;
+        var progress = new List<ConfigScope>();
+
+        await service.OpenAsync(ConfigScope.Scenario, files.ScenarioPath,
+            commonArchivePath: files.ReplacementPath, loadingScopeChanged: progress.Add);
+
+        Assert.Equal([ConfigScope.Common, ConfigScope.Scenario], progress);
+        Assert.Equal(files.ReplacementPath, service.Workspace.Common.ArchivePath);
+        Assert.NotSame(scenario, service.Workspace.Scenario.Project);
+    }
+
     private static EditorWorkspaceService CreateService(
         FakeRepository repository,
         params ConfigDefinition[] definitions)
@@ -96,12 +207,21 @@ public sealed class EditorWorkspaceServiceTests
     private sealed class FakeRepository : IGameDataArchiveRepository
     {
         public Exception? Exception { get; set; }
+        public ConfigScope? FailScope { get; set; }
+        public List<ConfigScope> LoadedScopes { get; } = [];
 
         public Task<EditorProject> LoadAsync(
             string archivePath,
             IReadOnlyList<ConfigDefinition> definitions,
             CancellationToken cancellationToken = default)
         {
+            var scope = Assert.Single(definitions).Scope;
+            LoadedScopes.Add(scope);
+            if (scope == FailScope)
+            {
+                throw new InvalidDataException("模拟档案加载失败");
+            }
+
             if (Exception is not null)
             {
                 throw Exception;

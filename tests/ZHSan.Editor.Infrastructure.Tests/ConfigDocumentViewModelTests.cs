@@ -52,6 +52,132 @@ public sealed class ConfigDocumentViewModelTests
         Assert.True(description.ShowMultilineString);
     }
 
+    [Theory]
+    [InlineData(typeof(ArchitectureConfig), "architectures", nameof(ArchitectureConfig.MayorId))]
+    [InlineData(typeof(MilitaryConfig), "militaries", nameof(MilitaryConfig.LeaderID))]
+    public void PersonReferencePicker_UsesMinusOneForNoneAndAllowsPersonZero(
+        Type itemType, string configKey, string propertyName)
+    {
+        var item = Activator.CreateInstance(itemType)!;
+        var property = itemType.GetProperty(propertyName)!;
+        property.SetValue(item, -1);
+        var document = new ConfigDocument
+        {
+            Definition = new ConfigDefinition(configKey, configKey, "测试", $"{configKey}.json",
+                itemType, ConfigScope.Scenario),
+            Items = [item]
+        };
+        var people = new ConfigDocument
+        {
+            Definition = new ConfigDefinition("persons", "人物", "测试", "Persons.json",
+                typeof(PersonConfig), ConfigScope.Scenario),
+            Items = [new PersonConfig { Id = 0, SurName = "关", GivenName = "羽" }]
+        };
+        var metadata = new ReflectionConfigMetadataProvider();
+        var index = new ConfigReferenceIndex(metadata);
+        index.Rebuild(new EditorProject
+        {
+            Scope = ConfigScope.Scenario, ArchivePath = "scenario.dat", Documents = [document, people]
+        });
+        var viewModel = new ConfigDocumentViewModel(document, metadata, _ => { }, referenceIndex: index);
+        viewModel.SelectedRecord = viewModel.Records[0];
+        var editor = Assert.Single(viewModel.PropertyEditors,
+            candidate => candidate.Definition.Name == propertyName);
+        var none = Assert.Single(editor.ReferenceOptions, option => option.Id == -1);
+        Assert.Same(none, editor.SelectedReference);
+        Assert.Equal("（无）", none.Label);
+
+        editor.SelectedReference = Assert.Single(editor.ReferenceOptions, option => option.Id == 0);
+        Assert.Equal(0, property.GetValue(item));
+        editor.SelectedReference = none;
+        Assert.Equal(-1, property.GetValue(item));
+    }
+
+    [Theory]
+    [InlineData(nameof(SectionConfig.OrientationFactionID), "factions", typeof(FactionConfig))]
+    [InlineData(nameof(SectionConfig.OrientationSectionID), "sections", typeof(SectionConfig))]
+    [InlineData(nameof(SectionConfig.OrientationStateID), "states", typeof(StateConfig))]
+    [InlineData(nameof(SectionConfig.OrientationArchitectureID), "architectures", typeof(ArchitectureConfig))]
+    public void SectionTargetPicker_UsesMinusOneForNoneAndAllowsTargetZero(
+        string propertyName, string targetKey, Type targetType)
+    {
+        var section = new SectionConfig { Id = 0 };
+        var property = typeof(SectionConfig).GetProperty(propertyName)!;
+        property.SetValue(section, -1);
+        var document = new ConfigDocument
+        {
+            Definition = new ConfigDefinition("sections", "军区", "测试", "Sections.json", typeof(SectionConfig), ConfigScope.Scenario),
+            Items = [section]
+        };
+        var documents = new List<ConfigDocument> { document };
+        if (targetKey != "sections")
+        {
+            var target = Activator.CreateInstance(targetType)!;
+            targetType.GetProperty("Id")!.SetValue(target, 0);
+            documents.Add(new ConfigDocument
+            {
+                Definition = new ConfigDefinition(targetKey, targetKey, "测试", $"{targetKey}.json", targetType, ConfigScope.Scenario),
+                Items = [target]
+            });
+        }
+
+        var metadata = new ReflectionConfigMetadataProvider();
+        var index = new ConfigReferenceIndex(metadata);
+        index.Rebuild(new EditorProject { Scope = ConfigScope.Scenario, ArchivePath = "scenario.dat", Documents = documents });
+        var viewModel = new ConfigDocumentViewModel(document, metadata, _ => { }, referenceIndex: index);
+        viewModel.SelectedRecord = viewModel.Records[0];
+        var editor = Assert.Single(viewModel.PropertyEditors, candidate => candidate.Definition.Name == propertyName);
+        var none = Assert.Single(editor.ReferenceOptions, option => option.Id == -1);
+        Assert.Same(none, editor.SelectedReference);
+        Assert.Equal("（无）", none.Label);
+        Assert.Contains(viewModel.Records[0].Cells, cell => cell.DisplayValue == "#-1 · （无）");
+        var targetOption = Assert.Single(editor.ReferenceOptions, option => option.Id == 0);
+        Assert.Equal(targetKey, targetOption.Target!.ConfigKey);
+        Assert.Equal(ConfigScope.Scenario, targetOption.Target.Scope);
+
+        editor.SelectedReference = targetOption;
+        Assert.Equal(0, property.GetValue(section));
+        editor.SelectedReference = none;
+        Assert.Equal(-1, property.GetValue(section));
+    }
+
+    [Fact]
+    public void UpgradingTechniquePicker_UsesCommonTargetsAndMinusOneForNone()
+    {
+        var faction = new FactionConfig { Id = 1, UpgradingTechnique = -1 };
+        var document = new ConfigDocument
+        {
+            Definition = new ConfigDefinition("factions", "势力", "测试", "Factions.json",
+                typeof(FactionConfig), ConfigScope.Scenario),
+            Items = [faction]
+        };
+        var techniques = new ConfigDocument
+        {
+            Definition = new ConfigDefinition("techniques", "科技", "测试", "Techniques.json", typeof(TechniqueConfig)),
+            Items = [new TechniqueConfig { Id = 0, Name = "科技" }]
+        };
+        var metadata = new ReflectionConfigMetadataProvider();
+        var index = new ConfigReferenceIndex(metadata);
+        index.Rebuild([
+            new EditorProject { Scope = ConfigScope.Common, ArchivePath = "common.dat", Documents = [techniques] },
+            new EditorProject { Scope = ConfigScope.Scenario, ArchivePath = "scenario.dat", Documents = [document] }
+        ]);
+        var viewModel = new ConfigDocumentViewModel(document, metadata, _ => { }, referenceIndex: index);
+        viewModel.SelectedRecord = viewModel.Records[0];
+        var editor = Assert.Single(viewModel.PropertyEditors,
+            property => property.Definition.Name == nameof(FactionConfig.UpgradingTechnique));
+        var none = Assert.Single(editor.ReferenceOptions, option => option.Id == -1);
+        Assert.Same(none, editor.SelectedReference);
+        Assert.Equal("（无）", none.Label);
+        var technology = Assert.Single(editor.ReferenceOptions, option => option.Id == 0);
+        Assert.Equal(ConfigScope.Common, technology.Target!.Scope);
+
+        editor.SelectedReference = technology;
+        Assert.Equal(0, faction.UpgradingTechnique);
+        editor.SelectedReference = none;
+        Assert.Equal(-1, faction.UpgradingTechnique);
+    }
+
     [Fact]
     public void PersonName_DisplaysSurnameAndGivenNameWithoutNullEditing()
     {

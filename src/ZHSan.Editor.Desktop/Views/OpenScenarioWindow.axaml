@@ -1,0 +1,41 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZHSan.Editor.Desktop.ViewModels"
+        x:Class="ZHSan.Editor.Desktop.Views.OpenScenarioWindow"
+        x:DataType="vm:OpenScenarioViewModel"
+        Title="打开剧本 / 存档"
+        Width="680" MinWidth="560" SizeToContent="Height"
+        CanResize="False" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+  <StackPanel Margin="24" Spacing="20">
+    <StackPanel Spacing="6">
+      <TextBlock Text="打开剧本 / 存档" FontSize="22" FontWeight="SemiBold" />
+      <TextBlock Text="确认下面两份文件后，点击“加载”开始编辑。" Opacity="0.7" />
+    </StackPanel>
+    <StackPanel Spacing="8">
+      <TextBlock Text="剧本 / 存档文件" FontWeight="SemiBold" />
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBox Text="{Binding ScenarioPath, Mode=TwoWay}" PlaceholderText="选择 .dat 文件，也可以粘贴完整路径"
+                 AutomationProperties.Name="剧本或存档文件路径" />
+        <Button Grid.Column="1" Content="选择文件…" Margin="10,0,0,0" MinWidth="100"
+                Click="SelectScenario" AutomationProperties.Name="选择剧本或存档文件" />
+      </Grid>
+    </StackPanel>
+    <StackPanel Spacing="8">
+      <TextBlock Text="公共配置 CommonData" FontWeight="SemiBold" />
+      <TextBlock Text="用于解析兵种、建筑类型等数据。" Opacity="0.7" />
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBox Text="{Binding CommonPath, Mode=TwoWay}" PlaceholderText="请选择对应游戏或模组的 CommonData.dat"
+                 AutomationProperties.Name="公共配置文件路径" />
+        <Button Grid.Column="1" Content="{Binding CommonBrowseLabel}" Margin="10,0,0,0" MinWidth="100"
+                Click="SelectCommon" AutomationProperties.Name="选择或更换公共配置" />
+      </Grid>
+      <TextBlock Text="{Binding CommonHint}" TextWrapping="Wrap" Opacity="0.7" />
+    </StackPanel>
+    <TextBlock Text="{Binding ValidationMessage}" TextWrapping="Wrap" MinHeight="20" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+      <Button Content="取消" MinWidth="88" IsCancel="True" Click="Cancel" />
+      <Button Content="加载" MinWidth="100" IsDefault="True" IsEnabled="{Binding CanLoad}" Click="Load" />
+    </StackPanel>
+  </StackPanel>
+</Window>

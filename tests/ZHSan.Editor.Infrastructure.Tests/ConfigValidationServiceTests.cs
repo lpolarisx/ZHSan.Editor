@@ -1,3 +1,4 @@
+using GameDatas;
 using ZHSan.Editor.Application.Validation;
 using ZHSan.Editor.Domain.Configuration;
 using ZHSan.Editor.Domain.Documents;
@@ -75,6 +76,42 @@ public sealed class ConfigValidationServiceTests
         Assert.Throws<OperationCanceledException>(() =>
             service.Validate(CreateProject(), cancellationToken: cancellation.Token));
         Assert.Empty(tableRule.Contexts);
+    }
+
+    [Theory]
+    [InlineData(null, "诸葛", "亮", false)]
+    [InlineData("", "关", "羽", false)]
+    [InlineData(null, "", "貂蝉", false)]
+    [InlineData("旧格式姓名", null, null, false)]
+    [InlineData(null, null, null, true)]
+    [InlineData("", "", "", true)]
+    [InlineData(null, " ", " ", true)]
+    public void Validate_PersonName_UsesDisplayedNameWithoutChangingStoredData(
+        string? name, string? surname, string? givenName, bool expectedError)
+    {
+        var person = new PersonConfig { Id = 7, Name = name!, SurName = surname!, GivenName = givenName! };
+        var document = new ConfigDocument
+        {
+            Definition = new ConfigDefinition("persons", "人物", "人物", "Persons.json",
+                typeof(PersonConfig), ConfigScope.Scenario),
+            Items = [person]
+        };
+        var project = new EditorProject
+        {
+            Scope = ConfigScope.Scenario,
+            ArchivePath = "scenario.dat",
+            Documents = [document]
+        };
+        var service = new ConfigValidationService(
+            new ReflectionConfigMetadataProvider(), [new PropertyConstraintValidationRule()]);
+
+        var report = service.Validate(project, ValidationScope.Field);
+
+        Assert.Equal(expectedError, report.Issues.Any(issue => issue.PropertyName == nameof(PersonConfig.Name)));
+        Assert.Equal(name, person.Name);
+        Assert.Equal(surname, person.SurName);
+        Assert.Equal(givenName, person.GivenName);
+        Assert.False(document.IsDirty);
     }
 
     private static EditorProject CreateProject()

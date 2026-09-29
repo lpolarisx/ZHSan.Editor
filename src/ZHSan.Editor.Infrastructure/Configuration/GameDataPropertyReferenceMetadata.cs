@@ -41,7 +41,7 @@ internal static class GameDataPropertyReferenceMetadata
             [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.StateId))] =
                 new("states", emptyValue: 0, targetScope: ConfigScope.Scenario),
             [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.MayorId))] =
-                new("persons", emptyValue: 0, targetScope: ConfigScope.Scenario),
+                new("persons", emptyValue: -1, targetScope: ConfigScope.Scenario),
             [(typeof(BiographyConfig), nameof(BiographyConfig.Id))] =
                 new("persons", targetScope: ConfigScope.Scenario),
             [(typeof(DiplomaticRelationConfig), nameof(DiplomaticRelationConfig.RelationFaction1ID))] =
@@ -53,11 +53,11 @@ internal static class GameDataPropertyReferenceMetadata
             [(typeof(FactionConfig), nameof(FactionConfig.CapitalID))] =
                 new("architectures", emptyValue: 0, targetScope: ConfigScope.Scenario),
             [(typeof(FactionConfig), nameof(FactionConfig.UpgradingTechnique))] =
-                new("techniques", emptyValue: 0),
+                new("techniques", emptyValue: -1),
             [(typeof(MilitaryConfig), nameof(MilitaryConfig.KindId))] =
                 new("military-kinds"),
             [(typeof(MilitaryConfig), nameof(MilitaryConfig.LeaderID))] =
-                new("persons", emptyValue: 0, targetScope: ConfigScope.Scenario),
+                new("persons", emptyValue: -1, targetScope: ConfigScope.Scenario),
             [(typeof(MilitaryConfig), nameof(MilitaryConfig.BelongedArchitectureID))] =
                 new("architectures", emptyValue: 0, targetScope: ConfigScope.Scenario),
             [(typeof(PersonRelationConfig), nameof(PersonRelationConfig.PersonID1))] =
@@ -65,13 +65,13 @@ internal static class GameDataPropertyReferenceMetadata
             [(typeof(PersonRelationConfig), nameof(PersonRelationConfig.PersonID2))] =
                 new("persons", targetScope: ConfigScope.Scenario),
             [(typeof(SectionConfig), nameof(SectionConfig.OrientationFactionID))] =
-                new("factions", emptyValue: 0, targetScope: ConfigScope.Scenario),
+                new("factions", emptyValue: -1, targetScope: ConfigScope.Scenario),
             [(typeof(SectionConfig), nameof(SectionConfig.OrientationSectionID))] =
-                new("sections", emptyValue: 0, targetScope: ConfigScope.Scenario),
+                new("sections", emptyValue: -1, targetScope: ConfigScope.Scenario),
             [(typeof(SectionConfig), nameof(SectionConfig.OrientationStateID))] =
-                new("states", emptyValue: 0, targetScope: ConfigScope.Scenario),
+                new("states", emptyValue: -1, targetScope: ConfigScope.Scenario),
             [(typeof(SectionConfig), nameof(SectionConfig.OrientationArchitectureID))] =
-                new("architectures", emptyValue: 0, targetScope: ConfigScope.Scenario),
+                new("architectures", emptyValue: -1, targetScope: ConfigScope.Scenario),
             [(typeof(TroopConfig), nameof(TroopConfig.LeaderId))] =
                 new("persons", emptyValue: 0, targetScope: ConfigScope.Scenario),
             [(typeof(TroopConfig), nameof(TroopConfig.MilitaryID))] =

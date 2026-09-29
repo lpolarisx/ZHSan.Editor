@@ -4,6 +4,13 @@ public interface IArchivePicker
 {
     Task<string?> PickArchiveAsync(CancellationToken cancellationToken = default);
 
+    Task<ScenarioArchiveSelection?> PickScenarioArchiveAsync(
+        string? scenarioPath,
+        string? currentCommonPath,
+        Func<string, string?> findAssociatedCommon,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<ScenarioArchiveSelection?>(null);
+
     Task<string?> PickSaveArchiveAsync(
         string suggestedFileName,
         CancellationToken cancellationToken = default);
@@ -45,3 +52,5 @@ public interface IArchivePicker
         CancellationToken cancellationToken = default) =>
         Task.FromResult<string?>(null);
 }
+
+public sealed record ScenarioArchiveSelection(string ScenarioPath, string CommonPath);

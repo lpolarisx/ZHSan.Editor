@@ -105,6 +105,117 @@ public sealed class ReferenceExistenceValidationRuleTests
             candidate.PropertyName == nameof(MilitaryConfig.LeaderID));
     }
 
+    [Theory]
+    [InlineData(-1, 7, false)]
+    [InlineData(7, 7, false)]
+    [InlineData(0, 0, false)]
+    [InlineData(0, 7, true)]
+    [InlineData(404, 7, true)]
+    [InlineData(-2, 7, true)]
+    public void Validate_MayorId_OnlyMinusOneMeansNoMayor(int mayorId, int personId, bool expectedError)
+    {
+        var scenario = CreateProject(ConfigScope.Scenario,
+            CreateDocument("persons", typeof(PersonConfig), ConfigScope.Scenario,
+                new PersonConfig { Id = personId, SurName = "关", GivenName = "羽" }),
+            CreateDocument("architectures", typeof(ArchitectureConfig), ConfigScope.Scenario,
+                new ArchitectureConfig { Id = 1, MayorId = mayorId }));
+        var service = new ConfigValidationService(new ReflectionConfigMetadataProvider(),
+            crossTableRules: [new ReferenceExistenceValidationRule()]);
+
+        var report = service.Validate(scenario, ValidationScope.CrossTable);
+
+        Assert.Equal(expectedError, report.Issues.Any(issue =>
+            issue.PropertyName == nameof(ArchitectureConfig.MayorId)));
+    }
+
+    [Theory]
+    [InlineData(-1, 7, false)]
+    [InlineData(7, 7, false)]
+    [InlineData(0, 0, false)]
+    [InlineData(0, 7, true)]
+    [InlineData(404, 7, true)]
+    [InlineData(-2, 7, true)]
+    public void Validate_UpgradingTechnique_UsesCommonTechnologyAndMinusOneForNone(
+        int upgradingTechnique, int techniqueId, bool expectedError)
+    {
+        var common = CreateProject(CreateDocument("techniques", typeof(TechniqueConfig),
+            new TechniqueConfig { Id = techniqueId, Name = "科技" }));
+        var scenario = CreateProject(ConfigScope.Scenario,
+            CreateDocument("factions", typeof(FactionConfig), ConfigScope.Scenario,
+                new FactionConfig { Id = 1, UpgradingTechnique = upgradingTechnique }));
+        var service = new ConfigValidationService(new ReflectionConfigMetadataProvider(),
+            crossTableRules: [new ReferenceExistenceValidationRule()]);
+
+        var report = service.Validate(scenario, [common, scenario], ValidationScope.CrossTable);
+        var issues = report.Issues.Where(issue =>
+            issue.PropertyName == nameof(FactionConfig.UpgradingTechnique)).ToArray();
+
+        Assert.Equal(expectedError, issues.Length > 0);
+        if (expectedError)
+        {
+            Assert.Contains("Common:techniques", Assert.Single(issues).Message);
+        }
+    }
+
+    [Theory]
+    [InlineData(-1, 7, false)]
+    [InlineData(7, 7, false)]
+    [InlineData(0, 0, false)]
+    [InlineData(0, 7, true)]
+    [InlineData(404, 7, true)]
+    [InlineData(-2, 7, true)]
+    public void Validate_MilitaryLeader_OnlyMinusOneMeansNoCommander(int leaderId, int personId, bool expectedError)
+    {
+        var scenario = CreateProject(ConfigScope.Scenario,
+            CreateDocument("persons", typeof(PersonConfig), ConfigScope.Scenario,
+                new PersonConfig { Id = personId, SurName = "关", GivenName = "羽" }),
+            CreateDocument("militaries", typeof(MilitaryConfig), ConfigScope.Scenario,
+                new MilitaryConfig { Id = 1, LeaderID = leaderId }));
+        var service = new ConfigValidationService(new ReflectionConfigMetadataProvider(),
+            crossTableRules: [new ReferenceExistenceValidationRule()]);
+
+        var report = service.Validate(scenario, ValidationScope.CrossTable);
+
+        Assert.Equal(expectedError, report.Issues.Any(issue =>
+            issue.PropertyName == nameof(MilitaryConfig.LeaderID)));
+    }
+
+    [Theory]
+    [InlineData(-1, 7, false)]
+    [InlineData(7, 7, false)]
+    [InlineData(0, 0, false)]
+    [InlineData(0, 7, true)]
+    [InlineData(404, 7, true)]
+    [InlineData(-2, 7, true)]
+    public void Validate_SectionTargets_OnlyMinusOneMeansUnset(int targetId, int existingId, bool expectedError)
+    {
+        var section = new SectionConfig
+        {
+            Id = 99, OrientationFactionID = targetId, OrientationSectionID = targetId,
+            OrientationStateID = targetId, OrientationArchitectureID = targetId
+        };
+        var scenario = CreateProject(ConfigScope.Scenario,
+            CreateDocument("sections", typeof(SectionConfig), ConfigScope.Scenario,
+                section, new SectionConfig { Id = existingId }),
+            CreateDocument("factions", typeof(FactionConfig), ConfigScope.Scenario,
+                new FactionConfig { Id = existingId }),
+            CreateDocument("states", typeof(StateConfig), ConfigScope.Scenario,
+                new StateConfig { Id = existingId }),
+            CreateDocument("architectures", typeof(ArchitectureConfig), ConfigScope.Scenario,
+                new ArchitectureConfig { Id = existingId }));
+        var service = new ConfigValidationService(new ReflectionConfigMetadataProvider(),
+            crossTableRules: [new ReferenceExistenceValidationRule()]);
+
+        var report = service.Validate(scenario, ValidationScope.CrossTable);
+
+        foreach (var property in new[] { nameof(SectionConfig.OrientationFactionID), nameof(SectionConfig.OrientationSectionID),
+                     nameof(SectionConfig.OrientationStateID), nameof(SectionConfig.OrientationArchitectureID) })
+        {
+            Assert.Equal(expectedError, report.Issues.Any(issue =>
+                issue.ConfigKey == "sections" && issue.ItemId == 99 && issue.PropertyName == property));
+        }
+    }
+
     private static ConfigDocument CreateDocument(string key, Type itemType, params object[] items) =>
         CreateDocument(key, itemType, ConfigScope.Common, items);
 

@@ -111,7 +111,9 @@ public sealed class ConfigValidationService
                 foreach (var property in properties)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var value = GetPropertyValue(item.Value, property.Name);
+                    var value = property.ValueGetter is { } getter
+                        ? getter(item.Value)
+                        : GetPropertyValue(item.Value, property.Name);
                     var context = new FieldValidationContext(
                         table.Project,
                         table.Document,
