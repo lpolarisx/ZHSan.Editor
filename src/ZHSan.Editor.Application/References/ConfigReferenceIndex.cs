@@ -207,7 +207,7 @@ public sealed class ConfigReferenceIndex
             .ToArray();
     }
 
-    private static ConfigReferenceTarget? CreateTarget(
+    private ConfigReferenceTarget? CreateTarget(
         ConfigDefinition definition,
         object item)
     {
@@ -217,9 +217,7 @@ public sealed class ConfigReferenceIndex
             return null;
         }
 
-        var name = item.GetType().GetProperty(
-            "Name",
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase)?.GetValue(item)?.ToString();
+        var name = GetName(item);
         return new ConfigReferenceTarget(
             definition.Key,
             definition.DisplayName,
@@ -229,14 +227,23 @@ public sealed class ConfigReferenceIndex
             definition.Scope);
     }
 
-    private static string GetRecordDisplayName(object item, int? id)
+    private string GetRecordDisplayName(object item, int? id)
     {
-        var name = item.GetType().GetProperty(
-            "Name",
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase)?.GetValue(item)?.ToString();
+        var name = GetName(item);
         return string.IsNullOrWhiteSpace(name)
             ? id.HasValue ? $"#{id.Value}" : "未命名记录"
             : name;
+    }
+
+    private string? GetName(object item)
+    {
+        var property = _metadataProvider.GetProperties(item.GetType())
+            .FirstOrDefault(candidate => candidate.Name == "Name");
+        return property?.ValueGetter is { } getter
+            ? getter(item)?.ToString()
+            : item.GetType().GetProperty(
+                "Name",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase)?.GetValue(item)?.ToString();
     }
 
     private static int? GetIntProperty(object item, string propertyName)

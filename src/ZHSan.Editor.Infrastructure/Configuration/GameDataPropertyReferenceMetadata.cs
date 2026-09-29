@@ -42,6 +42,8 @@ internal static class GameDataPropertyReferenceMetadata
                 new("states", emptyValue: 0, targetScope: ConfigScope.Scenario),
             [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.MayorId))] =
                 new("persons", emptyValue: 0, targetScope: ConfigScope.Scenario),
+            [(typeof(BiographyConfig), nameof(BiographyConfig.Id))] =
+                new("persons", targetScope: ConfigScope.Scenario),
             [(typeof(DiplomaticRelationConfig), nameof(DiplomaticRelationConfig.RelationFaction1ID))] =
                 new("factions", targetScope: ConfigScope.Scenario),
             [(typeof(DiplomaticRelationConfig), nameof(DiplomaticRelationConfig.RelationFaction2ID))] =

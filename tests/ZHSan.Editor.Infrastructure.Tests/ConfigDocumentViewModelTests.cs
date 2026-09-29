@@ -87,6 +87,75 @@ public sealed class ConfigDocumentViewModelTests
     }
 
     [Fact]
+    public void Biography_ShowsPersonNameNavigatesAndEditsLongText()
+    {
+        var person = new PersonConfig { Id = 7, SurName = "诸葛", GivenName = "亮" };
+        var biography = new BiographyConfig { Id = 7, Brief = "旧简介" };
+        var people = new ConfigDocument
+        {
+            Definition = new ConfigDefinition(
+                "persons", "人物", "测试", "Persons.json", typeof(PersonConfig), ConfigScope.Scenario),
+            Items = [person]
+        };
+        var biographies = new ConfigDocument
+        {
+            Definition = new ConfigDefinition(
+                "biographies", "列传", "测试", "Biographies.json", typeof(BiographyConfig), ConfigScope.Scenario),
+            Items = [biography]
+        };
+        var project = new EditorProject
+        {
+            ArchivePath = "test.dat",
+            Documents = [people, biographies],
+            ActiveDocument = biographies
+        };
+        var metadata = new ReflectionConfigMetadataProvider();
+        var index = new ConfigReferenceIndex(metadata);
+        index.Rebuild(project);
+        ConfigReferenceTarget? navigated = null;
+        var viewModel = new ConfigDocumentViewModel(
+            biographies, metadata, _ => { }, referenceIndex: index,
+            navigateReference: target => navigated = target);
+        viewModel.SelectedRecord = viewModel.Records[0];
+
+        Assert.True(viewModel.IsBiography);
+        Assert.Equal(nameof(BiographyConfig.Id), viewModel.Properties[0].Name);
+        Assert.Equal("#7 · 诸葛亮", viewModel.Records[0].Cells[0].DisplayValue);
+        var idEditor = Assert.Single(viewModel.PropertyEditors,
+            candidate => candidate.Definition.Name == nameof(BiographyConfig.Id));
+        Assert.True(idEditor.ShowReference);
+        var picker = Assert.IsType<ReferencePickerViewModel>(idEditor.ReferencePicker);
+        Assert.Contains("诸葛亮", picker.SelectedOption?.Label);
+        Assert.True(picker.NavigateCommand.CanExecute(null));
+        picker.NavigateCommand.Execute(null);
+        Assert.Same(person, navigated?.Item);
+        Assert.Contains(index.References, reference =>
+            reference.Item == biography && reference.TargetConfigKey == "persons" && reference.TargetId == 7);
+
+        person.GivenName = "瑾";
+        index.Rebuild(project);
+        viewModel.RefreshReferenceOptions();
+        Assert.Equal("#7 · 诸葛瑾", viewModel.Records[0].Cells[0].DisplayValue);
+        Assert.Contains("诸葛瑾", picker.SelectedOption?.Label);
+
+        foreach (var field in new[] { nameof(BiographyConfig.Brief), nameof(BiographyConfig.History),
+                     nameof(BiographyConfig.Romance), nameof(BiographyConfig.InGame) })
+        {
+            var editor = Assert.Single(viewModel.PropertyEditors,
+                candidate => candidate.Definition.Name == field);
+            Assert.True(editor.ShowMultilineString);
+            Assert.False(editor.SupportsNullEditing);
+            Assert.False(editor.ShowSetNull);
+        }
+
+        var brief = Assert.Single(viewModel.PropertyEditors,
+            candidate => candidate.Definition.Name == nameof(BiographyConfig.Brief));
+        brief.ValueText = "新简介\n第二行";
+        Assert.Equal("新简介\n第二行", biography.Brief);
+        Assert.True(biographies.IsDirty);
+    }
+
+    [Fact]
     public void Filter_UsesExactMatchingForIntegersAndFuzzyMatchingForStrings()
     {
         var exact = new TitleConfig { Id = 1, Name = "合欢", KindId = 2 };

@@ -26,8 +26,10 @@ public sealed class ReflectionConfigMetadataProvider : IConfigMetadataProvider
                 property.GetCustomAttribute<JsonPropertyOrderAttribute>()?.Order ?? index)
             {
                 ValueGetter = itemType == typeof(PersonConfig) && property.Name == nameof(PersonConfig.Name)
-                    ? item => ((PersonConfig)item).SurName + ((PersonConfig)item).GivenName
+                    ? item => GetPersonName((PersonConfig)item)
                     : null,
+                IsMultilineText = IsBiographyText(itemType, property.Name),
+                AllowNullEditing = !IsBiographyText(itemType, property.Name),
                 Validation = GameDataPropertyValidationMetadata.Get(property),
                 Reference = GameDataPropertyReferenceMetadata.Get(itemType, property),
                 StructuredString = GameDataStructuredStringMetadata.Get(itemType, property),
@@ -35,4 +37,15 @@ public sealed class ReflectionConfigMetadataProvider : IConfigMetadataProvider
             .OrderBy(property => property.Order)
             .ThenBy(property => property.Name, StringComparer.Ordinal)
             .ToArray();
+
+    private static string? GetPersonName(PersonConfig person)
+    {
+        var fullName = person.SurName + person.GivenName;
+        return fullName.Length > 0 ? fullName : person.Name;
+    }
+
+    private static bool IsBiographyText(Type itemType, string propertyName) =>
+        itemType == typeof(BiographyConfig) &&
+        propertyName is nameof(BiographyConfig.Brief) or nameof(BiographyConfig.History) or
+            nameof(BiographyConfig.Romance) or nameof(BiographyConfig.InGame);
 }

@@ -79,6 +79,8 @@ public sealed partial class MainWindow : Window
         }
 
         _columnsDocument = document;
+        var biographyHasSavedNameColumn = document.IsBiography &&
+            document.SavedColumnWidths.Count == document.Properties.Count + 1;
         for (var index = 0; index < document.Properties.Count; index++)
         {
             var property = document.Properties[index];
@@ -90,9 +92,10 @@ public sealed partial class MainWindow : Window
                 IsReadOnly = true,
                 MinWidth = property.Reference is not null || property.PropertyType == typeof(string) ? 150 : 80
             };
-            if (index < document.SavedColumnWidths.Count)
+            var savedIndex = biographyHasSavedNameColumn && index > 0 ? index + 1 : index;
+            if (savedIndex < document.SavedColumnWidths.Count)
             {
-                column.Width = new DataGridLength(document.SavedColumnWidths[index]);
+                column.Width = new DataGridLength(document.SavedColumnWidths[savedIndex]);
             }
 
             RecordsGrid.Columns.Add(column);

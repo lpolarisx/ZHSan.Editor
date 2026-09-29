@@ -5,6 +5,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows.Input;
+using GameDatas;
 using ZHSan.Editor.Application.Abstractions;
 using ZHSan.Editor.Application.References;
 using ZHSan.Editor.Desktop.Editors;
@@ -122,6 +123,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     public string Key => Document.Definition.Key;
     public string DisplayName => Document.Definition.DisplayName;
     public string EntryName => Document.Definition.EntryName;
+    public bool IsBiography => Document.Definition.ItemType == typeof(BiographyConfig);
     public IReadOnlyList<ConfigPropertyDefinition> Properties => _properties;
     public IReadOnlyList<ConfigFilterFieldViewModel> FilterFields { get; }
     public IReadOnlyList<BatchEditFieldViewModel> BatchEditFields { get; }

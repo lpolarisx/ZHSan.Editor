@@ -11,6 +11,10 @@ public sealed record ConfigPropertyDefinition(
 
     public Func<object, object?>? ValueGetter { get; init; }
 
+    public bool IsMultilineText { get; init; }
+
+    public bool AllowNullEditing { get; init; } = true;
+
     public ConfigReferenceDefinition? Reference { get; init; }
 
     public ConfigStructuredStringDefinition? StructuredString { get; init; }

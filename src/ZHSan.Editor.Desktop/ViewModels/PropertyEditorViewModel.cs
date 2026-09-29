@@ -42,7 +42,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
         IsStructuredString = definition.StructuredString is not null;
         IsReadOnly = !definition.CanWrite || (!IsBoolean && !IsEnum && !IsNumber && !IsString && !IsCollection);
         CanBeNull = !definition.PropertyType.IsValueType || Nullable.GetUnderlyingType(definition.PropertyType) is not null;
-        SupportsNullEditing = definition.CanWrite && CanBeNull && !IsReadOnly;
+        SupportsNullEditing = definition.CanWrite && definition.AllowNullEditing && CanBeNull && !IsReadOnly;
 
         if (IsEnum)
         {
@@ -112,7 +112,8 @@ public sealed class PropertyEditorViewModel : ObservableObject
     public bool ShowNumber => IsNumber && !IsReference && !IsReadOnly && !IsNull;
     public bool ShowReference => IsReference && IsNumber && !IsCollection && !IsReadOnly && !IsNull;
     public bool ShowString => IsString && !IsMultilineString && !IsStructuredString && !IsReadOnly && !IsNull;
-    public bool ShowMultilineString => IsMultilineString && !IsStructuredString && !IsReadOnly && !IsNull;
+    public bool ShowMultilineString => IsMultilineString && !IsStructuredString && !IsReadOnly &&
+        (!IsNull || !Definition.AllowNullEditing);
     public bool ShowStructuredString => IsStructuredString && !IsReadOnly && !IsNull;
     public bool ShowCollection => IsCollection && !IsReadOnly && !IsNull;
     public bool IsValidationTarget
@@ -232,6 +233,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
         Definition.ValueGetter is { } getter ? getter(_owner) : _property.GetValue(_owner);
 
     private static bool IsMultilineTextProperty(ConfigPropertyDefinition definition) =>
+        definition.IsMultilineText ||
         definition.Name.EndsWith("Description", StringComparison.OrdinalIgnoreCase) ||
         definition.DisplayName.Contains("描述", StringComparison.Ordinal) ||
         definition.DisplayName.Contains("说明", StringComparison.Ordinal) ||
