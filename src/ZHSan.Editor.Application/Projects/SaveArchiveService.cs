@@ -23,6 +23,27 @@ public sealed class SaveArchiveService(
         return preflight.Report;
     }
 
+    public async Task<ValidationReport> SaveDocumentsAsync(
+        EditorProject project,
+        IReadOnlyCollection<ConfigDocument> documents,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(documents);
+        if (documents.Count == 0)
+        {
+            throw new ArgumentException("至少需要一项待保存配置。", nameof(documents));
+        }
+        foreach (var document in documents)
+        {
+            ValidateDocument(project, document);
+        }
+        var preflight = validationPreflightService.Evaluate(
+            project,
+            ValidationOperation.Save,
+            cancellationToken);
+        await repository.SaveDocumentsAsync(project, documents, cancellationToken);
+        return preflight.Report;
+    }
     public async Task<ValidationReport> SaveAllAsync(
         EditorProject project,
         CancellationToken cancellationToken = default)

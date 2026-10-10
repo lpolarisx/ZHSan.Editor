@@ -33,6 +33,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     private readonly ConfigReferenceIndex? _referenceIndex;
     private readonly IReferenceDeletionPrompt? _referenceDeletionPrompt;
     private readonly Action<ConfigReferenceTarget>? _navigateReference;
+    private readonly Func<string, ConfigDocumentViewModel?>? _findRelatedDocument;
     private bool _wasDirtyBeforeHistory;
     private int _savedHistoryPosition;
     private string _searchText = string.Empty;
@@ -54,7 +55,8 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         ConfigReferenceIndex? referenceIndex = null,
         IReferenceDeletionPrompt? referenceDeletionPrompt = null,
         ConfigEditorProviderRegistry? editorProviderRegistry = null,
-        Action<ConfigReferenceTarget>? navigateReference = null)
+        Action<ConfigReferenceTarget>? navigateReference = null,
+        Func<string, ConfigDocumentViewModel?>? findRelatedDocument = null)
     {
         Document = document;
         _clipboard = clipboard ?? new RecordClipboard();
@@ -62,6 +64,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         _referenceIndex = referenceIndex;
         _referenceDeletionPrompt = referenceDeletionPrompt;
         _navigateReference = navigateReference;
+        _findRelatedDocument = findRelatedDocument;
         _wasDirtyBeforeHistory = document.IsDirty;
         _properties = metadataProvider.GetProperties(document.Definition.ItemType);
         FilterFields = [
@@ -118,6 +121,9 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
     public event EventHandler? StateChanged;
     public event EventHandler? ReferenceOptionsChanged;
+
+    internal ConfigDocumentViewModel? FindRelatedDocument(string key) =>
+        _findRelatedDocument?.Invoke(key);
 
     public ConfigDocument Document { get; }
     public string Key => Document.Definition.Key;

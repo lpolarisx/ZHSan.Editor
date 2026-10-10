@@ -36,6 +36,15 @@ internal static class GameDataPropertyReferenceMetadata
             [(typeof(TroopEventEffectConfig), nameof(TroopEventEffectConfig.KindId))] =
                 new("troop-effect-kinds"),
 
+            [(typeof(PersonConfig), nameof(PersonConfig.StudyingStuntString))] =
+                new("stunts", emptyValue: 0),
+            [(typeof(PersonConfig), nameof(PersonConfig.PersonalTitleString))] =
+                new("titles", emptyValue: 0),
+            [(typeof(PersonConfig), nameof(PersonConfig.CombatTitleString))] =
+                new("titles", emptyValue: 0),
+            [(typeof(PersonConfig), nameof(PersonConfig.StudyingTitleString))] =
+                new("titles", emptyValue: 0),
+
             [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.KindId))] =
                 new("architecture-kinds"),
             [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.StateId))] =
@@ -85,6 +94,8 @@ internal static class GameDataPropertyReferenceMetadata
             [(typeof(TroopConfig), nameof(TroopConfig.TargetArchitectureID))] =
                 new("architectures", emptyValue: 0, targetScope: ConfigScope.Scenario),
             [(typeof(TroopConfig), nameof(TroopConfig.CurrentCombatMethodID))] =
+                new("combat-methods", emptyValue: 0),
+            [(typeof(TroopConfig), nameof(TroopConfig.AutoCombatMethodID))] =
                 new("combat-methods", emptyValue: 0),
             [(typeof(TroopConfig), nameof(TroopConfig.CurrentStratagemID))] =
                 new("stratagems", emptyValue: 0),

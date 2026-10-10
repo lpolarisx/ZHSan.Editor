@@ -374,6 +374,9 @@
                                           IsVisible="{Binding ShowReference}" />
                           <CheckBox IsChecked="{Binding BooleanValue, Mode=TwoWay}"
                                     Content="启用" IsVisible="{Binding ShowBoolean}" />
+                          <ComboBox ItemsSource="{Binding SexOptions}"
+                                    SelectedItem="{Binding SelectedSex, Mode=TwoWay}"
+                                    IsVisible="{Binding ShowSex}" />
                           <ComboBox ItemsSource="{Binding Options}"
                                     SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
                                     IsVisible="{Binding ShowEnum}" />

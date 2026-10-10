@@ -9,6 +9,9 @@
     <DataTemplate DataType="editors:TechniqueTreeEditorViewModel">
       <views:TechniqueTreeEditorView />
     </DataTemplate>
+    <DataTemplate DataType="editors:PersonBasicEditorViewModel">
+      <views:PersonBasicEditorView />
+    </DataTemplate>
     <DataTemplate DataType="editors:FacilityKindLevelEditorViewModel">
       <views:FacilityKindLevelEditorView />
     </DataTemplate>

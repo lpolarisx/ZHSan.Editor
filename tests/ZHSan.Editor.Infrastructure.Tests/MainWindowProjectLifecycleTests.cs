@@ -14,6 +14,28 @@ namespace ZHSan.Editor.Infrastructure.Tests;
 public sealed class MainWindowProjectLifecycleTests
 {
     [Fact]
+    public void SavePerson_FromBiographyEdit_EnablesSaveAndWritesLinkedDocumentsOnce()
+    {
+        using var context = new TestContext();
+        var viewModel = context.CreateViewModel(includePersonBiography: true);
+        viewModel.OpenArchiveCommand.Execute(null);
+        context.Picker.ArchivePath = context.ScenarioArchivePath;
+        viewModel.OpenScenarioArchiveCommand.Execute(null);
+
+        var people = viewModel.Documents.Single(document => document.Key == "persons");
+        var biographies = viewModel.Documents.Single(document => document.Key == "biographies");
+        people.SelectCommand.Execute(null);
+        biographies.SetPropertyValue(biographies.Records[0], nameof(BiographyConfig.Brief), "新列传");
+
+        Assert.False(people.IsDirty);
+        Assert.True(biographies.IsDirty);
+        Assert.True(viewModel.SaveDocumentCommand.CanExecute(null));
+        viewModel.SaveDocumentCommand.Execute(null);
+
+        Assert.Equal(1, context.Repository.SaveCount);
+        Assert.False(biographies.IsDirty);
+    }
+    [Fact]
     public async Task CloseProject_WithDirtyDocument_CanCancelThenDiscard()
     {
         using var context = new TestContext();
@@ -554,7 +576,8 @@ public sealed class MainWindowProjectLifecycleTests
 
         public MainWindowViewModel CreateViewModel(
             bool includeScenario = false,
-            bool includeCrossScopeReferences = false)
+            bool includeCrossScopeReferences = false,
+            bool includePersonBiography = false)
         {
             var definition = new ConfigDefinition(
                 "techniques", "技术", "测试", "Techniques.json", typeof(TechniqueConfig));
@@ -567,6 +590,15 @@ public sealed class MainWindowProjectLifecycleTests
                     "people", "人物", "人物", "Persons.json", typeof(TechniqueConfig), ConfigScope.Scenario));
             }
 
+            if (includePersonBiography)
+            {
+                definitions.Add(new ConfigDefinition(
+                    "biographies", "列传", "人物", "Biographies.json",
+                    typeof(BiographyConfig), ConfigScope.Scenario));
+                definitions.Add(new ConfigDefinition(
+                    "persons", "人物", "人物", "Persons.json",
+                    typeof(PersonConfig), ConfigScope.Scenario));
+            }
             if (includeCrossScopeReferences)
             {
                 definitions.Add(new ConfigDefinition(
@@ -673,6 +705,10 @@ public sealed class MainWindowProjectLifecycleTests
             ConfigDocument document,
             CancellationToken cancellationToken = default) => SaveAsync(project, cancellationToken);
 
+        public Task SaveDocumentsAsync(
+            EditorProject project,
+            IReadOnlyCollection<ConfigDocument> documents,
+            CancellationToken cancellationToken = default) => SaveAsync(project, cancellationToken);
         public Task SaveAsAsync(
             EditorProject project,
             string destinationPath,

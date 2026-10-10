@@ -100,6 +100,54 @@ public sealed class GameDataArchiveRepositoryTests
     }
 
     [Fact]
+    public async Task SaveDocumentsAsync_WritesPersonAndBiographyTogether()
+    {
+        var directory = Directory.CreateTempSubdirectory("zhsan-person-biography-").FullName;
+        var archivePath = Path.Combine(directory, "Scenario.dat");
+        try
+        {
+            using (var zip = ZipFile.Open(archivePath, ZipArchiveMode.Create))
+            {
+                await WriteEntryAsync(zip, "Persons.json", "[{\"Id\":7,\"SurName\":\"关\",\"GivenName\":\"羽\"}]");
+                await WriteEntryAsync(zip, "Biographies.json", "[{\"Id\":7,\"Brief\":\"旧简介\"}]");
+                await WriteEntryAsync(zip, "Architectures.json", "[{\"Id\":1,\"Name\":\"原建筑\"}]");
+            }
+
+            var definitions = new[]
+            {
+                new ConfigDefinition("persons", "人物", "人物", "Persons.json",
+                    typeof(PersonConfig), ConfigScope.Scenario),
+                new ConfigDefinition("biographies", "列传", "人物", "Biographies.json",
+                    typeof(BiographyConfig), ConfigScope.Scenario),
+                new ConfigDefinition("architectures", "建筑", "世界", "Architectures.json",
+                    typeof(ArchitectureConfig), ConfigScope.Scenario)
+            };
+            var repository = new GameDataArchiveRepository();
+            var project = await repository.LoadAsync(archivePath, definitions);
+            var personDocument = project.Documents.Single(document => document.Definition.Key == "persons");
+            var biographyDocument = project.Documents.Single(document => document.Definition.Key == "biographies");
+            ((PersonConfig)personDocument.Items.Single()).GivenName = "平";
+            ((BiographyConfig)biographyDocument.Items.Single()).Brief = "新简介";
+            personDocument.IsDirty = true;
+            biographyDocument.IsDirty = true;
+
+            await repository.SaveDocumentsAsync(project, [personDocument, biographyDocument]);
+
+            Assert.False(personDocument.IsDirty);
+            Assert.False(biographyDocument.IsDirty);
+            Assert.True(File.Exists(archivePath + ".bak"));
+            Assert.False(File.Exists(archivePath + ".tmp"));
+            using var saved = GameDataArchive.Open(archivePath);
+            Assert.Equal("平", saved.Load<List<PersonConfig>>("Persons.json")!.Single().GivenName);
+            Assert.Equal("新简介", saved.Load<List<BiographyConfig>>("Biographies.json")!.Single().Brief);
+            Assert.Equal("原建筑", saved.Load<List<ArchitectureConfig>>("Architectures.json")!.Single().Name);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+    [Fact]
     public async Task LoadAsync_MixedScopeDefinitions_IsRejectedBeforeOpeningArchive()
     {
         var definitions = new[]

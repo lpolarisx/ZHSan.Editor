@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Reflection;
 using System.Windows.Input;
+using GameDatas;
 using ZHSan.Editor.Application.References;
 using ZHSan.Editor.Domain.Configuration;
 
@@ -33,6 +34,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
 
         var valueType = Nullable.GetUnderlyingType(definition.PropertyType) ?? definition.PropertyType;
         IsBoolean = valueType == typeof(bool);
+        IsPersonSex = owner is PersonConfig && definition.Name == nameof(PersonConfig.Sex);
         IsEnum = valueType.IsEnum;
         IsNumber = IsNumeric(valueType);
         IsString = valueType == typeof(string);
@@ -84,6 +86,8 @@ public sealed class PropertyEditorViewModel : ObservableObject
     public string DisplayName => Definition.DisplayName;
     public string TypeName => GetFriendlyTypeName(Definition.PropertyType);
     public bool IsBoolean { get; }
+    public bool IsPersonSex { get; }
+    public IReadOnlyList<string> SexOptions { get; } = ["男", "女"];
     public bool IsEnum { get; }
     public bool IsNumber { get; }
     public bool IsString { get; }
@@ -107,7 +111,8 @@ public sealed class PropertyEditorViewModel : ObservableObject
                 : string.Empty;
     public bool HasValueStateText => SupportsNullEditing &&
         (IsNull || (IsCollection && CollectionItems.Count == 0) || (IsString && string.IsNullOrEmpty(ValueText)));
-    public bool ShowBoolean => IsBoolean && !IsReadOnly && !IsNull;
+    public bool ShowBoolean => IsBoolean && !IsPersonSex && !IsReadOnly && !IsNull;
+    public bool ShowSex => IsPersonSex && !IsReadOnly && !IsNull;
     public bool ShowEnum => IsEnum && !IsReadOnly && !IsNull;
     public bool ShowNumber => IsNumber && !IsReference && !IsReadOnly && !IsNull;
     public bool ShowReference => IsReference && IsNumber && !IsCollection && !IsReadOnly && !IsNull;
@@ -176,6 +181,18 @@ public sealed class PropertyEditorViewModel : ObservableObject
             if (!IsReadOnly && value.HasValue)
             {
                 SetValue(value.Value);
+            }
+        }
+    }
+
+    public string? SelectedSex
+    {
+        get => IsNull ? null : BooleanValue == true ? "女" : "男";
+        set
+        {
+            if (IsPersonSex && value is "男" or "女")
+            {
+                BooleanValue = value == "女";
             }
         }
     }
@@ -298,6 +315,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(ValueText));
         OnPropertyChanged(nameof(NumericValue));
         OnPropertyChanged(nameof(BooleanValue));
+        OnPropertyChanged(nameof(SelectedSex));
         OnPropertyChanged(nameof(SelectedOption));
         OnPropertyChanged(nameof(SelectedReference));
         OnPropertyChanged(nameof(IsNull));
@@ -306,6 +324,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(NullStateText));
         OnPropertyChanged(nameof(HasValueStateText));
         OnPropertyChanged(nameof(ShowBoolean));
+        OnPropertyChanged(nameof(ShowSex));
         OnPropertyChanged(nameof(ShowEnum));
         OnPropertyChanged(nameof(ShowNumber));
         OnPropertyChanged(nameof(ShowReference));

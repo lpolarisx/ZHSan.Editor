@@ -28,6 +28,7 @@ public sealed class ConfigEditorContext
 
     public ConfigDocumentViewModel Document { get; }
     public ConfigDefinition Definition => Document.Document.Definition;
+    public ConfigDocumentViewModel? FindDocument(string key) => Document.FindRelatedDocument(key);
     public IReadOnlyList<ConfigRecordViewModel> Records => Document.Records;
     public ConfigRecordViewModel? SelectedRecord
     {

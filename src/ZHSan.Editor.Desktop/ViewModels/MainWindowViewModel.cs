@@ -1151,10 +1151,19 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         var referenceIndex = new ConfigReferenceIndex(_metadataProvider);
         referenceIndex.Rebuild(GetOpenProjects());
-        var documents = project.Documents.Select(document => new ConfigDocumentViewModel(
-            document, _metadataProvider, SelectDocument, _recordClipboard,
-            _uiState.GetDocument(document.Definition.Address), referenceIndex,
-            _referenceDeletionPrompt, _editorProviderRegistry, NavigateToReference)).ToArray();
+        var documentsByKey = new Dictionary<string, ConfigDocumentViewModel>(StringComparer.OrdinalIgnoreCase);
+        foreach (var source in project.Documents.OrderBy(source => source.Definition.Key == "persons" ? 1 : 0))
+        {
+            var viewModel = new ConfigDocumentViewModel(
+                source, _metadataProvider, SelectDocument, _recordClipboard,
+                _uiState.GetDocument(source.Definition.Address), referenceIndex,
+                _referenceDeletionPrompt, _editorProviderRegistry, NavigateToReference,
+                key => documentsByKey.GetValueOrDefault(key));
+            documentsByKey[source.Definition.Key] = viewModel;
+        }
+        var documents = project.Documents
+            .Select(source => documentsByKey[source.Definition.Key])
+            .ToArray();
         foreach (var document in documents)
         {
             document.StateChanged += DocumentStateChanged;
@@ -1193,11 +1202,25 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
+        var biography = GetLinkedBiographyDocument(selectedDocument);
+        if (!selectedDocument.IsDirty && biography is null)
+        {
+            return;
+        }
+
         await RunSaveAsync(
             project,
-            () => _saveArchiveService.SaveDocumentAsync(project, selectedDocument.Document),
-            "\u5df2\u4fdd\u5b58\u914d\u7f6e\uff1a" + selectedDocument.DisplayName,
-            [selectedDocument]);
+            biography is null
+                ? () => _saveArchiveService.SaveDocumentAsync(project, selectedDocument.Document)
+                : () => _saveArchiveService.SaveDocumentsAsync(project,
+                    new[] { selectedDocument, biography }
+                        .Where(document => document.IsDirty)
+                        .Select(document => document.Document)
+                        .ToArray()),
+            biography is null
+                ? "\u5df2\u4fdd\u5b58\u914d\u7f6e\uff1a" + selectedDocument.DisplayName
+                : "已保存人物与列传",
+            biography is null ? [selectedDocument] : [selectedDocument, biography]);
     }
 
     private async Task SaveCurrentArchiveAsync()
@@ -1608,8 +1631,15 @@ public sealed class MainWindowViewModel : ObservableObject
         ((RelayCommand)ValidateCommand).RaiseCanExecuteChanged();
     }
 
+    private ConfigDocumentViewModel? GetLinkedBiographyDocument(ConfigDocumentViewModel selected) =>
+        selected.Key == "persons"
+            ? GetSlotDocuments(selected.Document.Definition.Scope)
+                .FirstOrDefault(document => document.Key == "biographies" && document.IsDirty)
+            : null;
+
     private bool CanSaveDocument() =>
-        !IsBusy && _project is not null && SelectedDocument?.IsDirty == true;
+        !IsBusy && _project is not null && SelectedDocument is { } selected &&
+        (selected.IsDirty || GetLinkedBiographyDocument(selected) is not null);
 
     private bool CanSaveCurrentArchive() =>
         !IsBusy && _project?.Documents.Any(document => document.IsDirty) == true;

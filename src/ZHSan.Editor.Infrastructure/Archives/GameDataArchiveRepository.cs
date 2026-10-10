@@ -46,6 +46,19 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
                 cancellationToken),
             cancellationToken);
 
+    public Task SaveDocumentsAsync(
+        EditorProject project,
+        IReadOnlyCollection<ConfigDocument> documents,
+        CancellationToken cancellationToken = default) =>
+        Task.Run(
+            () => SaveDocuments(
+                project,
+                project.ArchivePath,
+                documents,
+                updateProjectPath: false,
+                markSaved: true,
+                cancellationToken),
+            cancellationToken);
     public Task SaveAsAsync(
         EditorProject project,
         string destinationPath,

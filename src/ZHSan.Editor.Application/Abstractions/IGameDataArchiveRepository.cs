@@ -19,6 +19,16 @@ public interface IGameDataArchiveRepository
         ConfigDocument document,
         CancellationToken cancellationToken = default);
 
+    async Task SaveDocumentsAsync(
+        EditorProject project,
+        IReadOnlyCollection<ConfigDocument> documents,
+        CancellationToken cancellationToken = default)
+    {
+        foreach (var document in documents)
+        {
+            await SaveDocumentAsync(project, document, cancellationToken);
+        }
+    }
     Task SaveAsAsync(
         EditorProject project,
         string destinationPath,

@@ -16,6 +16,17 @@ internal static class GameDataStructuredStringMetadata
     private static readonly IReadOnlyDictionary<(Type ItemType, string PropertyName), ConfigStructuredStringDefinition>
         Definitions = new Dictionary<(Type, string), ConfigStructuredStringDefinition>
         {
+            [(typeof(PersonConfig), nameof(PersonConfig.SkillsString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "skills"),
+            [(typeof(PersonConfig), nameof(PersonConfig.StuntsString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "stunts"),
+            [(typeof(PersonConfig), nameof(PersonConfig.RealTitlesString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "titles"),
+            [(typeof(PersonConfig), nameof(PersonConfig.UniqueTitlesString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "titles"),
+            [(typeof(PersonConfig), nameof(PersonConfig.UniqueMilitaryKindsString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "military-kinds"),
+
             [(typeof(RegionConfig), nameof(RegionConfig.StatesListString))] =
                 new(ConfigStructuredStringKind.ReferenceIds, "states", ConfigScope.Scenario),
             [(typeof(StateConfig), nameof(StateConfig.ContactStatesString))] =

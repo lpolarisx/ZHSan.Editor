@@ -1,0 +1,186 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:editors="using:ZHSan.Editor.Desktop.Editors"
+             x:Class="ZHSan.Editor.Desktop.Views.PersonBasicEditorView"
+             x:DataType="editors:PersonBasicEditorViewModel">
+  <UserControl.Styles>
+    <Style Selector="ToggleButton.skill-toggle">
+      <Setter Property="Background" Value="#30343D" />
+      <Setter Property="Foreground" Value="#C9CDD5" />
+      <Setter Property="BorderBrush" Value="#59606C" />
+    </Style>
+    <Style Selector="ToggleButton.skill-toggle:checked">
+      <Setter Property="Background" Value="#1769AA" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderBrush" Value="#4BA6EB" />
+    </Style>
+  </UserControl.Styles>
+  <Grid ColumnDefinitions="220,1,*" Background="#08000000">
+    <Grid RowDefinitions="Auto,Auto,*" Margin="10">
+      <TextBlock Text="人物" FontSize="18" FontWeight="SemiBold" Margin="5,4,0,8" />
+      <TextBox Grid.Row="1" Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+               PlaceholderText="搜索姓名或 ID" Margin="0,0,0,6" />
+      <ListBox Grid.Row="2" ItemsSource="{Binding FilteredPeople}"
+               SelectedItem="{Binding SelectedPerson, Mode=TwoWay}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="editors:PersonOptionViewModel">
+            <TextBlock Text="{Binding Label}" Margin="5,4" TextTrimming="CharacterEllipsis" />
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Grid>
+    <Border Grid.Column="1" Background="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    <Grid Grid.Column="2" RowDefinitions="Auto,*">
+      <Border Padding="17,11" BorderThickness="0,0,0,1"
+              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="{Binding SelectedTitle}" FontSize="20" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding SelectedId}" Opacity="0.58" VerticalAlignment="Center" />
+          </StackPanel>
+          <TextBlock Grid.Column="1" Text="{Binding CountText}" Opacity="0.58"
+                     VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+      <TabControl Grid.Row="1">
+        <TabItem Header="基本">
+          <ScrollViewer>
+        <StackPanel Margin="16" Spacing="13">
+          <TextBlock Text="选择左侧人物，编辑基本属性。修改会进入撤销记录，使用主窗口的保存按钮写入档案。"
+                     TextWrapping="Wrap" Opacity="0.6" FontSize="12" />
+          <TextBlock Text="当前没有人物记录。" IsVisible="{Binding !HasSelection}" />
+          <ItemsControl ItemsSource="{Binding Groups}" IsVisible="{Binding HasSelection}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="editors:PersonFieldGroupViewModel">
+                <Border Padding="14" Margin="0,0,0,12" CornerRadius="7" BorderThickness="1"
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+                  <StackPanel Spacing="10">
+                    <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+                    <ItemsControl ItemsSource="{Binding Fields}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <WrapPanel ItemWidth="190" />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="editors:PersonBasicFieldViewModel">
+                          <StackPanel Margin="0,0,12,10" Spacing="4">
+                            <TextBlock Text="{Binding Label}" FontSize="12" Opacity="0.72" />
+                            <TextBox Text="{Binding TextValue, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                     IsVisible="{Binding IsText}" />
+                            <NumericUpDown Value="{Binding NumericValue, Mode=TwoWay}"
+                                           Increment="1" IsVisible="{Binding IsNumber}" />
+                            <ComboBox ItemsSource="{Binding Options}"
+                                      SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
+                                      IsVisible="{Binding IsEnum}" />
+                            <ComboBox ItemsSource="{Binding SexOptions}"
+                                      SelectedItem="{Binding SelectedSex, Mode=TwoWay}"
+                                      IsVisible="{Binding IsSex}" />
+                            <CheckBox Content="是" IsChecked="{Binding BooleanValue, Mode=TwoWay}"
+                                      IsVisible="{Binding IsBoolean}" />
+                          </StackPanel>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Border Padding="14" CornerRadius="7" BorderThickness="1"
+                  BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                  IsVisible="{Binding HasSelection}">
+            <StackPanel Spacing="10">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="列传信息" FontSize="16" FontWeight="SemiBold" />
+                <Button Grid.Column="1" Content="新建列传"
+                        Command="{Binding AddBiographyCommand}"
+                        IsVisible="{Binding CanAddBiography}" />
+              </Grid>
+              <TextBlock Text="{Binding BiographyStatus}" TextWrapping="Wrap"
+                         FontSize="12" Opacity="0.65" />
+              <ItemsControl ItemsSource="{Binding BiographyFields}"
+                            IsVisible="{Binding HasBiography}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="editors:BiographyTextFieldViewModel">
+                    <StackPanel Spacing="5" Margin="0,0,0,12">
+                      <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
+                      <TextBox Text="{Binding TextValue, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                               AcceptsReturn="True" TextWrapping="Wrap"
+                               VerticalContentAlignment="Top" MinHeight="100" MaxHeight="240" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+          </ScrollViewer>
+        </TabItem>
+        <TabItem Header="技能与称号">
+          <ScrollViewer>
+            <StackPanel Margin="16" Spacing="13">
+              <TextBlock Text="技能可点击按钮切换；称号与专属兵种按 ID 关联。人物仅保存战法经验，具体战法在部队的“当前战法／自动战法”中设置。修改可撤销并随人物配置保存。"
+                         TextWrapping="Wrap" FontSize="12" Opacity="0.65" />
+              <TextBlock Text="当前没有人物记录。" IsVisible="{Binding !HasSelection}" />
+              <Border Padding="14" Margin="0,0,0,12" CornerRadius="7" BorderThickness="1"
+                      BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                      IsVisible="{Binding HasSelection}">
+                <StackPanel Spacing="10">
+                  <TextBlock Text="技能" FontSize="16" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding SkillStatus}" TextWrapping="Wrap" FontSize="12" Opacity="0.65" />
+                  <ItemsControl ItemsSource="{Binding SkillButtons}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel ItemWidth="112" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="editors:PersonSkillButtonViewModel">
+                        <ToggleButton Classes="skill-toggle" Content="{Binding Name}"
+                                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                      IsEnabled="{Binding CanToggle}"
+                                      Margin="0,0,8,8" MinHeight="34" />
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Border>
+              <ItemsControl ItemsSource="{Binding AssociationGroups}"
+                            IsVisible="{Binding HasSelection}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="editors:PersonAssociationGroupViewModel">
+                    <Border Padding="14" Margin="0,0,0,12" CornerRadius="7" BorderThickness="1"
+                            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+                      <StackPanel Spacing="12">
+                        <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+                        <ItemsControl ItemsSource="{Binding Fields}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="editors:PersonAssociationFieldViewModel">
+                              <StackPanel Spacing="5" Margin="0,0,0,14">
+                                <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
+                                <ContentControl Content="{Binding Editor.StructuredStringEditor}"
+                                                IsVisible="{Binding Editor.ShowStructuredString}" />
+                                <ContentControl Content="{Binding Editor.ReferencePicker}"
+                                                IsVisible="{Binding Editor.ShowReference}" />
+                                <NumericUpDown Value="{Binding Editor.NumericValue, Mode=TwoWay}"
+                                               Increment="1" IsVisible="{Binding Editor.ShowNumber}"
+                                               HorizontalAlignment="Left" Width="170" />
+                                <TextBox Text="{Binding Editor.ValueText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                         IsVisible="{Binding Editor.ShowString}" />
+                              </StackPanel>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </ScrollViewer>
+        </TabItem>
+      </TabControl>
+    </Grid>
+  </Grid>
+</UserControl>

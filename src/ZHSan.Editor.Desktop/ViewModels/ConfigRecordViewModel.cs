@@ -1,4 +1,5 @@
 using System.Globalization;
+using GameDatas;
 using ZHSan.Editor.Application.References;
 using ZHSan.Editor.Domain.Configuration;
 
@@ -51,6 +52,10 @@ public sealed class ConfigRecordCellViewModel : ObservableObject
         get
         {
             var value = GetValue();
+            if (_item is PersonConfig && _property.Name == nameof(PersonConfig.Sex) && value is bool sex)
+            {
+                return sex ? "女" : "男";
+            }
             return _property.Reference is null || _getReferenceTargets is null
                 ? FormatValue(value)
                 : FormatReferenceValue(value);
