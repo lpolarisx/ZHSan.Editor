@@ -12,9 +12,9 @@ public sealed class GameDataConfigRegistryTests
     {
         var registry = new GameDataConfigRegistry();
 
-        Assert.Equal(39, registry.Definitions.Count);
-        Assert.Equal(39, registry.Definitions.Select(x => x.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count());
-        Assert.Equal(39, registry.Definitions.Select(x => x.EntryName).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Equal(40, registry.Definitions.Count);
+        Assert.Equal(40, registry.Definitions.Select(x => x.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Equal(40, registry.Definitions.Select(x => x.EntryName).Distinct(StringComparer.OrdinalIgnoreCase).Count());
         Assert.All(registry.Definitions, definition => Assert.Equal(ConfigScope.Common, definition.Scope));
         Assert.Equal(registry.Definitions, registry.GetDefinitions(ConfigScope.Common));
     }
@@ -78,7 +78,7 @@ public sealed class GameDataConfigRegistryTests
         });
         Assert.DoesNotContain(definitions, definition =>
             definition.EntryName.Equals("GameScenarios.json", StringComparison.OrdinalIgnoreCase));
-        Assert.Equal(39, registry.Definitions.Count);
+        Assert.Equal(40, registry.Definitions.Count);
     }
 
     [Fact]

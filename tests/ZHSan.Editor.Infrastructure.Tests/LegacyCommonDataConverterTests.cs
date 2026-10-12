@@ -24,14 +24,14 @@ public sealed class LegacyCommonDataConverterTests
             var converter = new LegacyCommonDataConverter(new GameDataConfigRegistry());
             var result = await converter.ConvertAsync(sourcePath, destinationPath);
 
-            Assert.Equal(39, result.ConfigCount);
-            Assert.Equal(40, result.EntryCount);
-            Assert.Equal(8, result.ItemCount);
+            Assert.Equal(40, result.ConfigCount);
+            Assert.Equal(41, result.EntryCount);
+            Assert.Equal(9, result.ItemCount);
             Assert.Equal(destinationPath, result.DestinationPath);
 
             using (var zip = ZipFile.OpenRead(destinationPath))
             {
-                Assert.Equal(40, zip.Entries.Count);
+                Assert.Equal(41, zip.Entries.Count);
                 Assert.Contains(zip.Entries, entry => entry.FullName == "Colors.json");
                 Assert.Contains(zip.Entries, entry => entry.FullName == "FacilityKindLevels.json");
             }
@@ -61,6 +61,11 @@ public sealed class LegacyCommonDataConverterTests
             Assert.Equal(5, settings.FemaleChance);
             Assert.Empty(archive.Load<List<IdealTendencyKindConfig>>("IdealTendencyKinds.json")!);
             Assert.Empty(archive.Load<List<TrainPolicyConfig>>("TrainPolicies.json")!);
+
+            var resourceKind = Assert.Single(archive.Load<List<ResourceKindConfig>>("ResourceKinds.json")!);
+            Assert.Equal(2, resourceKind.Id);
+            Assert.Equal("铁矿", resourceKind.Name);
+            Assert.Equal("可锻造兵器", resourceKind.Description);
 
             var colors = archive.Load<List<Color>>("Colors.json");
             Assert.Equal((byte)30, Assert.Single(colors!).B);
@@ -127,7 +132,7 @@ public sealed class LegacyCommonDataConverterTests
             var missingPath = collectionProperty is null ? rootProperty : $"{rootProperty}.{collectionProperty}";
             Assert.Single(result.Warnings, warning => warning == $"旧版 CommonData 缺少 {missingPath}。已用空列表保存。");
             using var zip = ZipFile.OpenRead(destinationPath);
-            Assert.Equal(40, zip.Entries.Count);
+            Assert.Equal(41, zip.Entries.Count);
             using var stream = zip.GetEntry(entryName)!.Open();
             using var data = JsonDocument.Parse(stream);
             Assert.Equal(0, data.RootElement.GetArrayLength());
@@ -158,9 +163,9 @@ public sealed class LegacyCommonDataConverterTests
                 .ConvertAsync(sourcePath, destinationPath);
 
             Assert.Equal(0, result.ItemCount);
-            Assert.Equal(39, result.Warnings.Count);
+            Assert.Equal(40, result.Warnings.Count);
             using var zip = ZipFile.OpenRead(destinationPath);
-            Assert.Equal(40, zip.Entries.Count);
+            Assert.Equal(41, zip.Entries.Count);
             foreach (var entry in zip.Entries)
             {
                 using var stream = entry.Open();
@@ -220,6 +225,7 @@ public sealed class LegacyCommonDataConverterTests
           "AllInformationKinds":{"GameObjects":[]},
           "AllMilitaryKinds":{"MilitaryKinds":[]},
           "AllPersonGeneratorTypes":{"GameObjects":[]},
+          "AllResourceKinds":[{"Key":2,"Value":{"ID":2,"Name":"铁矿","Description":"可锻造兵器"}}],
           "AllSectionAIDetails":{"SectionAIDetails":[]},
           "AllSkills":{"Skills":[]},
           "AllStratagems":{"Stratagems":[]},

@@ -606,7 +606,7 @@ public sealed class GameDataArchiveRepositoryTests
             var repository = new GameDataArchiveRepository();
             var project = await repository.LoadAsync(archivePath, registry.Definitions);
 
-            Assert.Equal(39, project.Documents.Count);
+            Assert.Equal(40, project.Documents.Count);
             var techniques = Assert.Single(project.Documents, document => document.Definition.Key == "techniques");
             var technique = Assert.IsType<TechniqueConfig>(Assert.Single(techniques.Items));
             Assert.Equal(7, technique.Id);

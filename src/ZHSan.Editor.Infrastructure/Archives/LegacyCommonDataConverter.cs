@@ -80,6 +80,7 @@ public sealed class LegacyCommonDataConverter(IConfigRegistry registry) : ILegac
             ["IdealTendencyKinds.json"] = new("AllIdealTendencyKinds", "GameObjects"),
             ["MilitaryKinds.json"] = new("AllMilitaryKinds", "MilitaryKinds", true),
             ["ArchitectureKinds.json"] = new("AllArchitectureKinds", "ArchitectureKinds", true),
+            ["ResourceKinds.json"] = new("AllResourceKinds", DictionaryValues: true),
             ["TileAnimations.json"] = new("AllTileAnimations", "Animations", true),
             ["TroopAnimations.json"] = new("AllTroopAnimations", "Animations", true),
             ["BiographyAdjectives.json"] = new("AllBiographyAdjectives"),

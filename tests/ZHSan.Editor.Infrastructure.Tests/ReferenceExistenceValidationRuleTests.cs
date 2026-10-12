@@ -216,6 +216,29 @@ public sealed class ReferenceExistenceValidationRuleTests
         }
     }
 
+    [Theory]
+    [InlineData("", false)]
+    [InlineData("2", false)]
+    [InlineData("2 5", false)]
+    [InlineData("2 404", true)]
+    [InlineData("2 bad", true)]
+    public void Validate_ArchitectureResourceKinds_ReferenceCommonResourceKinds(string resourceKinds, bool expectedError)
+    {
+        var common = CreateProject(ConfigScope.Common,
+            CreateDocument("resource-kinds", typeof(ResourceKindConfig), ConfigScope.Common,
+                new ResourceKindConfig { Id = 2, Name = "铁矿" }, new ResourceKindConfig { Id = 5, Name = "马场" }));
+        var scenario = CreateProject(ConfigScope.Scenario,
+            CreateDocument("architectures", typeof(ArchitectureConfig), ConfigScope.Scenario,
+                new ArchitectureConfig { Id = 1, MayorId = -1, ResourceKindsString = resourceKinds }));
+        var service = new ConfigValidationService(new ReflectionConfigMetadataProvider(),
+            [new StructuredStringValidationRule()], crossTableRules: [new ReferenceExistenceValidationRule()]);
+
+        var report = service.Validate(scenario, [common, scenario]);
+
+        Assert.Equal(expectedError, report.Issues.Any(issue =>
+            issue.PropertyName == nameof(ArchitectureConfig.ResourceKindsString)));
+    }
+
     private static ConfigDocument CreateDocument(string key, Type itemType, params object[] items) =>
         CreateDocument(key, itemType, ConfigScope.Common, items);
 
