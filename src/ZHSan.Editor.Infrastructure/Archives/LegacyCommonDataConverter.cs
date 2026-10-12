@@ -77,20 +77,22 @@ public sealed class LegacyCommonDataConverter(IConfigRegistry registry) : ILegac
             ["DisasterKinds.json"] = new("suoyouzainanzhonglei", "zainanzhongleizidian", true),
             ["OfficialTitleKinds.json"] = new("suoyouguanjuezhonglei", "guanjuedezhongleizidian", true),
             ["SectionAIDetails.json"] = new("AllSectionAIDetails", "SectionAIDetails", true),
-            ["IdealTendencyKinds.json"] = new("AllIdealTendencyKinds", "GameObjects", Optional: true),
+            ["IdealTendencyKinds.json"] = new("AllIdealTendencyKinds", "GameObjects"),
             ["MilitaryKinds.json"] = new("AllMilitaryKinds", "MilitaryKinds", true),
             ["ArchitectureKinds.json"] = new("AllArchitectureKinds", "ArchitectureKinds", true),
             ["TileAnimations.json"] = new("AllTileAnimations", "Animations", true),
             ["TroopAnimations.json"] = new("AllTroopAnimations", "Animations", true),
             ["BiographyAdjectives.json"] = new("AllBiographyAdjectives"),
             ["PersonGeneratorTypes.json"] = new("AllPersonGeneratorTypes", "GameObjects"),
-            ["TrainPolicies.json"] = new("AllTrainPolicies", "GameObjects", Optional: true),
+            ["TrainPolicies.json"] = new("AllTrainPolicies", "GameObjects"),
             ["TreasureCreationSettings.json"] = new("AllTreasureCreationSettings", "GameObjects"),
             ["AttackDefaultKinds.json"] = new("AllAttackDefaultKinds", "GameObjects"),
             ["AttackTargetKinds.json"] = new("AllAttackTargetKinds", "GameObjects"),
             ["CastDefaultKinds.json"] = new("AllCastDefaultKinds", "GameObjects"),
             ["CastTargetKinds.json"] = new("AllCastTargetKinds", "GameObjects"),
-            ["StatusEffects.json"] = new("allStatusEffects", SingleDictionaryValue: true)
+            ["StatusEffects.json"] = new("allStatusEffects", SingleDictionaryValue: true),
+            ["PersonMessages.json"] = new("AllTextMessages", "textMessages"),
+            ["PersonGeneratorSettings.json"] = new("PersonGeneratorSetting")
         };
 
     public Task<LegacyCommonDataConversionResult> ConvertAsync(
@@ -125,25 +127,39 @@ public sealed class LegacyCommonDataConverter(IConfigRegistry registry) : ILegac
             throw new InvalidDataException($"旧版 CommonData JSON 无法解析：{exception.Message}", exception);
         }
 
+        var warnings = new List<string>();
         var entries = new List<ArchiveEntry>(registry.Definitions.Count + ExtraEntryCount);
         foreach (var definition in registry.Definitions)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            entries.Add(ProjectEntry(root, definition));
+            entries.Add(ProjectEntry(root, definition, warnings));
         }
 
-        entries.Add(ProjectColors(root));
+        entries.Add(ProjectColors(root, warnings));
         WriteAndVerify(entries, fullDestinationPath, cancellationToken);
 
         return new LegacyCommonDataConversionResult(
             fullDestinationPath,
             registry.Definitions.Count,
             entries.Count,
-            entries.Sum(entry => entry.Count));
+            entries.Sum(entry => entry.Count))
+        {
+            Warnings = warnings.ToArray()
+        };
     }
 
-    private static ArchiveEntry ProjectEntry(JsonObject root, ConfigDefinition definition)
+    private static ArchiveEntry ProjectEntry(JsonObject root, ConfigDefinition definition, List<string> warnings)
     {
+        if (!Sources.TryGetValue(definition.EntryName, out var source))
+        {
+            throw new InvalidOperationException($"没有为 {definition.EntryName} 定义旧版 CommonData 映射。");
+        }
+
+        if (IsSourceMissing(root, source, warnings))
+        {
+            return CreateEntry(definition.EntryName, definition.ItemType, []);
+        }
+
         if (definition.EntryName == "PersonMessages.json")
         {
             return ProjectPersonMessages(root, definition);
@@ -153,11 +169,6 @@ public sealed class LegacyCommonDataConverter(IConfigRegistry registry) : ILegac
         {
             var value = RequiredObject(root, "PersonGeneratorSetting");
             return CreateEntry(definition.EntryName, definition.ItemType, new JsonArray(ProjectObject(value, definition.ItemType)));
-        }
-
-        if (!Sources.TryGetValue(definition.EntryName, out var source))
-        {
-            throw new InvalidOperationException($"没有为 {definition.EntryName} 定义旧版 CommonData 映射。");
         }
 
         var items = ExtractItems(root, source);
@@ -198,25 +209,48 @@ public sealed class LegacyCommonDataConverter(IConfigRegistry registry) : ILegac
         return CreateEntry(definition.EntryName, definition.ItemType, projected);
     }
 
-    private static ArchiveEntry ProjectColors(JsonObject root)
+    private static ArchiveEntry ProjectColors(JsonObject root, List<string> warnings)
     {
+        if (IsSourceMissing(root, new LegacySource("AllColors"), warnings))
+        {
+            return CreateEntry("Colors.json", typeof(Color), []);
+        }
+
         var source = RequiredArray(root, "AllColors");
         var projected = new JsonArray(source.Select(node => node?.DeepClone()).ToArray());
         return CreateEntry("Colors.json", typeof(Color), projected);
     }
 
-    private static JsonArray ExtractItems(JsonObject root, LegacySource source)
+    private static bool IsSourceMissing(JsonObject root, LegacySource source, List<string> warnings)
     {
+        string? missingProperty = null;
         if (!TryGetProperty(root, source.RootProperty, out var rootNode) || rootNode is null)
         {
-            if (source.Optional)
-            {
-                return [];
-            }
-
-            throw new InvalidDataException($"旧版 CommonData 缺少 {source.RootProperty}。");
+            missingProperty = source.RootProperty;
+        }
+        else if (source.CollectionProperty is not null && rootNode is JsonObject container &&
+                 (!TryGetProperty(container, source.CollectionProperty, out var collection) || collection is null))
+        {
+            missingProperty = $"{source.RootProperty}.{source.CollectionProperty}";
         }
 
+        if (missingProperty is null)
+        {
+            return false;
+        }
+
+        var warning = $"旧版 CommonData 缺少 {missingProperty}。已用空列表保存。";
+        if (!warnings.Contains(warning))
+        {
+            warnings.Add(warning);
+        }
+
+        return true;
+    }
+
+    private static JsonArray ExtractItems(JsonObject root, LegacySource source)
+    {
+        var rootNode = RequiredNode(root, source.RootProperty);
         JsonNode container = rootNode;
         if (source.CollectionProperty is not null)
         {
@@ -465,7 +499,6 @@ public sealed class LegacyCommonDataConverter(IConfigRegistry registry) : ILegac
         string RootProperty,
         string? CollectionProperty = null,
         bool DictionaryValues = false,
-        bool Optional = false,
         bool SingleDictionaryValue = false);
 
     private sealed record ArchiveEntry(string Name, Type ItemType, object Items, int Count);

@@ -1,4 +1,6 @@
 using System.IO.Compression;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using GameDatas;
 using Microsoft.Xna.Framework;
 using ZHSan.Editor.Infrastructure.Archives;
@@ -85,6 +87,110 @@ public sealed class LegacyCommonDataConverterTests
 
             Assert.Contains("不能覆盖", exception.Message, StringComparison.Ordinal);
             Assert.StartsWith("{", await File.ReadAllTextAsync(sourcePath), StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Theory]
+    [InlineData("AllTreasureCreationSettings", null, "TreasureCreationSettings.json", false)]
+    [InlineData("AllTreasureCreationSettings", null, "TreasureCreationSettings.json", true)]
+    [InlineData("AllTreasureCreationSettings", "GameObjects", "TreasureCreationSettings.json", false)]
+    [InlineData("AllTreasureCreationSettings", "GameObjects", "TreasureCreationSettings.json", true)]
+    [InlineData("AllFacilityKinds", null, "FacilityKinds.json", false)]
+    [InlineData("AllFacilityKinds", "FacilityKinds", "FacilityKindLevels.json", false)]
+    [InlineData("AllTextMessages", null, "PersonMessages.json", false)]
+    [InlineData("AllTextMessages", "textMessages", "PersonMessages.json", false)]
+    [InlineData("PersonGeneratorSetting", null, "PersonGeneratorSettings.json", false)]
+    [InlineData("AllColors", null, "Colors.json", false)]
+    public async Task ConvertAsync_MissingDataWritesEmptyListAndReportsWarning(
+        string rootProperty, string? collectionProperty, string entryName, bool useNull)
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"zhsan-legacy-common-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var root = JsonNode.Parse(CreateLegacyCommonDataJson())!.AsObject();
+            var parent = collectionProperty is null ? root : root[rootProperty]!.AsObject();
+            var property = collectionProperty ?? rootProperty;
+            if (useNull) parent[property] = null;
+            else parent.Remove(property);
+
+            var sourcePath = Path.Combine(directory, "CommonData.json");
+            var destinationPath = Path.Combine(directory, "CommonData.dat");
+            await File.WriteAllTextAsync(sourcePath, root.ToJsonString());
+            var result = await new LegacyCommonDataConverter(new GameDataConfigRegistry())
+                .ConvertAsync(sourcePath, destinationPath);
+
+            var missingPath = collectionProperty is null ? rootProperty : $"{rootProperty}.{collectionProperty}";
+            Assert.Single(result.Warnings, warning => warning == $"旧版 CommonData 缺少 {missingPath}。已用空列表保存。");
+            using var zip = ZipFile.OpenRead(destinationPath);
+            Assert.Equal(40, zip.Entries.Count);
+            using var stream = zip.GetEntry(entryName)!.Open();
+            using var data = JsonDocument.Parse(stream);
+            Assert.Equal(0, data.RootElement.GetArrayLength());
+            if (rootProperty == "AllFacilityKinds")
+            {
+                using var levelsStream = zip.GetEntry("FacilityKindLevels.json")!.Open();
+                using var levels = JsonDocument.Parse(levelsStream);
+                Assert.Equal(0, levels.RootElement.GetArrayLength());
+            }
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task ConvertAsync_AllDataMissingWritesEveryEntryAsEmptyList()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"zhsan-legacy-common-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var sourcePath = Path.Combine(directory, "CommonData.json");
+            var destinationPath = Path.Combine(directory, "CommonData.dat");
+            await File.WriteAllTextAsync(sourcePath, "{}");
+            var result = await new LegacyCommonDataConverter(new GameDataConfigRegistry())
+                .ConvertAsync(sourcePath, destinationPath);
+
+            Assert.Equal(0, result.ItemCount);
+            Assert.Equal(39, result.Warnings.Count);
+            using var zip = ZipFile.OpenRead(destinationPath);
+            Assert.Equal(40, zip.Entries.Count);
+            foreach (var entry in zip.Entries)
+            {
+                using var stream = entry.Open();
+                using var data = JsonDocument.Parse(stream);
+                Assert.Equal(0, data.RootElement.GetArrayLength());
+            }
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task ConvertAsync_InvalidExistingDataStillFailsWithoutReplacingDestination()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"zhsan-legacy-common-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var root = JsonNode.Parse(CreateLegacyCommonDataJson())!.AsObject();
+            root["AllTreasureCreationSettings"]!["GameObjects"] = "invalid";
+            var sourcePath = Path.Combine(directory, "CommonData.json");
+            var destinationPath = Path.Combine(directory, "CommonData.dat");
+            await File.WriteAllTextAsync(sourcePath, root.ToJsonString());
+            await File.WriteAllTextAsync(destinationPath, "original");
+
+            await Assert.ThrowsAsync<InvalidDataException>(() =>
+                new LegacyCommonDataConverter(new GameDataConfigRegistry()).ConvertAsync(sourcePath, destinationPath));
+            Assert.Equal("original", await File.ReadAllTextAsync(destinationPath));
         }
         finally
         {

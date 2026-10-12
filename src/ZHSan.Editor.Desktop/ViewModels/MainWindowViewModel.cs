@@ -793,11 +793,19 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             var result = await _legacyCommonDataConverter.ConvertAsync(sourcePath, destinationPath);
             StatusText = $"CommonData 转换完成：{result.ConfigCount} 项配置，共 {result.ItemCount} 条记录";
+            var warningText = string.Join(Environment.NewLine, result.Warnings);
+            if (result.Warnings.Count > 0)
+            {
+                ErrorMessage = warningText;
+                StatusText += $"（{result.Warnings.Count} 项缺失数据已用空列表保存）";
+            }
+
             AddTransferLog(
                 result.DestinationPath,
                 Path.GetFileName(result.DestinationPath),
-                "成功",
-                $"已转换 {result.ConfigCount} 项配置、{result.EntryCount} 个档案条目、{result.ItemCount} 条记录",
+                result.Warnings.Count > 0 ? "成功（有提示）" : "成功",
+                $"已转换 {result.ConfigCount} 项配置、{result.EntryCount} 个档案条目、{result.ItemCount} 条记录" +
+                (result.Warnings.Count > 0 ? Environment.NewLine + warningText : string.Empty),
                 "CommonData 转换",
                 ConfigScope.Common);
             SelectedDetailsTabIndex = 6;

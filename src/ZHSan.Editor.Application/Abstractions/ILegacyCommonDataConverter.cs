@@ -12,4 +12,7 @@ public sealed record LegacyCommonDataConversionResult(
     string DestinationPath,
     int ConfigCount,
     int EntryCount,
-    int ItemCount);
+    int ItemCount)
+{
+    public IReadOnlyList<string> Warnings { get; init; } = [];
+}
