@@ -81,7 +81,7 @@ public sealed class ReferenceExistenceValidationRuleTests
                 "persons",
                 typeof(PersonConfig),
                 ConfigScope.Scenario,
-                new PersonConfig { Id = 7, Name = "关羽" }),
+                new PersonConfig { Id = 7, Name = "关羽", StudyingTitleString = -1, StudyingStuntString = -1 }),
             CreateDocument(
                 "militaries",
                 typeof(MilitaryConfig),

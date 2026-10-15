@@ -1454,17 +1454,18 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         var archiveState = _uiState.GetArchive(scope);
-        var activeDocument = documents.FirstOrDefault(document =>
+        var navigable = documents.Where(document => document.Document.Definition.ShowInNavigation).ToArray();
+        var activeDocument = navigable.FirstOrDefault(document =>
             ReferenceEquals(document.Document, slot.ActiveDocument)) ??
-            documents.FirstOrDefault(document => string.Equals(
+            navigable.FirstOrDefault(document => string.Equals(
                 document.Key,
                 archiveState.ActiveDocumentKey,
                 StringComparison.OrdinalIgnoreCase)) ??
-            documents.FirstOrDefault(document => string.Equals(
+            navigable.FirstOrDefault(document => string.Equals(
                 document.Document.Definition.Category,
                 archiveState.ActiveCategory,
                 StringComparison.Ordinal));
-        SelectDocument(activeDocument ?? documents.FirstOrDefault());
+        SelectDocument(activeDocument ?? navigable.FirstOrDefault());
     }
 
     private string GetArchiveTabHeader(ConfigScope scope, string displayName)
@@ -1613,6 +1614,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private static IReadOnlyList<ConfigCategoryViewModel> CreateCategories(
         IReadOnlyList<ConfigDocumentViewModel> documents) =>
         documents
+            .Where(document => document.Document.Definition.ShowInNavigation)
             .GroupBy(document => document.Document.Definition.Category)
             .Select(group => new ConfigCategoryViewModel(group.Key, group))
             .ToArray();
@@ -1710,7 +1712,9 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private void SearchAllDocuments()
     {
-        var matches = GlobalSearchEngine.Search(_documents, GlobalSearchText);
+        var matches = GlobalSearchEngine.Search(
+            _documents.Where(document => document.Document.Definition.ShowInNavigation).ToArray(),
+            GlobalSearchText);
         GlobalSearchResults.Clear();
         foreach (var match in matches)
         {
@@ -1862,11 +1866,28 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private void NavigateToValidationIssue(ValidationIssue issue)
     {
-        var document = GetSlotDocuments(issue.Scope).FirstOrDefault(candidate =>
+        var documents = GetSlotDocuments(issue.Scope);
+        var document = documents.FirstOrDefault(candidate =>
             string.Equals(candidate.Key, issue.ConfigKey, StringComparison.OrdinalIgnoreCase));
         if (document is null)
         {
             StatusText = $"无法定位：未找到配置 {issue.ConfigKey}";
+            return;
+        }
+
+        // Hidden documents (e.g. 人物亲属) are edited through another document's record with the same ID.
+        if (!document.Document.Definition.ShowInNavigation &&
+            document.Document.Definition.NavigationTargetKey is { } targetKey &&
+            documents.FirstOrDefault(candidate => string.Equals(
+                candidate.Key, targetKey, StringComparison.OrdinalIgnoreCase)) is { } target)
+        {
+            SelectedArchiveTabIndex = issue.Scope == ConfigScope.Common ? 0 : 1;
+            SelectDocument(target);
+            target.NavigateTo(issue.ItemId, null);
+            SelectedDetailsTabIndex = 0;
+            StatusText = $"已定位到 {target.DisplayName}" +
+                (issue.ItemId is { } targetId ? $" · ID {targetId}" : string.Empty) +
+                $"（{document.DisplayName}）";
             return;
         }
 

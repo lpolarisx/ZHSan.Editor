@@ -36,14 +36,15 @@ internal static class GameDataPropertyReferenceMetadata
             [(typeof(TroopEventEffectConfig), nameof(TroopEventEffectConfig.KindId))] =
                 new("troop-effect-kinds"),
 
+            // The game writes -1 when no stunt / title is being studied; ID 0 is a real stunt and title.
             [(typeof(PersonConfig), nameof(PersonConfig.StudyingStuntString))] =
-                new("stunts", emptyValue: 0),
+                new("stunts", emptyValue: -1),
             [(typeof(PersonConfig), nameof(PersonConfig.PersonalTitleString))] =
                 new("titles", emptyValue: 0),
             [(typeof(PersonConfig), nameof(PersonConfig.CombatTitleString))] =
                 new("titles", emptyValue: 0),
             [(typeof(PersonConfig), nameof(PersonConfig.StudyingTitleString))] =
-                new("titles", emptyValue: 0),
+                new("titles", emptyValue: -1),
 
             [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.KindId))] =
                 new("architecture-kinds"),
@@ -53,6 +54,8 @@ internal static class GameDataPropertyReferenceMetadata
                 new("persons", emptyValue: -1, targetScope: ConfigScope.Scenario),
             [(typeof(BiographyConfig), nameof(BiographyConfig.Id))] =
                 new("persons", targetScope: ConfigScope.Scenario),
+            [(typeof(BiographyConfig), nameof(BiographyConfig.FactionColor))] =
+                new("colors"),
             [(typeof(DiplomaticRelationConfig), nameof(DiplomaticRelationConfig.RelationFaction1ID))] =
                 new("factions", targetScope: ConfigScope.Scenario),
             [(typeof(DiplomaticRelationConfig), nameof(DiplomaticRelationConfig.RelationFaction2ID))] =
@@ -63,6 +66,8 @@ internal static class GameDataPropertyReferenceMetadata
                 new("architectures", emptyValue: 0, targetScope: ConfigScope.Scenario),
             [(typeof(FactionConfig), nameof(FactionConfig.UpgradingTechnique))] =
                 new("techniques", emptyValue: -1),
+            [(typeof(FactionConfig), nameof(FactionConfig.ColorIndex))] =
+                new("colors"),
             [(typeof(MilitaryConfig), nameof(MilitaryConfig.KindId))] =
                 new("military-kinds"),
             [(typeof(MilitaryConfig), nameof(MilitaryConfig.LeaderID))] =
@@ -73,6 +78,12 @@ internal static class GameDataPropertyReferenceMetadata
                 new("persons", targetScope: ConfigScope.Scenario),
             [(typeof(PersonRelationConfig), nameof(PersonRelationConfig.PersonID2))] =
                 new("persons", targetScope: ConfigScope.Scenario),
+            [(typeof(PersonFamilyConfig), nameof(PersonFamilyConfig.FatherId))] =
+                new("persons", emptyValue: -1, targetScope: ConfigScope.Scenario),
+            [(typeof(PersonFamilyConfig), nameof(PersonFamilyConfig.MotherId))] =
+                new("persons", emptyValue: -1, targetScope: ConfigScope.Scenario),
+            [(typeof(PersonFamilyConfig), nameof(PersonFamilyConfig.SpouseId))] =
+                new("persons", emptyValue: -1, targetScope: ConfigScope.Scenario),
             [(typeof(RegionConfig), nameof(RegionConfig.RegionCoreID))] =
                 new("architectures", emptyValue: -1, targetScope: ConfigScope.Scenario),
             [(typeof(StateConfig), nameof(StateConfig.StateAdminID))] =

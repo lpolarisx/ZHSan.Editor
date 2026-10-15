@@ -562,6 +562,13 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
         var item = Activator.CreateInstance(Document.Definition.ItemType)
             ?? throw new InvalidOperationException("无法创建记录实例。");
+        // Start references at their "none" value (e.g. -1) rather than pointing at ID 0 of the target table.
+        foreach (var definition in _properties.Where(property => property.CanWrite && property.Name != "Id" &&
+                     property.PropertyType == typeof(int) && property.Reference?.EmptyValue is not null))
+        {
+            Document.Definition.ItemType.GetProperty(definition.Name)?.SetValue(item, definition.Reference!.EmptyValue);
+        }
+
         foreach (var (propertyName, value) in initialValues)
         {
             var definition = _properties.FirstOrDefault(property => property.Name == propertyName)
@@ -961,6 +968,9 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
     internal IReadOnlyList<ConfigReferenceTarget> GetReferenceTargets(string configKey) =>
         _referenceIndex?.GetTargets(configKey) ?? [];
+
+    internal IReadOnlyList<ConfigReferenceTarget> GetReferenceTargets(ConfigAddress address) =>
+        _referenceIndex?.GetTargets(address) ?? [];
 
     private void RecordPropertyChanged(
         ConfigRecordViewModel record,

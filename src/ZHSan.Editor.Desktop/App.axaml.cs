@@ -60,6 +60,7 @@ public sealed partial class App : Avalonia.Application
             services.AddSingleton<ConfigExportService>();
             services.AddSingleton<PublishArchiveService>();
             services.AddSingleton<EditorUiStateStore>();
+            services.AddSingleton<PersonPortraitDirectoryStore>();
             services.AddSingleton<IConfigEditorProvider, TechniqueTreeEditorProvider>();
             services.AddSingleton<IConfigEditorProvider, FacilityKindLevelEditorProvider>();
             services.AddSingleton<IConfigEditorProvider, PersonBasicEditorProvider>();

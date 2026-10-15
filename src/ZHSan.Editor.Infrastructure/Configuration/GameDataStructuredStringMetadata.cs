@@ -33,6 +33,12 @@ internal static class GameDataStructuredStringMetadata
                 new(ConfigStructuredStringKind.ReferenceIds, "states", ConfigScope.Scenario),
             [(typeof(StateConfig), nameof(StateConfig.ContactStatesString))] =
                 new(ConfigStructuredStringKind.ReferenceIds, "states", ConfigScope.Scenario),
+            [(typeof(PersonFamilyConfig), nameof(PersonFamilyConfig.BrotherIdsString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "persons", ConfigScope.Scenario),
+            [(typeof(PersonFamilyConfig), nameof(PersonFamilyConfig.CloseIdsString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "persons", ConfigScope.Scenario),
+            [(typeof(PersonFamilyConfig), nameof(PersonFamilyConfig.HatedIdsString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "persons", ConfigScope.Scenario),
             [(typeof(CombatMethodConfig), nameof(CombatMethodConfig.InfluencesString))] = InfluenceIds,
             [(typeof(FacilityKindLevelConfig), nameof(FacilityKindLevelConfig.InfluencesString))] = InfluenceIds,
             [(typeof(MilitaryKindConfig), nameof(MilitaryKindConfig.InfluencesString))] = InfluenceIds,

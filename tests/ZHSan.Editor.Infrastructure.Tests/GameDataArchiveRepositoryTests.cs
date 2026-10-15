@@ -23,7 +23,8 @@ public sealed class GameDataArchiveRepositoryTests
             var definitions = new GameDataConfigRegistry().GetDefinitions(ConfigScope.Scenario);
             using (var zip = ZipFile.Open(archivePath, ZipArchiveMode.Create))
             {
-                foreach (var definition in definitions)
+                foreach (var definition in definitions.Where(definition =>
+                             definition.EntryName != "GameScenarios.json"))
                 {
                     var json = definition.EntryName switch
                     {
@@ -42,7 +43,7 @@ public sealed class GameDataArchiveRepositoryTests
             var project = await repository.LoadAsync(archivePath, definitions);
 
             Assert.Equal(ConfigScope.Scenario, project.Scope);
-            Assert.Equal(22, project.Documents.Count);
+            Assert.Equal(23, project.Documents.Count);
             Assert.All(project.Documents, document => Assert.Equal(ConfigScope.Scenario, document.Definition.Scope));
             Assert.Equal(
                 "原建筑",
@@ -86,7 +87,8 @@ public sealed class GameDataArchiveRepositoryTests
                     method.IsGenericMethodDefinition &&
                     method.GetParameters() is [{ ParameterType: var parameterType }] &&
                     parameterType == typeof(string));
-            foreach (var definition in definitions)
+            foreach (var definition in definitions.Where(definition =>
+                         definition.ItemType != typeof(PersonFamilyConfig)))
             {
                 var listType = typeof(List<>).MakeGenericType(definition.ItemType);
                 Assert.NotNull(loadMethod.MakeGenericMethod(listType)
@@ -606,7 +608,7 @@ public sealed class GameDataArchiveRepositoryTests
             var repository = new GameDataArchiveRepository();
             var project = await repository.LoadAsync(archivePath, registry.Definitions);
 
-            Assert.Equal(40, project.Documents.Count);
+            Assert.Equal(41, project.Documents.Count);
             var techniques = Assert.Single(project.Documents, document => document.Definition.Key == "techniques");
             var technique = Assert.IsType<TechniqueConfig>(Assert.Single(techniques.Items));
             Assert.Equal(7, technique.Id);
@@ -766,6 +768,116 @@ public sealed class GameDataArchiveRepositoryTests
         finally
         {
             Directory.Delete(testDirectory, true);
+        }
+    }
+
+    [Fact]
+    public async Task PersonFamilies_ProjectFromAndPatchIntoScenarioMetadata()
+    {
+        var directory = Directory.CreateTempSubdirectory("zhsan-person-families-").FullName;
+        var archivePath = Path.Combine(directory, "Scenario.dat");
+        try
+        {
+            using (var archive = GameDataArchive.Open(archivePath))
+            {
+                archive.Save("GameScenarios.json", new GameScenarioConfig
+                {
+                    ScenarioTitle = "亲属夹具",
+                    FatherIds = new() { [7] = -1, [8] = 3 },
+                    MotherIds = new() { [7] = -1 },
+                    SpouseIds = new() { [7] = 9 },
+                    BrotherIds = new() { [7] = [8, 9] },
+                    CloseIds = new() { [7] = [241, 290] },
+                    HatedIds = new() { [9] = [493] },
+                    SuoshuIds = new() { [7] = [1] },
+                    MarriageGranterId = new() { [7] = 4 }
+                });
+            }
+
+            var definition = new GameDataConfigRegistry().Find(new ConfigAddress(ConfigScope.Scenario, "person-families"))!;
+            var repository = new GameDataArchiveRepository();
+            var project = await repository.LoadAsync(archivePath, [definition]);
+            var document = Assert.Single(project.Documents);
+            var families = document.Items.Cast<PersonFamilyConfig>().ToArray();
+
+            Assert.Equal([7, 8, 9], families.Select(family => family.Id));
+            Assert.Equal(9, families[0].SpouseId);
+            Assert.Equal("8 9", families[0].BrotherIdsString);
+            Assert.Equal("241 290", families[0].CloseIdsString);
+            Assert.Equal(3, families[1].FatherId);
+            Assert.Equal(-1, families[1].SpouseId);
+            Assert.Equal("493", families[2].HatedIdsString);
+
+            families[0].BrotherIdsString = "8";
+            families[2].HatedIdsString = "";
+            document.Items.Add(new PersonFamilyConfig { Id = 10, MotherId = 7 });
+            document.IsDirty = true;
+            await repository.SaveAsync(project);
+
+            using var saved = GameDataArchive.Open(archivePath);
+            var scenario = saved.Load<GameScenarioConfig>("GameScenarios.json")!;
+            Assert.Equal("亲属夹具", scenario.ScenarioTitle);
+            Assert.Equal([1], scenario.SuoshuIds[7]);
+            Assert.Equal(4, scenario.MarriageGranterId[7]);
+            Assert.Equal([8], scenario.BrotherIds[7]);
+            Assert.Empty(scenario.HatedIds[9]);
+            Assert.Equal(7, scenario.MotherIds[10]);
+            Assert.Equal(-1, scenario.FatherIds[10]);
+            Assert.Equal(3, scenario.FatherIds[8]);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task FactionColors_ProjectListPositionsAsIdsAndWriteGameColorFormat()
+    {
+        var directory = Directory.CreateTempSubdirectory("zhsan-faction-colors-").FullName;
+        var archivePath = Path.Combine(directory, "CommonData.dat");
+        try
+        {
+            using (var zip = ZipFile.Open(archivePath, ZipArchiveMode.Create))
+            {
+                await WriteEntryAsync(zip, "Colors.json",
+                    "[{\"B\":0,\"G\":0,\"R\":160,\"A\":255,\"PackedValue\":4278190240}," +
+                    "{\"B\":255,\"G\":128,\"R\":192,\"A\":255,\"PackedValue\":4294934720}]");
+            }
+
+            var definition = new GameDataConfigRegistry().Find("colors")!;
+            var repository = new GameDataArchiveRepository();
+            var project = await repository.LoadAsync(archivePath, [definition]);
+            var document = Assert.Single(project.Documents);
+            var colors = document.Items.Cast<FactionColorConfig>().ToArray();
+
+            Assert.Equal([0, 1], colors.Select(color => color.Id));
+            Assert.Equal("#A00000", colors[0].Name);
+            Assert.Equal("#C080FF", colors[1].Name);
+
+            colors[1].G = 16;
+            document.Items.Add(new FactionColorConfig { Id = 2, R = 1, G = 2, B = 3 });
+            document.IsDirty = true;
+            await repository.SaveAsync(project);
+
+            using (var zip = ZipFile.OpenRead(archivePath))
+            using (var reader = new StreamReader(zip.GetEntry("Colors.json")!.Open()))
+            {
+                Assert.Equal(
+                    "[{\"B\":0,\"G\":0,\"R\":160,\"A\":255,\"PackedValue\":4278190240}," +
+                    "{\"B\":255,\"G\":16,\"R\":192,\"A\":255,\"PackedValue\":4294906048}," +
+                    "{\"B\":3,\"G\":2,\"R\":1,\"A\":255,\"PackedValue\":4278387201}]",
+                    await reader.ReadToEndAsync());
+            }
+
+            document.Items.RemoveAt(0);
+            document.IsDirty = true;
+            var exception = await Assert.ThrowsAnyAsync<Exception>(() => repository.SaveAsync(project));
+            Assert.Contains("连续编号", exception.ToString());
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
         }
     }
 

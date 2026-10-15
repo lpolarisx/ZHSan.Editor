@@ -23,7 +23,7 @@ public sealed class OpenArchiveServiceTests
             await service.OpenAsync(path, ConfigScope.Scenario);
 
             Assert.NotNull(repository.LoadedDefinitions);
-            Assert.Equal(22, repository.LoadedDefinitions.Count);
+            Assert.Equal(23, repository.LoadedDefinitions.Count);
             Assert.All(repository.LoadedDefinitions, definition =>
                 Assert.Equal(ConfigScope.Scenario, definition.Scope));
         }

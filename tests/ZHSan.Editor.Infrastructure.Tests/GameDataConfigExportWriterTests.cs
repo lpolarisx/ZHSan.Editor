@@ -123,7 +123,7 @@ public sealed class GameDataConfigExportWriterTests
 
             var result = await writer.WriteProjectDirectoryAsync(directory, documents);
 
-            Assert.Equal(40, result.Successes.Count);
+            Assert.Equal(41, result.Successes.Count);
             Assert.Empty(result.Failures);
             Assert.All(
                 registry.Definitions,

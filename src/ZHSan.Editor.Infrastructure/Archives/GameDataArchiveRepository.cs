@@ -397,7 +397,7 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
 
     private static LoadedArchiveItems LoadItems<T>(GameDataArchive archive, string entryName)
     {
-        var loaded = archive.Load<List<T>>(entryName);
+        var loaded = GameDataArchiveEntries.Load<T>(archive, entryName);
         if (loaded is null)
         {
             return new LoadedArchiveItems([], [], true);
@@ -435,7 +435,7 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
             exception);
 
     private static void SaveItems<T>(GameDataArchive archive, string entryName, IList<object> items) =>
-        archive.Save(entryName, items.Cast<T>().ToList());
+        GameDataArchiveEntries.Save(archive, entryName, items.Cast<T>().ToList());
 
     private static IList<object> BuildSerializableItems(ConfigDocument document)
     {

@@ -12,9 +12,9 @@ public sealed class GameDataConfigRegistryTests
     {
         var registry = new GameDataConfigRegistry();
 
-        Assert.Equal(40, registry.Definitions.Count);
-        Assert.Equal(40, registry.Definitions.Select(x => x.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count());
-        Assert.Equal(40, registry.Definitions.Select(x => x.EntryName).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Equal(41, registry.Definitions.Count);
+        Assert.Equal(41, registry.Definitions.Select(x => x.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Equal(41, registry.Definitions.Select(x => x.EntryName).Distinct(StringComparer.OrdinalIgnoreCase).Count());
         Assert.All(registry.Definitions, definition => Assert.Equal(ConfigScope.Common, definition.Scope));
         Assert.Equal(registry.Definitions, registry.GetDefinitions(ConfigScope.Common));
     }
@@ -34,7 +34,7 @@ public sealed class GameDataConfigRegistryTests
     }
 
     [Fact]
-    public void ScenarioDefinitions_RegisterAllListEntriesWithoutScenarioMetadataObject()
+    public void ScenarioDefinitions_RegisterAllListEntriesAndProjectFamiliesFromScenarioMetadata()
     {
         var registry = new GameDataConfigRegistry();
         var expected = new Dictionary<string, Type>(StringComparer.OrdinalIgnoreCase)
@@ -46,6 +46,7 @@ public sealed class GameDataConfigRegistryTests
             ["Events.json"] = typeof(EventConfig),
             ["Facilities.json"] = typeof(FacilityConfig),
             ["Factions.json"] = typeof(FactionConfig),
+            ["GameScenarios.json"] = typeof(PersonFamilyConfig),
             ["FirePositions.json"] = typeof(Point),
             ["Informations.json"] = typeof(InformationConfig),
             ["Legions.json"] = typeof(LegionConfig),
@@ -65,10 +66,10 @@ public sealed class GameDataConfigRegistryTests
 
         var definitions = registry.GetDefinitions(ConfigScope.Scenario);
 
-        Assert.Equal(22, definitions.Count);
-        Assert.Equal(22, definitions.Select(definition => definition.Key)
+        Assert.Equal(23, definitions.Count);
+        Assert.Equal(23, definitions.Select(definition => definition.Key)
             .Distinct(StringComparer.OrdinalIgnoreCase).Count());
-        Assert.Equal(22, definitions.Select(definition => definition.EntryName)
+        Assert.Equal(23, definitions.Select(definition => definition.EntryName)
             .Distinct(StringComparer.OrdinalIgnoreCase).Count());
         Assert.All(definitions, definition =>
         {
@@ -76,9 +77,13 @@ public sealed class GameDataConfigRegistryTests
             Assert.False(string.IsNullOrWhiteSpace(definition.Category));
             Assert.Equal(expected[definition.EntryName], definition.ItemType);
         });
-        Assert.DoesNotContain(definitions, definition =>
+        var families = Assert.Single(definitions, definition =>
             definition.EntryName.Equals("GameScenarios.json", StringComparison.OrdinalIgnoreCase));
-        Assert.Equal(40, registry.Definitions.Count);
+        Assert.Equal("person-families", families.Key);
+        Assert.False(families.ShowInNavigation);
+        Assert.All(definitions.Where(definition => definition != families),
+            definition => Assert.True(definition.ShowInNavigation));
+        Assert.Equal(41, registry.Definitions.Count);
     }
 
     [Fact]

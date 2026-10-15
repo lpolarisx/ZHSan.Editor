@@ -142,5 +142,5 @@ public sealed class GameDataConfigImportReader : IConfigImportReader
     }
 
     private static IReadOnlyList<object> LoadItems<T>(GameDataArchive archive, string entryName) =>
-        archive.Load<List<T>>(entryName)?.Cast<object>().ToArray() ?? [];
+        GameDataArchiveEntries.Load<T>(archive, entryName)?.Cast<object>().ToArray() ?? [];
 }

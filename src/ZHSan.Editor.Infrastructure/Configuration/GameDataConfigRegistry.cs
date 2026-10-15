@@ -53,6 +53,7 @@ public sealed class GameDataConfigRegistry : IConfigRegistry
         Add<CastDefaultKindConfig>(definitions, "cast-default-kinds", "默认施放类型", "战斗规则", "CastDefaultKinds.json");
         Add<CastTargetKindConfig>(definitions, "cast-target-kinds", "施放目标类型", "战斗规则", "CastTargetKinds.json");
         Add<StatusEffectConfig>(definitions, "status-effects", "状态效果", "战斗规则", "StatusEffects.json");
+        Add<FactionColorConfig>(definitions, "colors", "势力颜色", "势力与组织", "Colors.json");
 
         Add<ArchitectureConfig>(definitions, "architectures", "建筑", "世界与地图", "Architectures.json", ConfigScope.Scenario);
         Add<RegionConfig>(definitions, "regions", "地区", "世界与地图", "Regions.json", ConfigScope.Scenario);
@@ -70,6 +71,13 @@ public sealed class GameDataConfigRegistry : IConfigRegistry
         Add<NoFoodConfig>(definitions, "no-food-positions", "禁粮位置", "世界与地图", "NoFoodPositions.json", ConfigScope.Scenario);
         Add<PersonRelationConfig>(definitions, "person-relations", "人物关系", "人物", "PersonRelations.json", ConfigScope.Scenario);
         Add<PersonConfig>(definitions, "persons", "人物", "人物", "Persons.json", ConfigScope.Scenario);
+        // Edited in the person editor's 亲属与人际 card, so it is not listed separately.
+        definitions.Add(new ConfigDefinition("person-families", "人物亲属", "人物", "GameScenarios.json",
+            typeof(PersonFamilyConfig), ConfigScope.Scenario)
+        {
+            ShowInNavigation = false,
+            NavigationTargetKey = "persons"
+        });
         Add<RoutewayConfig>(definitions, "routeways", "路径", "世界与地图", "Routeways.json", ConfigScope.Scenario);
         Add<SectionConfig>(definitions, "sections", "军势", "势力与组织", "Sections.json", ConfigScope.Scenario);
         Add<TreasureConfig>(definitions, "treasures", "宝物", "宝物", "Treasures.json", ConfigScope.Scenario);

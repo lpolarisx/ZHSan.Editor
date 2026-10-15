@@ -55,6 +55,9 @@ public sealed class ConfigEditorContext
 
     public IReadOnlyList<ConfigReferenceTarget> GetReferenceTargets(string configKey) =>
         Document.GetReferenceTargets(configKey);
+
+    public IReadOnlyList<ConfigReferenceTarget> GetReferenceTargets(ConfigAddress address) =>
+        Document.GetReferenceTargets(address);
 }
 
 public sealed record ConfigEditorPropertyChange(

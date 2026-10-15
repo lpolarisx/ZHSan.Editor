@@ -36,6 +36,39 @@ public sealed class MainWindowProjectLifecycleTests
         Assert.False(biographies.IsDirty);
     }
     [Fact]
+    public void HiddenFamilies_StayOutOfNavigationAndSearchAndIssuesJumpToThePerson()
+    {
+        using var context = new TestContext();
+        var viewModel = context.CreateViewModel(includePersonBiography: true, includeHiddenFamilies: true);
+        viewModel.OpenArchiveCommand.Execute(null);
+        context.Picker.ArchivePath = context.ScenarioArchivePath;
+        viewModel.OpenScenarioArchiveCommand.Execute(null);
+
+        Assert.DoesNotContain(viewModel.ArchiveCategories.SelectMany(category => category.Documents),
+            document => document.Key == "person-families");
+        Assert.NotEqual("person-families", viewModel.SelectedDocument?.Key);
+
+        var people = viewModel.Documents.Single(document => document.Key == "persons");
+        var person = Assert.IsType<PersonConfig>(people.Records[0].Item);
+        var families = viewModel.Documents.Single(document => document.Key == "person-families");
+        var family = Assert.IsType<PersonFamilyConfig>(families.Records[0].Item);
+        family.Id = person.Id;
+        family.FatherId = 999;
+
+        viewModel.GlobalSearchText = "999";
+        viewModel.GlobalSearchCommand.Execute(null);
+        Assert.DoesNotContain(viewModel.GlobalSearchResults, result => result.Match.Document.Key == "person-families");
+
+        viewModel.ValidateCommand.Execute(null);
+        var issue = Assert.Single(viewModel.ValidationIssues, candidate => candidate.Issue.ConfigKey == "person-families");
+        issue.NavigateCommand.Execute(null);
+
+        Assert.Same(people, viewModel.SelectedDocument);
+        Assert.Same(person, people.SelectedRecord?.Item);
+        Assert.Contains("人物亲属", viewModel.StatusText);
+    }
+
+    [Fact]
     public async Task CloseProject_WithDirtyDocument_CanCancelThenDiscard()
     {
         using var context = new TestContext();
@@ -577,7 +610,8 @@ public sealed class MainWindowProjectLifecycleTests
         public MainWindowViewModel CreateViewModel(
             bool includeScenario = false,
             bool includeCrossScopeReferences = false,
-            bool includePersonBiography = false)
+            bool includePersonBiography = false,
+            bool includeHiddenFamilies = false)
         {
             var definition = new ConfigDefinition(
                 "techniques", "技术", "测试", "Techniques.json", typeof(TechniqueConfig));
@@ -599,6 +633,12 @@ public sealed class MainWindowProjectLifecycleTests
                     "persons", "人物", "人物", "Persons.json",
                     typeof(PersonConfig), ConfigScope.Scenario));
             }
+            if (includeHiddenFamilies)
+            {
+                definitions.Add(new GameDataConfigRegistry()
+                    .Find(new ConfigAddress(ConfigScope.Scenario, "person-families"))!);
+            }
+
             if (includeCrossScopeReferences)
             {
                 definitions.Add(new ConfigDefinition(

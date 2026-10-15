@@ -8,13 +8,12 @@ using GameDatas.Converts;
 using Microsoft.Xna.Framework;
 using ZHSan.Editor.Application.Abstractions;
 using ZHSan.Editor.Domain.Configuration;
+using ZHSan.Editor.Infrastructure.Configuration;
 
 namespace ZHSan.Editor.Infrastructure.Archives;
 
 public sealed class LegacyCommonDataConverter(IConfigRegistry registry) : ILegacyCommonDataConverter
 {
-    private const int ExtraEntryCount = 1;
-
     private static readonly MethodInfo SaveMethod = typeof(LegacyCommonDataConverter)
         .GetMethod(nameof(Save), BindingFlags.Static | BindingFlags.NonPublic)!;
 
@@ -129,14 +128,15 @@ public sealed class LegacyCommonDataConverter(IConfigRegistry registry) : ILegac
         }
 
         var warnings = new List<string>();
-        var entries = new List<ArchiveEntry>(registry.Definitions.Count + ExtraEntryCount);
+        var entries = new List<ArchiveEntry>(registry.Definitions.Count);
         foreach (var definition in registry.Definitions)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            entries.Add(ProjectEntry(root, definition, warnings));
+            entries.Add(definition.ItemType == typeof(FactionColorConfig)
+                ? ProjectColors(root, warnings)
+                : ProjectEntry(root, definition, warnings));
         }
 
-        entries.Add(ProjectColors(root, warnings));
         WriteAndVerify(entries, fullDestinationPath, cancellationToken);
 
         return new LegacyCommonDataConversionResult(

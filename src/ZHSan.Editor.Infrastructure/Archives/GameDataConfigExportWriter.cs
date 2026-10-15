@@ -159,5 +159,5 @@ public sealed class GameDataConfigExportWriter : IConfigExportWriter
     }
 
     private static void SaveItems<T>(GameDataArchive archive, string entryName, IList<object> items) =>
-        archive.Save(entryName, items.Cast<T>().ToList());
+        GameDataArchiveEntries.Save(archive, entryName, items.Cast<T>().ToList());
 }

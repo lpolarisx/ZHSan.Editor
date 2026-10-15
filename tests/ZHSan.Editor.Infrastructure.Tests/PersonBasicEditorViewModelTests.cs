@@ -1,6 +1,7 @@
 using GameDatas;
 using ZHSan.Editor.Application.References;
 using ZHSan.Editor.Desktop.Editors;
+using ZHSan.Editor.Desktop.Services;
 using ZHSan.Editor.Desktop.ViewModels;
 using ZHSan.Editor.Domain.Configuration;
 using ZHSan.Editor.Domain.Documents;
@@ -28,7 +29,7 @@ public sealed class PersonBasicEditorViewModelTests
 
         Assert.Same(document.Records[0], document.SelectedRecord);
         Assert.Equal("关羽", editor.SelectedTitle);
-        var strength = editor.Groups.SelectMany(group => group.Fields)
+        var strength = editor.AllFields
             .Single(field => field.Label == "武勇");
         strength.NumericValue = 99;
         Assert.Equal(99, first.BaseStrength);
@@ -59,7 +60,7 @@ public sealed class PersonBasicEditorViewModelTests
         }, new ReflectionConfigMetadataProvider(), _ => { }, editorProviderRegistry:
             new ConfigEditorProviderRegistry([new PersonBasicEditorProvider()]));
         var editor = Assert.IsType<PersonBasicEditorViewModel>(document.SpecializedEditor?.Content);
-        var sex = editor.Groups.SelectMany(group => group.Fields)
+        var sex = editor.AllFields
             .Single(field => field.Label == "性别");
 
         Assert.True(sex.IsSex);
@@ -90,15 +91,16 @@ public sealed class PersonBasicEditorViewModelTests
         Assert.False(male.Sex);
     }
     [Fact]
-    public void Associations_ToggleNamedSkillsAndEditTitleAndCombatExperienceWithUndo()
+    public void Associations_ToggleSkillsPickTitlesPerKindEditExclusiveListsAndExperienceWithUndo()
     {
         var person = new PersonConfig
         {
             Id = 7,
             SkillsString = "11 99",
             StuntsString = "21",
-            RealTitlesString = "31",
+            RealTitlesString = "31 77",
             PersonalTitleString = 31,
+            StudyingTitleString = -1,
             StudyingStuntString = 21,
             UniqueMilitaryKindsString = "41",
             TacticsExperience = 14
@@ -126,8 +128,18 @@ public sealed class PersonBasicEditorViewModelTests
                 {
                     Definition = new ConfigDefinition("titles", "称号", "称号", "Titles.json",
                         typeof(TitleConfig), ConfigScope.Common),
-                    Items = [new TitleConfig { Id = 31, Name = "名将" },
-                        new TitleConfig { Id = 32, Name = "军师" }]
+                    Items = [new TitleConfig { Id = 31, Name = "名将", KindId = 1, Level = 3 },
+                        new TitleConfig { Id = 32, Name = "猛将", KindId = 1, Level = 2 },
+                        new TitleConfig { Id = 33, Name = "军师", KindId = 2, Level = 1 },
+                        new TitleConfig { Id = 34, Name = "王佐", KindId = 3, Level = 5 }]
+                },
+                new ConfigDocument
+                {
+                    Definition = new ConfigDefinition("title-kinds", "称号类型", "称号", "TitleKinds.json",
+                        typeof(TitleKindConfig), ConfigScope.Common),
+                    Items = [new TitleKindConfig { Id = 1, Name = "武将" },
+                        new TitleKindConfig { Id = 2, Name = "合称" },
+                        new TitleKindConfig { Id = 3, Name = "合称" }]
                 },
                 new ConfigDocument
                 {
@@ -156,11 +168,6 @@ public sealed class PersonBasicEditorViewModelTests
             referenceIndex: references,
             editorProviderRegistry: new ConfigEditorProviderRegistry([new PersonBasicEditorProvider()]));
         var editor = Assert.IsType<PersonBasicEditorViewModel>(document.SpecializedEditor?.Content);
-        PersonAssociationFieldViewModel Field(string label) => editor.AssociationGroups
-            .SelectMany(group => group.Fields).Single(field => field.Label == label);
-
-        Assert.DoesNotContain(editor.AssociationGroups.SelectMany(group => group.Fields),
-            field => field.Label.Contains("特技", StringComparison.Ordinal));
         var riding = Assert.Single(editor.SkillButtons, button => button.Name == "骑术");
         var archery = Assert.Single(editor.SkillButtons, button => button.Name == "弓术");
         Assert.True(riding.IsSelected);
@@ -179,23 +186,53 @@ public sealed class PersonBasicEditorViewModelTests
         Assert.Equal("11 99", person.SkillsString);
         Assert.True(riding.IsSelected);
 
-        Assert.NotNull(Field("已有称号").Editor?.StructuredStringEditor);
-        Assert.NotNull(Field("专属称号").Editor?.StructuredStringEditor);
-        Assert.NotNull(Field("专属兵种").Editor?.StructuredStringEditor);
-        Assert.NotNull(Field("战斗称号").Editor?.ReferencePicker);
-        Assert.NotNull(Field("正在学习的称号").Editor?.ReferencePicker);
-        var titlePicker = Assert.IsType<ReferencePickerViewModel>(Field("个人称号").Editor?.ReferencePicker);
-        Assert.Contains("名将", titlePicker.SelectedOption?.Label);
-        titlePicker.SelectedOption = Assert.Single(titlePicker.FilteredOptions, option => option.Id == 32);
-        Assert.Equal(32, person.PersonalTitleString);
+        Assert.Equal(["武将", "合称 2", "合称 3"], editor.TitleSlots.Select(slot => slot.KindName));
+        var general = editor.TitleSlots[0];
+        Assert.Equal(["无", "Lv2 · 猛将", "Lv3 · 名将"], general.Options.Select(option => option.Label));
+        Assert.Equal(31, general.SelectedOption?.Id);
+        Assert.Equal("无", editor.TitleSlots[1].SelectedOption?.Label);
+        Assert.Contains("77", editor.TitleStatus);
+        general.SelectedOption = general.Options.Single(option => option.Id == 32);
+        Assert.Equal("32 77", person.RealTitlesString);
+        editor.TitleSlots[2].SelectedOption = editor.TitleSlots[2].Options.Single(option => option.Id == 34);
+        Assert.Equal("32 77 34", person.RealTitlesString);
+        general.SelectedOption = general.Options[0];
+        Assert.Equal("77 34", person.RealTitlesString);
         document.UndoCommand.Execute(null);
-        Assert.Equal(31, person.PersonalTitleString);
+        document.UndoCommand.Execute(null);
+        document.UndoCommand.Execute(null);
+        Assert.Equal("31 77", person.RealTitlesString);
+        Assert.Equal(31, general.SelectedOption?.Id);
 
-        var tactics = Assert.IsType<PropertyEditorViewModel>(Field("战法经验").Editor);
+        var studying = editor.StudyingTitleField;
+        Assert.Equal("无", studying.SelectedChoice?.Label);
+        studying.SelectedChoice = studying.ChoiceOptions.Single(option => option.Id == 34);
+        Assert.Equal(34, person.StudyingTitleString);
+        Assert.Equal("合称 3 · Lv5 · 王佐", studying.SelectedChoice?.Label);
+        document.UndoCommand.Execute(null);
+        Assert.Equal(-1, person.StudyingTitleString);
+
+        var exclusiveKinds = editor.ExclusiveLists.Single(list => list.Label == "专属兵种");
+        Assert.Equal(["41 骑兵"], exclusiveKinds.Items.Select(item => item.Label));
+        var exclusiveTitles = editor.ExclusiveLists.Single(list => list.Label == "专属称号");
+        Assert.True(exclusiveTitles.IsEmpty);
+        exclusiveTitles.Candidate = exclusiveTitles.Candidates.Single(option => option.Id == 33);
+        exclusiveTitles.AddCommand.Execute(null);
+        Assert.Equal("33", person.UniqueTitlesString);
+        Assert.Equal(["军师（合称 2 Lv1）"], exclusiveTitles.Items.Select(item => item.Label));
+        exclusiveKinds.Items[0].RemoveCommand.Execute(null);
+        Assert.Equal("", person.UniqueMilitaryKindsString);
+        document.UndoCommand.Execute(null);
+        Assert.Equal("41", person.UniqueMilitaryKindsString);
+        Assert.Single(exclusiveKinds.Items);
+
+        var tactics = editor.ExperienceGroup.Fields.Single(field => field.Label == "战法");
+        Assert.Equal(14, tactics.NumericValue);
         tactics.NumericValue = 25;
         Assert.Equal(25, person.TacticsExperience);
         document.UndoCommand.Execute(null);
         Assert.Equal(14, person.TacticsExperience);
+        Assert.Equal(31, person.PersonalTitleString);
     }
     [Fact]
     public void Biography_TracksSelectedPersonAndUsesBiographyUndoHistory()
@@ -293,6 +330,241 @@ public sealed class PersonBasicEditorViewModelTests
         Assert.False(editor.CanAddBiography);
         Assert.Contains("重复", editor.BiographyStatus);
     }
+
+    [Fact]
+    public void Biography_FactionColorPicksFromCommonColorTableThroughBiographyDocument()
+    {
+        var metadata = new ReflectionConfigMetadataProvider();
+        var biography = new BiographyConfig { Id = 7, FactionColor = 52 };
+        var colorData = new ConfigDocument
+        {
+            Definition = new GameDataConfigRegistry().Find("colors")!,
+            Items = [new FactionColorConfig { Id = 0, R = 160 }, new FactionColorConfig { Id = 1, R = 192, G = 128, B = 255 }]
+        };
+        var biographyData = new ConfigDocument
+        {
+            Definition = new ConfigDefinition("biographies", "列传", "人物", "Biographies.json",
+                typeof(BiographyConfig), ConfigScope.Scenario),
+            Items = [biography]
+        };
+        var personData = new ConfigDocument
+        {
+            Definition = new ConfigDefinition("persons", "人物", "人物", "Persons.json",
+                typeof(PersonConfig), ConfigScope.Scenario),
+            Items = [new PersonConfig { Id = 7, SurName = "关", GivenName = "羽" }]
+        };
+        var references = new ConfigReferenceIndex(metadata);
+        references.Rebuild([
+            new EditorProject { Scope = ConfigScope.Common, ArchivePath = "common.dat", Documents = [colorData] },
+            new EditorProject { Scope = ConfigScope.Scenario, ArchivePath = "scenario.dat", Documents = [biographyData, personData] }
+        ]);
+        using var biographies = new ConfigDocumentViewModel(biographyData, metadata, _ => { });
+        using var people = new ConfigDocumentViewModel(personData, metadata, _ => { }, referenceIndex: references,
+            editorProviderRegistry: new ConfigEditorProviderRegistry([new PersonBasicEditorProvider()]),
+            findRelatedDocument: key => key == "biographies" ? biographies : null);
+        var editor = Assert.IsType<PersonBasicEditorViewModel>(people.SpecializedEditor?.Content);
+
+        Assert.Equal(52, editor.FactionColor);
+        Assert.Equal(["52 （未收录）", "0  #A00000", "1  #C080FF"], editor.FactionColorOptions.Select(option => option.Label));
+        Assert.Null(editor.SelectedFactionColor?.Swatch);
+        editor.SelectedFactionColor = editor.FactionColorOptions.Single(option => option.Id == 1);
+        Assert.Equal(1, biography.FactionColor);
+        Assert.NotNull(editor.SelectedFactionColor?.Swatch);
+        Assert.Equal(["0  #A00000", "1  #C080FF"], editor.FactionColorOptions.Select(option => option.Label));
+        Assert.True(biographies.IsDirty);
+        biographies.UndoCommand.Execute(null);
+        Assert.Equal(52, editor.FactionColor);
+        Assert.Equal("52 （未收录）", editor.SelectedFactionColor?.Label);
+    }
+
+    [Fact]
+    public void BasicFields_UseReferenceFormLabelsAndChoices()
+    {
+        var person = new PersonConfig
+        {
+            Id = 7, SurName = "关", GivenName = "羽", Ideal = 74, PersonalLoyalty = 4, Ambition = 1,
+            PCharacter = 3, Strain = 98, JoinFactionID = []
+        };
+        var commonData = new ConfigDocument
+        {
+            Definition = new ConfigDefinition("character-kinds", "性格类型", "人物", "CharacterKinds.json",
+                typeof(CharacterKindConfig)),
+            Items = [new CharacterKindConfig { Id = 3, Name = "高傲" }]
+        };
+        var personData = new ConfigDocument
+        {
+            Definition = new ConfigDefinition("persons", "人物", "人物", "Persons.json",
+                typeof(PersonConfig), ConfigScope.Scenario),
+            Items = [person]
+        };
+        var metadata = new ReflectionConfigMetadataProvider();
+        var references = new ConfigReferenceIndex(metadata);
+        references.Rebuild([
+            new EditorProject { Scope = ConfigScope.Common, ArchivePath = "common.dat", Documents = [commonData] },
+            new EditorProject { Scope = ConfigScope.Scenario, ArchivePath = "scenario.dat", Documents = [personData] }
+        ]);
+        using var document = new ConfigDocumentViewModel(personData, metadata, _ => { },
+            referenceIndex: references,
+            editorProviderRegistry: new ConfigEditorProviderRegistry([new PersonBasicEditorProvider()]));
+        var editor = Assert.IsType<PersonBasicEditorViewModel>(document.SpecializedEditor?.Content);
+        PersonBasicFieldViewModel Field(string label) =>
+            editor.AllFields.Single(field => field.Label == label);
+
+        Assert.Equal(74, Field("相性").NumericValue);
+        Assert.Equal(98, Field("血缘").NumericValue);
+        Assert.Equal("很高", Field("义理").SelectedChoice?.Label);
+        Assert.Equal("低", Field("野心").SelectedChoice?.Label);
+        Assert.Equal("3 高傲", Field("性格").SelectedChoice?.Label);
+
+        Field("义理").SelectedChoice = Field("义理").ChoiceOptions.Single(option => option.Label == "普通");
+        Assert.Equal(2, person.PersonalLoyalty);
+        Field("仕官势力").IdListText = "3 5";
+        Assert.Equal([3, 5], person.JoinFactionID);
+        Field("仕官势力").IdListText = "3 x";
+        Assert.Equal([3, 5], person.JoinFactionID);
+        document.UndoCommand.Execute(null);
+        Assert.Empty(person.JoinFactionID);
+        Assert.Equal("", Field("仕官势力").IdListText);
+    }
+
+    [Fact]
+    public void Layout_GroupsAbilitiesAndSummarizesLifeYears()
+    {
+        var person = new PersonConfig
+        {
+            Id = 7, SurName = "于", GivenName = "禁", YearBorn = 159, YearAvailable = 184, YearDead = 221,
+            BaseStrength = 85, StrengthExperience = 5802, IdealTendencyIDString = 2
+        };
+        var idealTendencies = new ConfigDocument
+        {
+            Definition = new ConfigDefinition("ideal-tendency-kinds", "理想倾向", "人物", "IdealTendencyKinds.json",
+                typeof(IdealTendencyKindConfig)),
+            Items = [new IdealTendencyKindConfig { Id = 2, Name = "2-比较随意", Offset = 6 }]
+        };
+        var personData = new ConfigDocument
+        {
+            Definition = new ConfigDefinition("persons", "人物", "人物", "Persons.json",
+                typeof(PersonConfig), ConfigScope.Scenario),
+            Items = [person]
+        };
+        var metadata = new ReflectionConfigMetadataProvider();
+        var references = new ConfigReferenceIndex(metadata);
+        references.Rebuild([
+            new EditorProject { Scope = ConfigScope.Common, ArchivePath = "common.dat", Documents = [idealTendencies] },
+            new EditorProject { Scope = ConfigScope.Scenario, ArchivePath = "scenario.dat", Documents = [personData] }
+        ]);
+        using var document = new ConfigDocumentViewModel(personData, metadata, _ => { },
+            referenceIndex: references,
+            editorProviderRegistry: new ConfigEditorProviderRegistry([new PersonBasicEditorProvider()]));
+        var editor = Assert.IsType<PersonBasicEditorViewModel>(document.SpecializedEditor?.Content);
+
+        Assert.Equal("身份", editor.IdentityGroup.Title);
+        Assert.Equal(["生平"], editor.LeadingGroups.Select(group => group.Title));
+        Assert.DoesNotContain(editor.Groups, group => group.Title.StartsWith("能力", StringComparison.Ordinal));
+        var strength = Assert.Single(editor.AbilityColumns, column => column.Label == "武勇");
+        Assert.Equal(85, strength.Ability.NumericValue);
+        Assert.Equal(5802, strength.Experience.NumericValue);
+        Assert.Equal("2-比较随意 （偏差 6）",
+            editor.AllFields.Single(field => field.Label == "仕官倾向").SelectedChoice?.Label);
+
+        var life = editor.Groups.Single(group => group.Title == "生平");
+        Assert.Equal("出场时 25 岁 · 享年 62 岁", life.Note);
+        Assert.False(life.IsWarning);
+        editor.AllFields.Single(field => field.Label == "死亡年").NumericValue = 150;
+        Assert.True(life.IsWarning);
+        Assert.Contains("死亡年早于出生年", life.Note);
+        document.UndoCommand.Execute(null);
+        Assert.False(life.IsWarning);
+    }
+
+    [Fact]
+    public void Ranges_FlagOutOfRangeValuesWithoutClamping()
+    {
+        var person = new PersonConfig { Id = 7, BaseStrength = 160, Ideal = 74, BaseBraveness = 0, PictureIndex = -5 };
+        using var document = new ConfigDocumentViewModel(new ConfigDocument
+        {
+            Definition = new ConfigDefinition("persons", "人物", "人物", "Persons.json",
+                typeof(PersonConfig), ConfigScope.Scenario),
+            Items = [person]
+        }, new ReflectionConfigMetadataProvider(), _ => { }, editorProviderRegistry:
+            new ConfigEditorProviderRegistry([new PersonBasicEditorProvider()]));
+        var editor = Assert.IsType<PersonBasicEditorViewModel>(document.SpecializedEditor?.Content);
+        PersonBasicFieldViewModel Field(string label) => editor.AllFields.Single(field => field.Label == label);
+
+        Assert.True(Field("武勇").IsOutOfRange);
+        Assert.Contains("超出", Field("武勇").RangeTip);
+        Assert.Equal(160, person.BaseStrength);
+        Assert.False(Field("勇猛度").IsOutOfRange);
+        Assert.False(Field("头像序号").IsOutOfRange);
+        Assert.Null(Field("头像序号").RangeTip);
+
+        Field("相性").NumericValue = 151;
+        Assert.True(Field("相性").IsOutOfRange);
+        Field("相性").NumericValue = 150;
+        Assert.False(Field("相性").IsOutOfRange);
+        Assert.Equal(150, person.Ideal);
+        Field("武勇").NumericValue = 95;
+        Assert.False(Field("武勇").IsOutOfRange);
+    }
+
+    [Fact]
+    public void Family_EditsParentsAndListsThroughFamilyDocumentWithUndo()
+    {
+        var metadata = new ReflectionConfigMetadataProvider();
+        var family = new PersonFamilyConfig { Id = 7, BrotherIdsString = "8" };
+        using var families = new ConfigDocumentViewModel(new ConfigDocument
+        {
+            Definition = new ConfigDefinition("person-families", "人物亲属", "人物", "GameScenarios.json",
+                typeof(PersonFamilyConfig), ConfigScope.Scenario),
+            Items = [family]
+        }, metadata, _ => { });
+        using var people = new ConfigDocumentViewModel(new ConfigDocument
+        {
+            Definition = new ConfigDefinition("persons", "人物", "人物", "Persons.json",
+                typeof(PersonConfig), ConfigScope.Scenario),
+            Items =
+            [
+                new PersonConfig { Id = 7, SurName = "关", GivenName = "羽" },
+                new PersonConfig { Id = 8, SurName = "张", GivenName = "飞" },
+                new PersonConfig { Id = 9, SurName = "刘", GivenName = "备" }
+            ]
+        }, metadata, _ => { }, editorProviderRegistry:
+            new ConfigEditorProviderRegistry([new PersonBasicEditorProvider()]),
+            findRelatedDocument: key => key == "person-families" ? families : null);
+        var editor = Assert.IsType<PersonBasicEditorViewModel>(people.SpecializedEditor?.Content);
+        var father = editor.FamilyReferenceFields.Single(field => field.Label == "父亲");
+        var brothers = editor.FamilyListFields.Single(field => field.Label == "义兄");
+        var close = editor.FamilyListFields.Single(field => field.Label == "亲近人物");
+
+        Assert.True(editor.CanEditFamily);
+        Assert.Equal(-1, father.SelectedOption?.Id);
+        Assert.Equal(["8 张飞"], brothers.Items.Select(item => item.Label));
+        father.SelectedOption = father.Options.Single(option => option.Id == 9);
+        Assert.Equal(9, family.FatherId);
+        close.Candidate = close.Candidates.Single(option => option.Id == 9);
+        close.AddCommand.Execute(null);
+        Assert.Equal("9", family.CloseIdsString);
+        brothers.SelectedItem = brothers.Items.Single();
+        brothers.RemoveCommand.Execute(null);
+        Assert.Equal("", family.BrotherIdsString);
+        Assert.True(families.IsDirty);
+        Assert.False(people.IsDirty);
+        families.UndoCommand.Execute(null);
+        Assert.Equal("8", family.BrotherIdsString);
+        Assert.Single(brothers.Items);
+
+        editor.SelectedPerson = editor.People[1];
+        Assert.Equal(-1, father.SelectedOption?.Id);
+        father.SelectedOption = father.Options.Single(option => option.Id == 9);
+        var added = Assert.IsType<PersonFamilyConfig>(families.Records.Single(
+            record => record.Item is PersonFamilyConfig item && item.Id == 8).Item);
+        Assert.Equal(9, added.FatherId);
+        Assert.Equal(-1, added.MotherId);
+        families.UndoCommand.Execute(null);
+        Assert.DoesNotContain(families.Records, record => record.Item is PersonFamilyConfig { Id: 8 });
+        Assert.Equal(-1, father.SelectedOption?.Id);
+    }
+
     [Fact]
     public void Provider_MatchesOnlyPersons()
     {
@@ -301,5 +573,61 @@ public sealed class PersonBasicEditorViewModelTests
             "Persons.json", typeof(PersonConfig), ConfigScope.Scenario)));
         Assert.False(provider.CanEdit(new ConfigDefinition("biographies", "列传", "人物",
             "Biographies.json", typeof(BiographyConfig), ConfigScope.Scenario)));
+    }
+
+    [Fact]
+    public void NewPerson_StartsStudyingReferencesAtGameNoneValue()
+    {
+        var personData = new ConfigDocument
+        {
+            Definition = new GameDataConfigRegistry().Find(new ConfigAddress(ConfigScope.Scenario, "persons"))!,
+            Items = []
+        };
+        using var document = new ConfigDocumentViewModel(personData, new ReflectionConfigMetadataProvider(), _ => { });
+
+        document.AddCommand.Execute(null);
+
+        var person = Assert.IsType<PersonConfig>(Assert.Single(personData.Items));
+        Assert.Equal(-1, person.StudyingTitleString);
+        Assert.Equal(-1, person.StudyingStuntString);
+        Assert.Equal(0, person.PersonalTitleString);
+    }
+
+    [Fact]
+    public void Portrait_BuildsLargeImagePathFromPictureIndexAndRemembersFolder()
+    {
+        var directory = Directory.CreateTempSubdirectory("zhsan-portraits-").FullName;
+        try
+        {
+            var personData = new ConfigDocument
+            {
+                Definition = new ConfigDefinition("persons", "人物", "人物", "Persons.json",
+                    typeof(PersonConfig), ConfigScope.Scenario),
+                Items = [new PersonConfig { Id = 7, SurName = "关", GivenName = "羽", PictureIndex = 2 }]
+            };
+            var store = PersonPortraitDirectoryStore.InMemory();
+            using var document = new ConfigDocumentViewModel(personData, new ReflectionConfigMetadataProvider(),
+                _ => { }, editorProviderRegistry: new ConfigEditorProviderRegistry([new PersonBasicEditorProvider(store)]));
+            var editor = Assert.IsType<PersonBasicEditorViewModel>(document.SpecializedEditor?.Content);
+
+            Assert.Null(editor.PortraitPath);
+            Assert.Equal("点击选择头像文件夹", editor.PortraitHint);
+            Assert.Equal("2.jpg", editor.PortraitFileName);
+
+            editor.PortraitDirectory = directory;
+            Assert.Equal(directory, store.Directory);
+            Assert.Equal(Path.Combine(directory, "2.jpg"), editor.PortraitPath);
+            Assert.False(editor.HasPortrait);
+            Assert.Contains("未找到 2.jpg", editor.PortraitHint);
+
+            editor.AllFields.Single(field => field.Label == "头像序号").NumericValue = 15;
+            Assert.Equal(Path.Combine(directory, "15.jpg"), editor.PortraitPath);
+            document.UndoCommand.Execute(null);
+            Assert.Equal("2.jpg", editor.PortraitFileName);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
     }
 }

@@ -24,7 +24,7 @@ public sealed class LegacyCommonDataConverterTests
             var converter = new LegacyCommonDataConverter(new GameDataConfigRegistry());
             var result = await converter.ConvertAsync(sourcePath, destinationPath);
 
-            Assert.Equal(40, result.ConfigCount);
+            Assert.Equal(41, result.ConfigCount);
             Assert.Equal(41, result.EntryCount);
             Assert.Equal(9, result.ItemCount);
             Assert.Equal(destinationPath, result.DestinationPath);
