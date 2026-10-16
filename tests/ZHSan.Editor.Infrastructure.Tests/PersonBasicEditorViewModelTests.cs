@@ -306,6 +306,55 @@ public sealed class PersonBasicEditorViewModelTests
         Assert.True(editor.HasBiography);
         Assert.Equal(7, Assert.IsType<BiographyConfig>(Assert.Single(biographies.Records).Item).Id);
     }
+
+    [Fact]
+    public void NewPerson_TakesNextIdAndCreatesBiographyInSameUndoStep()
+    {
+        var metadata = new ReflectionConfigMetadataProvider();
+        using var biographies = new ConfigDocumentViewModel(new ConfigDocument
+        {
+            Definition = new ConfigDefinition("biographies", "列传", "人物", "Biographies.json",
+                typeof(BiographyConfig), ConfigScope.Scenario),
+            // A leftover biography with no person still reserves its ID.
+            Items = [new BiographyConfig { Id = 3 }, new BiographyConfig { Id = 12, Brief = "遗留" }]
+        }, metadata, _ => { });
+        using var people = new ConfigDocumentViewModel(new ConfigDocument
+        {
+            Definition = new ConfigDefinition("persons", "人物", "人物", "Persons.json",
+                typeof(PersonConfig), ConfigScope.Scenario),
+            Items = [new PersonConfig { Id = 3, SurName = "关", GivenName = "羽" },
+                new PersonConfig { Id = 10, SurName = "张", GivenName = "飞" }]
+        }, metadata, _ => { }, editorProviderRegistry:
+            new ConfigEditorProviderRegistry([new PersonBasicEditorProvider()]),
+            findRelatedDocument: key => key == "biographies" ? biographies : null);
+        var editor = Assert.IsType<PersonBasicEditorViewModel>(people.SpecializedEditor?.Content);
+
+        people.AddCommand.Execute(null);
+
+        var added = Assert.IsType<PersonConfig>(people.Records[^1].Item);
+        Assert.Equal(13, added.Id);
+        var biography = Assert.IsType<BiographyConfig>(biographies.Records.Single(
+            record => record.Item is BiographyConfig item && item.Id == 13).Item);
+        Assert.Equal(string.Empty, biography.Brief);
+        Assert.True(biographies.IsDirty);
+        Assert.Same(people.Records[^1], people.SelectedRecord);
+        Assert.True(editor.HasBiography);
+
+        people.CopyCommand.Execute(null);
+        Assert.Equal(14, Assert.IsType<PersonConfig>(people.Records[^1].Item).Id);
+        Assert.Equal(4, biographies.Records.Count);
+
+        people.UndoCommand.Execute(null);
+        people.UndoCommand.Execute(null);
+        Assert.Equal(2, people.Records.Count);
+        Assert.Equal(2, biographies.Records.Count);
+        Assert.False(biographies.IsDirty);
+
+        people.RedoCommand.Execute(null);
+        Assert.Contains(biographies.Records, record => record.Item is BiographyConfig { Id: 13 });
+        Assert.True(biographies.IsDirty);
+    }
+
     [Fact]
     public void Biography_DuplicateIdsAreNotEditedOrCreated()
     {

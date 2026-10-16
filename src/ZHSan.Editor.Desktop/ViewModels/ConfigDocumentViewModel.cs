@@ -25,6 +25,8 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         DefaultIgnoreCondition = JsonIgnoreCondition.Never
     };
 
+    private const string BiographiesKey = "biographies";
+
     private readonly IReadOnlyList<ConfigPropertyDefinition> _properties;
     private readonly List<ConfigRecordViewModel> _selectedRecords = [];
     private readonly RecordClipboard _clipboard;
@@ -36,6 +38,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     private readonly Func<string, ConfigDocumentViewModel?>? _findRelatedDocument;
     private bool _wasDirtyBeforeHistory;
     private int _savedHistoryPosition;
+    private int _linkedEditOffset;
     private string _searchText = string.Empty;
     private ConfigFilterFieldViewModel _selectedFilterField;
     private BatchEditFieldViewModel? _selectedBatchField;
@@ -354,6 +357,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     {
         _wasDirtyBeforeHistory = false;
         _savedHistoryPosition = _history.Position;
+        _linkedEditOffset = 0;
         Document.IsDirty = false;
         OnPropertyChanged(nameof(IsDirty));
         OnPropertyChanged(nameof(DirtyMarker));
@@ -596,16 +600,22 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             property.SetValue(item, CloneValue(value));
         }
 
+        if (item is PersonConfig person && !initialValues.ContainsKey(nameof(PersonConfig.Id)))
+        {
+            person.Id = AllocatePersonIds(1)[0];
+        }
+
         Document.Items.Add(item);
         var record = CreateRecordViewModel(item);
         Records.Add(record);
         FinishRecordMutation(record);
         var index = Records.IndexOf(record);
+        var biographies = AddBiographiesForNewPersons([record]);
         RecordEdit(new DelegateUndoableEdit(
             editDescription,
-            () => RemoveRecords([record], null),
-            () => InsertRecords([(index, record)], record)),
-            $"已{editDescription}");
+            () => { RemoveRecords([record], null); biographies.Undo(); },
+            () => { InsertRecords([(index, record)], record); biographies.Redo(); }),
+            $"已{editDescription}{biographies.Message}");
         return record;
     }
 
@@ -618,9 +628,11 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         try
         {
             var copies = new List<(int Index, ConfigRecordViewModel Record)>();
+            var personIds = new Queue<int>(AllocatePersonIds(sourceRecords.Length));
             foreach (var source in sourceRecords)
             {
                 var copy = CloneRecord(source.Item);
+                if (copy is PersonConfig person) person.Id = personIds.Dequeue();
                 Document.Items.Add(copy);
                 var copyRecord = CreateRecordViewModel(copy);
                 Records.Add(copyRecord);
@@ -631,11 +643,12 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             {
                 var lastCopy = copies[^1].Record;
                 FinishRecordMutation(lastCopy);
+                var biographies = AddBiographiesForNewPersons(copies.Select(copy => copy.Record).ToArray());
                 RecordEdit(new DelegateUndoableEdit(
                     $"复制 {copies.Count} 条记录",
-                    () => RemoveRecords(copies.Select(copy => copy.Record), null),
-                    () => InsertRecords(copies, lastCopy)),
-                    $"已复制 {copies.Count} 条记录");
+                    () => { RemoveRecords(copies.Select(copy => copy.Record), null); biographies.Undo(); },
+                    () => { InsertRecords(copies, lastCopy); biographies.Redo(); }),
+                    $"已复制 {copies.Count} 条记录{biographies.Message}");
             }
         }
         catch (Exception exception)
@@ -770,10 +783,10 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
         try
         {
-            var pasted = _clipboard.Items
-                .Select(CloneRecord)
-                .Select(CreateRecordViewModel)
-                .ToArray();
+            var clones = _clipboard.Items.Select(CloneRecord).ToArray();
+            var personIds = new Queue<int>(AllocatePersonIds(clones.Length));
+            foreach (var person in clones.OfType<PersonConfig>()) person.Id = personIds.Dequeue();
+            var pasted = clones.Select(CreateRecordViewModel).ToArray();
             var insertions = new List<(int Index, ConfigRecordViewModel Record)>();
             foreach (var record in pasted)
             {
@@ -785,11 +798,12 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
             var lastRecord = pasted.LastOrDefault();
             FinishRecordMutation(lastRecord);
+            var biographies = AddBiographiesForNewPersons(pasted);
             RecordEdit(new DelegateUndoableEdit(
                 $"粘贴 {pasted.Length} 条记录",
-                () => RemoveRecords(pasted, null),
-                () => InsertRecords(insertions, lastRecord)),
-                $"已粘贴 {pasted.Length} 条记录");
+                () => { RemoveRecords(pasted, null); biographies.Undo(); },
+                () => { InsertRecords(insertions, lastRecord); biographies.Redo(); }),
+                $"已粘贴 {pasted.Length} 条记录{biographies.Message}");
         }
         catch (Exception exception)
         {
@@ -871,6 +885,95 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     private ConfigRecordViewModel[] GetSelectedRecords() => _selectedRecords.Count > 0
         ? _selectedRecords.ToArray()
         : SelectedRecord is null ? [] : [SelectedRecord];
+
+    // Person IDs are sequential: new persons continue after the highest ID in use. Biographies are keyed by
+    // person ID, so leftover biographies count as in use and a new person never inherits another's text.
+    private int[] AllocatePersonIds(int count)
+    {
+        if (Document.Definition.ItemType != typeof(PersonConfig))
+        {
+            return [];
+        }
+
+        var biographyIds = FindRelatedDocument(BiographiesKey)?.Records
+            .Select(record => record.Item).OfType<BiographyConfig>().Select(biography => biography.Id) ?? [];
+        var next = Records.Select(record => record.Item).OfType<PersonConfig>().Select(person => person.Id)
+            .Concat(biographyIds).DefaultIfEmpty(-1).Max() + 1;
+        return Enumerable.Range(next, count).ToArray();
+    }
+
+    // A new person has no biography yet, so one is created alongside it and undone/redone with it.
+    private LinkedRecordsChange AddBiographiesForNewPersons(IReadOnlyList<ConfigRecordViewModel> records)
+    {
+        var persons = records.Select(record => record.Item).OfType<PersonConfig>().ToArray();
+        if (persons.Length == 0 || FindRelatedDocument(BiographiesKey) is not { } biographies)
+        {
+            return LinkedRecordsChange.None;
+        }
+
+        if (biographies.HasNullRecords)
+        {
+            return LinkedRecordsChange.None with { Message = "；列传包含 null 记录，未创建列传" };
+        }
+
+        var items = persons.Select(person => (object)new BiographyConfig
+        {
+            Id = person.Id,
+            Brief = string.Empty,
+            Romance = string.Empty,
+            History = string.Empty,
+            InGame = string.Empty
+        }).ToArray();
+        return biographies.AddLinkedRecords(items) with { Message = "，并创建列传" };
+    }
+
+    // Records added on behalf of another document's edit (a new person's biography). They live in that
+    // document's undo history; this document only tracks how far they move it from its saved state.
+    private LinkedRecordsChange AddLinkedRecords(IReadOnlyList<object> items)
+    {
+        var previousState = Document.EntryState;
+        var records = items.Select(CreateRecordViewModel).ToArray();
+
+        void Insert()
+        {
+            if (CanInitializeEntry)
+            {
+                Document.EntryState = ArchiveEntryState.Empty;
+            }
+
+            foreach (var record in records)
+            {
+                Document.Items.Add(record.Item);
+                Records.Add(record);
+            }
+
+            FinishRecordMutation(SelectedRecord);
+            ChangeLinkedEditOffset(1);
+        }
+
+        void Remove()
+        {
+            foreach (var record in records)
+            {
+                Document.Items.Remove(record.Item);
+                Records.Remove(record);
+            }
+
+            Document.EntryState = previousState;
+            FinishRecordMutation(SelectedRecord);
+            ChangeLinkedEditOffset(-1);
+        }
+
+        Insert();
+        return new LinkedRecordsChange(Remove, Insert, string.Empty);
+    }
+
+    private void ChangeLinkedEditOffset(int delta)
+    {
+        _linkedEditOffset += delta;
+        UpdateDirtyState();
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     private object CloneRecord(object source)
     {
@@ -1219,13 +1322,19 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
     private void HistoryChanged(object? sender, EventArgs eventArgs)
     {
-        Document.IsDirty = _wasDirtyBeforeHistory || _history.Position != _savedHistoryPosition;
         ((RelayCommand)UndoCommand).RaiseCanExecuteChanged();
         ((RelayCommand)RedoCommand).RaiseCanExecuteChanged();
         OnPropertyChanged(nameof(CanUndo));
         OnPropertyChanged(nameof(CanRedo));
         OnPropertyChanged(nameof(UndoLabel));
         OnPropertyChanged(nameof(RedoLabel));
+        UpdateDirtyState();
+    }
+
+    private void UpdateDirtyState()
+    {
+        Document.IsDirty = _wasDirtyBeforeHistory || _history.Position != _savedHistoryPosition ||
+            _linkedEditOffset != 0;
         OnPropertyChanged(nameof(IsDirty));
         OnPropertyChanged(nameof(DirtyMarker));
         OnPropertyChanged(nameof(DisplayLabel));
@@ -1251,6 +1360,11 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
     private void ClipboardChanged(object? sender, EventArgs eventArgs) =>
         ((RelayCommand)PasteCommand).RaiseCanExecuteChanged();
+
+    private sealed record LinkedRecordsChange(Action Undo, Action Redo, string Message)
+    {
+        public static LinkedRecordsChange None { get; } = new(() => { }, () => { }, string.Empty);
+    }
 
     private sealed record PreparedPropertyChange(
         ConfigRecordViewModel Record,
