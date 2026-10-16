@@ -30,6 +30,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     private const string BiographiesKey = "biographies";
     private const string PersonFamiliesKey = "person-families";
     private const string PersonRelationsKey = "person-relations";
+    private const string DiplomaticRelationsKey = "diplomatic-relations";
 
     private readonly IReadOnlyList<ConfigPropertyDefinition> _properties;
     private readonly List<ConfigRecordViewModel> _selectedRecords = [];
@@ -682,12 +683,12 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             .ToArray();
         var selectionAfterDelete = Records.FirstOrDefault(record => !records.Contains(record));
         RemoveRecords(records, selectionAfterDelete);
-        var personData = RemoveDataOfDeletedPersons(records);
+        var dependentData = RemoveDependentData(records);
         RecordEdit(new DelegateUndoableEdit(
             $"删除 {records.Length} 条记录",
-            () => { personData.Undo(); InsertRecords(removed, removed[0].Record); },
-            () => { RemoveRecords(records, selectionAfterDelete); personData.Redo(); }),
-            $"已删除 {records.Length} 条记录{personData.Message}");
+            () => { dependentData.Undo(); InsertRecords(removed, removed[0].Record); },
+            () => { RemoveRecords(records, selectionAfterDelete); dependentData.Redo(); }),
+            $"已删除 {records.Length} 条记录{dependentData.Message}");
     }
 
     private void CopySelectionToClipboard()
@@ -724,13 +725,13 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             .ToArray();
         var selectionAfterCut = Records.FirstOrDefault(record => !records.Contains(record));
         RemoveRecords(records, selectionAfterCut);
-        // Pasted persons get new IDs, so the cut persons' own data goes with them as on delete.
-        var personData = RemoveDataOfDeletedPersons(records);
+        // Pasted persons and factions get new IDs, so the cut records' own data goes with them as on delete.
+        var dependentData = RemoveDependentData(records);
         RecordEdit(new DelegateUndoableEdit(
             $"剪切 {records.Length} 条记录",
-            () => { personData.Undo(); InsertRecords(removed, removed[0].Record); },
-            () => { RemoveRecords(records, selectionAfterCut); personData.Redo(); }),
-            $"已剪切 {records.Length} 条记录{personData.Message}");
+            () => { dependentData.Undo(); InsertRecords(removed, removed[0].Record); },
+            () => { RemoveRecords(records, selectionAfterCut); dependentData.Redo(); }),
+            $"已剪切 {records.Length} 条记录{dependentData.Message}");
     }
 
     private bool CanPasteRecords() =>
@@ -745,9 +746,9 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             return true;
         }
 
-        // References from a deleted person's own biography, family record and relations are cleaned up
-        // together with the person, so they are not reported.
-        var cleanedKeys = GetPersonDataDocuments(records).Select(document => document.Key).ToHashSet();
+        // References from the records' own dependent data (a person's biography, family record and relations,
+        // a faction's diplomatic relations) are cleaned up together with them, so they are not reported.
+        var cleanedKeys = GetDependentDocuments(records).Select(document => document.Key).ToHashSet();
         var impacts = _referenceIndex.GetDeletionImpacts(
                 Document.Definition.Address,
                 records.Select(record => record.Item))
@@ -908,12 +909,14 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         ? _selectedRecords.ToArray()
         : SelectedRecord is null ? [] : [SelectedRecord];
 
-    // Person and treasure IDs are sequential: new records continue after the highest ID in use. Biographies
-    // are keyed by person ID, so leftover biographies count as in use and a new person never inherits another's text.
+    // Person, treasure and faction IDs are sequential: new records continue after the highest ID in use.
+    // Biographies are keyed by person ID, so leftover biographies count as in use and a new person never
+    // inherits another's text.
     private static readonly IReadOnlySet<Type> SequentialIdTypes = new HashSet<Type>
     {
         typeof(PersonConfig),
-        typeof(TreasureConfig)
+        typeof(TreasureConfig),
+        typeof(FactionConfig)
     };
 
     private bool HasSequentialIds => SequentialIdTypes.Contains(Document.Definition.ItemType);
@@ -1004,19 +1007,29 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         return new LinkedRecordsChange(Remove, Insert, string.Empty);
     }
 
-    // The person-keyed documents whose data follows the person: biography, family record and relations.
-    private ConfigDocumentViewModel[] GetPersonDataDocuments(IReadOnlyList<ConfigRecordViewModel> records) =>
-        records.Any(record => record.Item is PersonConfig)
-            ? new[] { BiographiesKey, PersonFamiliesKey, PersonRelationsKey }
-                .Select(FindRelatedDocument).OfType<ConfigDocumentViewModel>()
-                .Where(document => !document.HasNullRecords).ToArray()
-            : [];
+    // Documents whose records belong to the deleted records: a person's biography, family record and
+    // relations, and a faction's diplomatic relations.
+    private ConfigDocumentViewModel[] GetDependentDocuments(IReadOnlyList<ConfigRecordViewModel> records)
+    {
+        string[] keys = Document.Definition.ItemType == typeof(PersonConfig)
+            ? [BiographiesKey, PersonFamiliesKey, PersonRelationsKey]
+            : Document.Definition.ItemType == typeof(FactionConfig)
+                ? [DiplomaticRelationsKey]
+                : [];
+        return records.Count == 0
+            ? []
+            : keys.Select(FindRelatedDocument).OfType<ConfigDocumentViewModel>()
+                .Where(document => !document.HasNullRecords).ToArray();
+    }
 
     // Deleting persons also deletes their biographies, family records and relations, and clears them from
-    // other persons' family ties, all undone and redone with the deletion.
-    private LinkedRecordsChange RemoveDataOfDeletedPersons(IReadOnlyList<ConfigRecordViewModel> records)
+    // other persons' family ties; deleting factions deletes their diplomatic relations. All of it is undone
+    // and redone with the deletion.
+    private LinkedRecordsChange RemoveDependentData(IReadOnlyList<ConfigRecordViewModel> records)
     {
-        var ids = records.Select(record => record.Item).OfType<PersonConfig>().Select(person => person.Id).ToHashSet();
+        var ids = HasSequentialIds
+            ? records.Select(record => GetSequentialId(record.Item)).ToHashSet()
+            : [];
         if (ids.Count == 0)
         {
             return LinkedRecordsChange.None;
@@ -1024,13 +1037,15 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
         var changes = new List<LinkedRecordsChange>();
         var parts = new List<string>();
-        foreach (var document in GetPersonDataDocuments(records))
+        foreach (var document in GetDependentDocuments(records))
         {
             var removed = document.Records.Where(record => record.Item switch
             {
                 BiographyConfig biography => ids.Contains(biography.Id),
                 PersonFamilyConfig family => ids.Contains(family.Id),
                 PersonRelationConfig relation => ids.Contains(relation.PersonID1) || ids.Contains(relation.PersonID2),
+                DiplomaticRelationConfig relation =>
+                    ids.Contains(relation.RelationFaction1ID) || ids.Contains(relation.RelationFaction2ID),
                 _ => false
             }).ToArray();
             var edits = document.Records.Except(removed)
@@ -1045,6 +1060,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
                 {
                     BiographiesKey => "列传",
                     PersonFamiliesKey => "亲属记录",
+                    DiplomaticRelationsKey => $"{removed.Length} 条外交关系",
                     _ => $"{removed.Length} 条人物关系"
                 });
             }

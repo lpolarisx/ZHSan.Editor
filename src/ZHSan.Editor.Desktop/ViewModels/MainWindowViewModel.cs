@@ -1212,7 +1212,7 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
-        var linked = GetLinkedPersonDocuments(selectedDocument);
+        var linked = GetLinkedDocuments(selectedDocument);
         if (!selectedDocument.IsDirty && linked.Length == 0)
         {
             return;
@@ -1230,7 +1230,7 @@ public sealed class MainWindowViewModel : ObservableObject
                         .ToArray()),
             linked.Length == 0
                 ? "\u5df2\u4fdd\u5b58\u914d\u7f6e\uff1a" + selectedDocument.DisplayName
-                : $"已保存人物与{string.Join("、", linked.Select(document => document.DisplayName))}",
+                : $"已保存{selectedDocument.DisplayName}与{string.Join("、", linked.Select(document => document.DisplayName))}",
             documents);
     }
 
@@ -1642,20 +1642,24 @@ public sealed class MainWindowViewModel : ObservableObject
         ((RelayCommand)ValidateCommand).RaiseCanExecuteChanged();
     }
 
-    // Person edits also change the person-keyed documents (biographies, family ties, relations),
-    // so saving the person document saves those with it.
-    private static readonly string[] LinkedPersonDocumentKeys = ["biographies", "person-families", "person-relations"];
+    // Person and faction edits also change the documents keyed by them (a person's biography, family ties
+    // and relations; a faction's diplomatic relations), so saving the document saves those with it.
+    private static readonly IReadOnlyDictionary<string, string[]> LinkedDocumentKeys = new Dictionary<string, string[]>
+    {
+        ["persons"] = ["biographies", "person-families", "person-relations"],
+        ["factions"] = ["diplomatic-relations"]
+    };
 
-    private ConfigDocumentViewModel[] GetLinkedPersonDocuments(ConfigDocumentViewModel selected) =>
-        selected.Key == "persons"
+    private ConfigDocumentViewModel[] GetLinkedDocuments(ConfigDocumentViewModel selected) =>
+        LinkedDocumentKeys.TryGetValue(selected.Key, out var keys)
             ? GetSlotDocuments(selected.Document.Definition.Scope)
-                .Where(document => LinkedPersonDocumentKeys.Contains(document.Key) && document.IsDirty)
+                .Where(document => keys.Contains(document.Key) && document.IsDirty)
                 .ToArray()
             : [];
 
     private bool CanSaveDocument() =>
         !IsBusy && _project is not null && SelectedDocument is { } selected &&
-        (selected.IsDirty || GetLinkedPersonDocuments(selected).Length > 0);
+        (selected.IsDirty || GetLinkedDocuments(selected).Length > 0);
 
     private bool CanSaveCurrentArchive() =>
         !IsBusy && _project?.Documents.Any(document => document.IsDirty) == true;

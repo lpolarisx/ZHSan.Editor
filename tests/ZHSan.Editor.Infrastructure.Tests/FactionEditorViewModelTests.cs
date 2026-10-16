@@ -108,6 +108,40 @@ public sealed class FactionEditorViewModelTests
     }
 
     [Fact]
+    public void DeleteFaction_RemovesItsDiplomaticRelationsAndNewFactionTakesNextId()
+    {
+        var metadata = new ReflectionConfigMetadataProvider();
+        using var relations = new ConfigDocumentViewModel(new ConfigDocument
+        {
+            Definition = new ConfigDefinition("diplomatic-relations", "外交关系", "势力与组织", "DiplomaticRelations.json",
+                typeof(DiplomaticRelationConfig), ConfigScope.Scenario),
+            Items = [new DiplomaticRelationConfig { RelationFaction1ID = 2, RelationFaction2ID = 1, Relation = 500 },
+                new DiplomaticRelationConfig { RelationFaction1ID = 3, RelationFaction2ID = 1 },
+                new DiplomaticRelationConfig { RelationFaction1ID = 3, RelationFaction2ID = 2 }]
+        }, metadata, _ => { });
+        using var factions = new ConfigDocumentViewModel(
+            FactionData(new FactionConfig { Id = 1, Name = "曹操" }, new FactionConfig { Id = 2, Name = "刘备" },
+                new FactionConfig { Id = 3, Name = "孙坚" }),
+            metadata, _ => { }, findRelatedDocument: key => key == "diplomatic-relations" ? relations : null);
+
+        factions.SelectedRecord = factions.Records[0];
+        factions.DeleteCommand.Execute(null);
+
+        Assert.Equal([2, 3], factions.Records.Select(record => ((FactionConfig)record.Item).Id));
+        var remaining = Assert.IsType<DiplomaticRelationConfig>(Assert.Single(relations.Records).Item);
+        Assert.Equal((3, 2), (remaining.RelationFaction1ID, remaining.RelationFaction2ID));
+        Assert.True(relations.IsDirty);
+
+        factions.UndoCommand.Execute(null);
+        Assert.Equal(3, factions.Records.Count);
+        Assert.Equal(3, relations.Records.Count);
+        Assert.False(relations.IsDirty);
+
+        factions.AddCommand.Execute(null);
+        Assert.Equal(4, ((FactionConfig)factions.Records[^1].Item).Id);
+    }
+
+    [Fact]
     public void FactionReferencesAndIdLists_AreRegisteredForValidation()
     {
         var properties = new ReflectionConfigMetadataProvider().GetProperties(typeof(FactionConfig))
