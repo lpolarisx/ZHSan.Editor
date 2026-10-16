@@ -1212,25 +1212,26 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
-        var biography = GetLinkedBiographyDocument(selectedDocument);
-        if (!selectedDocument.IsDirty && biography is null)
+        var linked = GetLinkedPersonDocuments(selectedDocument);
+        if (!selectedDocument.IsDirty && linked.Length == 0)
         {
             return;
         }
 
+        ConfigDocumentViewModel[] documents = [selectedDocument, ..linked];
         await RunSaveAsync(
             project,
-            biography is null
+            linked.Length == 0
                 ? () => _saveArchiveService.SaveDocumentAsync(project, selectedDocument.Document)
                 : () => _saveArchiveService.SaveDocumentsAsync(project,
-                    new[] { selectedDocument, biography }
+                    documents
                         .Where(document => document.IsDirty)
                         .Select(document => document.Document)
                         .ToArray()),
-            biography is null
+            linked.Length == 0
                 ? "\u5df2\u4fdd\u5b58\u914d\u7f6e\uff1a" + selectedDocument.DisplayName
-                : "已保存人物与列传",
-            biography is null ? [selectedDocument] : [selectedDocument, biography]);
+                : $"已保存人物与{string.Join("、", linked.Select(document => document.DisplayName))}",
+            documents);
     }
 
     private async Task SaveCurrentArchiveAsync()
@@ -1641,15 +1642,20 @@ public sealed class MainWindowViewModel : ObservableObject
         ((RelayCommand)ValidateCommand).RaiseCanExecuteChanged();
     }
 
-    private ConfigDocumentViewModel? GetLinkedBiographyDocument(ConfigDocumentViewModel selected) =>
+    // Person edits also change the person-keyed documents (biographies, family ties, relations),
+    // so saving the person document saves those with it.
+    private static readonly string[] LinkedPersonDocumentKeys = ["biographies", "person-families", "person-relations"];
+
+    private ConfigDocumentViewModel[] GetLinkedPersonDocuments(ConfigDocumentViewModel selected) =>
         selected.Key == "persons"
             ? GetSlotDocuments(selected.Document.Definition.Scope)
-                .FirstOrDefault(document => document.Key == "biographies" && document.IsDirty)
-            : null;
+                .Where(document => LinkedPersonDocumentKeys.Contains(document.Key) && document.IsDirty)
+                .ToArray()
+            : [];
 
     private bool CanSaveDocument() =>
         !IsBusy && _project is not null && SelectedDocument is { } selected &&
-        (selected.IsDirty || GetLinkedBiographyDocument(selected) is not null);
+        (selected.IsDirty || GetLinkedPersonDocuments(selected).Length > 0);
 
     private bool CanSaveCurrentArchive() =>
         !IsBusy && _project?.Documents.Any(document => document.IsDirty) == true;

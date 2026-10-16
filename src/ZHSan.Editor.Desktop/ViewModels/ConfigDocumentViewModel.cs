@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Reflection;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -13,6 +14,7 @@ using ZHSan.Editor.Desktop.Services;
 using ZHSan.Editor.Domain.Configuration;
 using ZHSan.Editor.Domain.Documents;
 using ZHSan.Editor.Domain.Editing;
+using ZHSan.Editor.Infrastructure.Configuration;
 
 namespace ZHSan.Editor.Desktop.ViewModels;
 
@@ -26,6 +28,8 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     };
 
     private const string BiographiesKey = "biographies";
+    private const string PersonFamiliesKey = "person-families";
+    private const string PersonRelationsKey = "person-relations";
 
     private readonly IReadOnlyList<ConfigPropertyDefinition> _properties;
     private readonly List<ConfigRecordViewModel> _selectedRecords = [];
@@ -678,11 +682,12 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             .ToArray();
         var selectionAfterDelete = Records.FirstOrDefault(record => !records.Contains(record));
         RemoveRecords(records, selectionAfterDelete);
+        var personData = RemoveDataOfDeletedPersons(records);
         RecordEdit(new DelegateUndoableEdit(
             $"删除 {records.Length} 条记录",
-            () => InsertRecords(removed, removed[0].Record),
-            () => RemoveRecords(records, selectionAfterDelete)),
-            $"已删除 {records.Length} 条记录");
+            () => { personData.Undo(); InsertRecords(removed, removed[0].Record); },
+            () => { RemoveRecords(records, selectionAfterDelete); personData.Redo(); }),
+            $"已删除 {records.Length} 条记录{personData.Message}");
     }
 
     private void CopySelectionToClipboard()
@@ -719,11 +724,13 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             .ToArray();
         var selectionAfterCut = Records.FirstOrDefault(record => !records.Contains(record));
         RemoveRecords(records, selectionAfterCut);
+        // Pasted persons get new IDs, so the cut persons' own data goes with them as on delete.
+        var personData = RemoveDataOfDeletedPersons(records);
         RecordEdit(new DelegateUndoableEdit(
             $"剪切 {records.Length} 条记录",
-            () => InsertRecords(removed, removed[0].Record),
-            () => RemoveRecords(records, selectionAfterCut)),
-            $"已剪切 {records.Length} 条记录");
+            () => { personData.Undo(); InsertRecords(removed, removed[0].Record); },
+            () => { RemoveRecords(records, selectionAfterCut); personData.Redo(); }),
+            $"已剪切 {records.Length} 条记录{personData.Message}");
     }
 
     private bool CanPasteRecords() =>
@@ -738,10 +745,22 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             return true;
         }
 
+        // References from a deleted person's own biography, family record and relations are cleaned up
+        // together with the person, so they are not reported.
+        var cleanedKeys = GetPersonDataDocuments(records).Select(document => document.Key).ToHashSet();
         var impacts = _referenceIndex.GetDeletionImpacts(
-            Document.Definition.Address,
-            records.Select(record => record.Item));
-        if (impacts.Count == 0)
+                Document.Definition.Address,
+                records.Select(record => record.Item))
+            .Select(impact => impact with
+            {
+                References = impact.References
+                    .Where(reference => reference.Scope != Document.Definition.Scope ||
+                        !cleanedKeys.Contains(reference.ConfigKey))
+                    .ToArray()
+            })
+            .Where(impact => impact.References.Count > 0)
+            .ToArray();
+        if (impacts.Length == 0)
         {
             return true;
         }
@@ -983,6 +1002,150 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
         Insert();
         return new LinkedRecordsChange(Remove, Insert, string.Empty);
+    }
+
+    // The person-keyed documents whose data follows the person: biography, family record and relations.
+    private ConfigDocumentViewModel[] GetPersonDataDocuments(IReadOnlyList<ConfigRecordViewModel> records) =>
+        records.Any(record => record.Item is PersonConfig)
+            ? new[] { BiographiesKey, PersonFamiliesKey, PersonRelationsKey }
+                .Select(FindRelatedDocument).OfType<ConfigDocumentViewModel>()
+                .Where(document => !document.HasNullRecords).ToArray()
+            : [];
+
+    // Deleting persons also deletes their biographies, family records and relations, and clears them from
+    // other persons' family ties, all undone and redone with the deletion.
+    private LinkedRecordsChange RemoveDataOfDeletedPersons(IReadOnlyList<ConfigRecordViewModel> records)
+    {
+        var ids = records.Select(record => record.Item).OfType<PersonConfig>().Select(person => person.Id).ToHashSet();
+        if (ids.Count == 0)
+        {
+            return LinkedRecordsChange.None;
+        }
+
+        var changes = new List<LinkedRecordsChange>();
+        var parts = new List<string>();
+        foreach (var document in GetPersonDataDocuments(records))
+        {
+            var removed = document.Records.Where(record => record.Item switch
+            {
+                BiographyConfig biography => ids.Contains(biography.Id),
+                PersonFamilyConfig family => ids.Contains(family.Id),
+                PersonRelationConfig relation => ids.Contains(relation.PersonID1) || ids.Contains(relation.PersonID2),
+                _ => false
+            }).ToArray();
+            var edits = document.Records.Except(removed)
+                .SelectMany(record => record.Item is PersonFamilyConfig family
+                    ? GetFamilyTieRemovals(family, ids).Select(edit => (record, edit.Property, edit.Value))
+                    : [])
+                .ToArray();
+            if (removed.Length > 0)
+            {
+                changes.Add(document.RemoveLinkedRecords(removed));
+                parts.Add(document.Key switch
+                {
+                    BiographiesKey => "列传",
+                    PersonFamiliesKey => "亲属记录",
+                    _ => $"{removed.Length} 条人物关系"
+                });
+            }
+
+            if (edits.Length > 0)
+            {
+                changes.Add(document.SetLinkedPropertyValues(edits));
+                parts.Add($"{edits.Select(edit => edit.record).Distinct().Count()} 名人物的亲属引用");
+            }
+        }
+
+        return changes.Count == 0
+            ? LinkedRecordsChange.None
+            : new LinkedRecordsChange(
+                () => { foreach (var change in Enumerable.Reverse(changes)) change.Undo(); },
+                () => { foreach (var change in changes) change.Redo(); },
+                $"，并清除{string.Join("、", parts)}");
+    }
+
+    private static IEnumerable<(PropertyInfo Property, object Value)> GetFamilyTieRemovals(
+        PersonFamilyConfig family, IReadOnlySet<int> ids)
+    {
+        foreach (var name in new[] { nameof(PersonFamilyConfig.FatherId), nameof(PersonFamilyConfig.MotherId),
+                     nameof(PersonFamilyConfig.SpouseId) })
+        {
+            var property = typeof(PersonFamilyConfig).GetProperty(name)!;
+            if (ids.Contains((int)property.GetValue(family)!))
+            {
+                yield return (property, -1);
+            }
+        }
+
+        foreach (var name in new[] { nameof(PersonFamilyConfig.BrotherIdsString),
+                     nameof(PersonFamilyConfig.CloseIdsString), nameof(PersonFamilyConfig.HatedIdsString) })
+        {
+            var property = typeof(PersonFamilyConfig).GetProperty(name)!;
+            var parsed = ConfigStructuredStringCodec.ParseIds((string?)property.GetValue(family));
+            if (parsed.IsValid && parsed.Items.Any(ids.Contains))
+            {
+                yield return (property, ConfigStructuredStringCodec.FormatIds(parsed.Items.Where(id => !ids.Contains(id))));
+            }
+        }
+    }
+
+    // Records removed on behalf of another document's edit; see AddLinkedRecords.
+    private LinkedRecordsChange RemoveLinkedRecords(IReadOnlyList<ConfigRecordViewModel> records)
+    {
+        var removed = records
+            .Select(record => (Index: Records.IndexOf(record), Record: record))
+            .OrderBy(item => item.Index)
+            .ToArray();
+        var selection = SelectedRecord;
+        var selectionAfterRemove = selection is not null && records.Contains(selection) ? null : selection;
+
+        void Remove()
+        {
+            RemoveRecords(records, selectionAfterRemove);
+            ChangeLinkedEditOffset(1);
+        }
+
+        void Insert()
+        {
+            InsertRecords(removed, selection);
+            ChangeLinkedEditOffset(-1);
+        }
+
+        Remove();
+        return new LinkedRecordsChange(Insert, Remove, string.Empty);
+    }
+
+    // Property values changed on behalf of another document's edit; see AddLinkedRecords.
+    private LinkedRecordsChange SetLinkedPropertyValues(
+        IReadOnlyList<(ConfigRecordViewModel Record, PropertyInfo Property, object Value)> edits)
+    {
+        var changes = edits
+            .Select(edit => (edit.Record, edit.Property, OldValue: edit.Property.GetValue(edit.Record.Item),
+                NewValue: (object?)edit.Value))
+            .ToArray();
+
+        void Apply(bool useNewValues, int offset)
+        {
+            foreach (var change in changes)
+            {
+                change.Property.SetValue(change.Record.Item, useNewValues ? change.NewValue : change.OldValue);
+            }
+
+            foreach (var record in changes.Select(change => change.Record).Distinct())
+            {
+                RefreshEditedRecord(record);
+            }
+
+            if (changes.Any(change => ReferenceEquals(SelectedRecord, change.Record)))
+            {
+                RebuildPropertyEditors();
+            }
+
+            ChangeLinkedEditOffset(offset);
+        }
+
+        Apply(true, 1);
+        return new LinkedRecordsChange(() => Apply(false, -1), () => Apply(true, 1), string.Empty);
     }
 
     private void ChangeLinkedEditOffset(int delta)

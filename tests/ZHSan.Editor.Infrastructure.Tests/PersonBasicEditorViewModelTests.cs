@@ -356,6 +356,74 @@ public sealed class PersonBasicEditorViewModelTests
     }
 
     [Fact]
+    public void DeletePerson_RemovesBiographyFamilyAndRelationsInSameUndoStep()
+    {
+        var metadata = new ReflectionConfigMetadataProvider();
+        using var biographies = new ConfigDocumentViewModel(new ConfigDocument
+        {
+            Definition = new ConfigDefinition("biographies", "列传", "人物", "Biographies.json",
+                typeof(BiographyConfig), ConfigScope.Scenario),
+            Items = [new BiographyConfig { Id = 1, Brief = "关羽" }, new BiographyConfig { Id = 2, Brief = "关平" }]
+        }, metadata, _ => { });
+        var sonFamily = new PersonFamilyConfig { Id = 2, FatherId = 1, CloseIdsString = "1 3" };
+        using var families = new ConfigDocumentViewModel(new ConfigDocument
+        {
+            Definition = new ConfigDefinition("person-families", "人物亲属", "人物", "GameScenarios.json",
+                typeof(PersonFamilyConfig), ConfigScope.Scenario),
+            Items = [new PersonFamilyConfig { Id = 1, SpouseId = 3 }, sonFamily]
+        }, metadata, _ => { });
+        using var relations = new ConfigDocumentViewModel(new ConfigDocument
+        {
+            Definition = new ConfigDefinition("person-relations", "人物关系", "人物", "PersonRelations.json",
+                typeof(PersonRelationConfig), ConfigScope.Scenario),
+            Items = [new PersonRelationConfig { PersonID1 = 1, PersonID2 = 2, Relation = 50 },
+                new PersonRelationConfig { PersonID1 = 2, PersonID2 = 3, Relation = 10 }]
+        }, metadata, _ => { });
+        using var people = new ConfigDocumentViewModel(new ConfigDocument
+        {
+            Definition = new ConfigDefinition("persons", "人物", "人物", "Persons.json",
+                typeof(PersonConfig), ConfigScope.Scenario),
+            Items = [new PersonConfig { Id = 1, SurName = "关", GivenName = "羽" },
+                new PersonConfig { Id = 2, SurName = "关", GivenName = "平" }]
+        }, metadata, _ => { }, findRelatedDocument: key => key switch
+        {
+            "biographies" => biographies,
+            "person-families" => families,
+            "person-relations" => relations,
+            _ => null
+        });
+
+        people.SelectedRecord = people.Records[0];
+        people.DeleteCommand.Execute(null);
+
+        Assert.Equal([2], people.Records.Select(record => ((PersonConfig)record.Item).Id));
+        Assert.Equal([2], biographies.Records.Select(record => ((BiographyConfig)record.Item).Id));
+        Assert.Same(sonFamily, Assert.Single(families.Records).Item);
+        Assert.Equal(-1, sonFamily.FatherId);
+        Assert.Equal("3", sonFamily.CloseIdsString);
+        Assert.Equal(3, ((PersonRelationConfig)Assert.Single(relations.Records).Item).PersonID2);
+        Assert.True(biographies.IsDirty);
+        Assert.True(families.IsDirty);
+        Assert.True(relations.IsDirty);
+
+        people.UndoCommand.Execute(null);
+        Assert.Equal(2, people.Records.Count);
+        Assert.Equal([1, 2], biographies.Records.Select(record => ((BiographyConfig)record.Item).Id));
+        Assert.Equal(2, families.Records.Count);
+        Assert.Equal(1, sonFamily.FatherId);
+        Assert.Equal("1 3", sonFamily.CloseIdsString);
+        Assert.Equal(2, relations.Records.Count);
+        Assert.False(biographies.IsDirty);
+        Assert.False(families.IsDirty);
+        Assert.False(relations.IsDirty);
+
+        people.RedoCommand.Execute(null);
+        Assert.Single(biographies.Records);
+        Assert.Equal(-1, sonFamily.FatherId);
+        Assert.Single(relations.Records);
+    }
+
+    [Fact]
     public void Biography_DuplicateIdsAreNotEditedOrCreated()
     {
         var metadata = new ReflectionConfigMetadataProvider();
