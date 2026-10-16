@@ -138,7 +138,7 @@
                      VerticalAlignment="Center" />
         </Grid>
       </Border>
-      <TabControl Grid.Row="1">
+      <TabControl Grid.Row="1" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
         <TabItem Header="基本">
           <ScrollViewer>
         <StackPanel Margin="16" Spacing="13">
@@ -463,6 +463,71 @@
                 </StackPanel>
               </Border>
               <ContentControl Content="{Binding ExperienceGroup}" IsVisible="{Binding HasSelection}" />
+            </StackPanel>
+          </ScrollViewer>
+        </TabItem>
+        <TabItem Header="人物对话">
+          <ScrollViewer>
+            <StackPanel Margin="16" Spacing="13" DataContext="{Binding Messages}"
+                        x:DataType="editors:PersonMessagesViewModel">
+              <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontSize="12" Opacity="0.65" />
+              <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding CanEdit}">
+                <ComboBox ItemsSource="{Binding AvailableKinds}" SelectedItem="{Binding NewKind, Mode=TwoWay}"
+                          PlaceholderText="选择要添加的对话类型" Width="280">
+                  <ComboBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                  </ComboBox.ItemsPanel>
+                </ComboBox>
+                <Button Content="添加对话类型" Command="{Binding AddKindCommand}" />
+              </StackPanel>
+              <TextBlock Text="这名人物还没有专属对话，游戏会使用默认文本。" Opacity="0.55" FontSize="12"
+                         IsVisible="{Binding IsEmpty}" />
+              <ItemsControl ItemsSource="{Binding Groups}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Spacing="13" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="editors:PersonMessageGroupViewModel">
+                    <Border Padding="14" CornerRadius="7" BorderThickness="1"
+                            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+                      <StackPanel Spacing="8">
+                        <Grid ColumnDefinitions="*,Auto">
+                          <TextBlock Text="{Binding KindLabel}" FontSize="15" FontWeight="SemiBold"
+                                     VerticalAlignment="Center" />
+                          <Button Grid.Column="1" Content="删除此类型" Command="{Binding RemoveCommand}" />
+                        </Grid>
+                        <TextBlock Text="暂无台词" Opacity="0.5" FontSize="12" IsVisible="{Binding IsEmpty}" />
+                        <ItemsControl ItemsSource="{Binding Lines}">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <StackPanel Spacing="6" />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="editors:PersonMessageLineViewModel">
+                              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                <TextBox Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                         PlaceholderText="清空后离开输入框即删除这句" TextWrapping="Wrap" />
+                                <Button Grid.Column="1" Classes="chip-remove" Content="×"
+                                        Command="{Binding RemoveCommand}" ToolTip.Tip="删除这句" />
+                              </Grid>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                          <TextBox Text="{Binding NewLine, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                   PlaceholderText="输入新台词" TextWrapping="Wrap" />
+                          <Button Grid.Column="1" Content="添加台词" Command="{Binding AddLineCommand}" />
+                        </Grid>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
             </StackPanel>
           </ScrollViewer>
         </TabItem>

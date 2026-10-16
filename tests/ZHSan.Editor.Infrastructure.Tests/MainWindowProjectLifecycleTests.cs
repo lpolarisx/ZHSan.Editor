@@ -3,6 +3,7 @@ using ZHSan.Editor.Application.Abstractions;
 using ZHSan.Editor.Application.Projects;
 using ZHSan.Editor.Application.Settings;
 using ZHSan.Editor.Application.Validation;
+using ZHSan.Editor.Desktop.Editors;
 using ZHSan.Editor.Desktop.Services;
 using ZHSan.Editor.Desktop.ViewModels;
 using ZHSan.Editor.Domain.Configuration;
@@ -35,6 +36,30 @@ public sealed class MainWindowProjectLifecycleTests
         Assert.Equal(1, context.Repository.SaveCount);
         Assert.False(biographies.IsDirty);
     }
+    [Fact]
+    public void PersonEditor_EditsCommonDataPersonMessagesOfTheOtherOpenFile()
+    {
+        using var context = new TestContext();
+        var viewModel = context.CreateViewModel(includePersonBiography: true, includePersonMessages: true);
+        viewModel.OpenArchiveCommand.Execute(null);
+        var messages = viewModel.Documents.Single(document => document.Key == "person-messages");
+        context.Picker.ArchivePath = context.ScenarioArchivePath;
+        viewModel.OpenScenarioArchiveCommand.Execute(null);
+
+        var people = viewModel.Documents.Single(document => document.Key == "persons");
+        var editor = Assert.IsType<PersonBasicEditorViewModel>(people.SpecializedEditor?.Content);
+        editor.SelectedTabIndex = PersonBasicEditorViewModel.MessageTab;
+        Assert.True(editor.Messages.CanEdit);
+        editor.Messages.NewKind = editor.Messages.AvailableKinds.First();
+        editor.Messages.AddKindCommand.Execute(null);
+
+        var added = Assert.IsType<PersonMessageConfig>(messages.Records[^1].Item);
+        Assert.Equal(editor.SelectedPerson!.Config.Id, added.PersonId);
+        Assert.True(messages.IsDirty);
+        Assert.False(people.IsDirty);
+        Assert.Contains(editor.Messages.Groups, group => ReferenceEquals(group.Record, messages.Records[^1]));
+    }
+
     [Fact]
     public void HiddenFamilies_StayOutOfNavigationAndSearchAndIssuesJumpToThePerson()
     {
@@ -252,6 +277,7 @@ public sealed class MainWindowProjectLifecycleTests
         viewModel.OpenScenarioArchiveCommand.Execute(null);
         var militaryDocument = Assert.Single(viewModel.Documents, document => document.Key == "militaries");
         militaryDocument.SelectCommand.Execute(null);
+        viewModel.SelectedDetailsTabIndex = 0;
         militaryDocument.SelectedRecord = Assert.Single(militaryDocument.Records);
         var kindEditor = Assert.Single(
             militaryDocument.PropertyEditors,
@@ -435,6 +461,7 @@ public sealed class MainWindowProjectLifecycleTests
         Assert.Equal(context.ArchivePath, recent.CommonArchivePath);
         var military = Assert.Single(viewModel.Documents, document => document.Key == "militaries");
         military.SelectCommand.Execute(null);
+        viewModel.SelectedDetailsTabIndex = 0;
         military.SelectedRecord = Assert.Single(military.Records);
         var kind = Assert.Single(military.PropertyEditors,
             editor => editor.Definition.Name == nameof(MilitaryConfig.KindId));
@@ -629,7 +656,8 @@ public sealed class MainWindowProjectLifecycleTests
             bool includeScenario = false,
             bool includeCrossScopeReferences = false,
             bool includePersonBiography = false,
-            bool includeHiddenFamilies = false)
+            bool includeHiddenFamilies = false,
+            bool includePersonMessages = false)
         {
             var definition = new ConfigDefinition(
                 "techniques", "技术", "测试", "Techniques.json", typeof(TechniqueConfig));
@@ -650,6 +678,10 @@ public sealed class MainWindowProjectLifecycleTests
                 definitions.Add(new ConfigDefinition(
                     "persons", "人物", "人物", "Persons.json",
                     typeof(PersonConfig), ConfigScope.Scenario));
+            }
+            if (includePersonMessages)
+            {
+                definitions.Add(new GameDataConfigRegistry().Find("person-messages")!);
             }
             if (includeHiddenFamilies)
             {
@@ -682,7 +714,10 @@ public sealed class MainWindowProjectLifecycleTests
                 Picker,
                 Prompt,
                 Settings,
-                new EditorUiStateStore(UiStatePath));
+                new EditorUiStateStore(UiStatePath),
+                editorProviderRegistry: includePersonMessages
+                    ? new ConfigEditorProviderRegistry([new PersonBasicEditorProvider()])
+                    : null);
         }
 
         public void Dispose() => Directory.Delete(_directory, true);

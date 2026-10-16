@@ -278,6 +278,7 @@ public sealed class MainWindowViewModel : ObservableObject
             if (SetProperty(ref _isDetailsPaneVisible, value))
             {
                 _uiState.IsDetailsPaneVisible = value;
+                UpdatePropertyEditorDemand();
             }
         }
     }
@@ -320,7 +321,13 @@ public sealed class MainWindowViewModel : ObservableObject
     public int SelectedDetailsTabIndex
     {
         get => _selectedDetailsTabIndex;
-        set => SetProperty(ref _selectedDetailsTabIndex, value);
+        set
+        {
+            if (SetProperty(ref _selectedDetailsTabIndex, value))
+            {
+                UpdatePropertyEditorDemand();
+            }
+        }
     }
 
     public string ValidationSearchText
@@ -1168,7 +1175,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 source, _metadataProvider, SelectDocument, _recordClipboard,
                 _uiState.GetDocument(source.Definition.Address), referenceIndex,
                 _referenceDeletionPrompt, _editorProviderRegistry, NavigateToReference,
-                key => documentsByKey.GetValueOrDefault(key));
+                key => documentsByKey.GetValueOrDefault(key) ?? FindOtherSlotDocument(project.Scope, key));
             documentsByKey[source.Definition.Key] = viewModel;
         }
         var documents = project.Documents
@@ -1186,6 +1193,7 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         _slotDocuments[project.Scope] = documents;
+        UpdatePropertyEditorDemand();
         _slotCategories[project.Scope] = CreateCategories(documents);
         _slotReferenceIndexes[project.Scope] = referenceIndex;
         _archiveChangeMonitor.Watch(project);
@@ -2133,6 +2141,23 @@ public sealed class MainWindowViewModel : ObservableObject
         ExternalChangeMessage = changedArchives.Length == 0
             ? null
             : $"{string.Join("、", changedArchives)} 已被外部程序修改。为避免覆盖，保存到原文件将被阻止；可先另存为保留当前编辑，再重新打开外部版本。";
+    }
+
+    // Lets a document reach a related document of the other open file, e.g. the person editor (scenario)
+    // editing CommonData's person messages. Looked up on each use so a reopened file is picked up.
+    private ConfigDocumentViewModel? FindOtherSlotDocument(ConfigScope scope, string key) =>
+        _slotDocuments.Where(slot => slot.Key != scope)
+            .SelectMany(slot => slot.Value)
+            .FirstOrDefault(document => string.Equals(document.Key, key, StringComparison.OrdinalIgnoreCase));
+
+    // The property panel is the details pane's first tab; documents skip building it while it is hidden.
+    private void UpdatePropertyEditorDemand()
+    {
+        var needed = IsDetailsPaneVisible && SelectedDetailsTabIndex == 0;
+        foreach (var document in _slotDocuments.Values.SelectMany(documents => documents))
+        {
+            document.ArePropertyEditorsNeeded = needed;
+        }
     }
 
     private IReadOnlyList<ConfigDocumentViewModel> GetSlotDocuments(ConfigScope scope) =>

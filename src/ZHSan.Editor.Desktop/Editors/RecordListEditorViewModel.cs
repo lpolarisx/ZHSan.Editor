@@ -119,6 +119,7 @@ public abstract class RecordListEditorViewModel<TConfig> : ObservableObject, IId
 
     protected virtual void OnReferenceOptionsChanged(object? sender, EventArgs e)
     {
+        foreach (var field in AllFields) field.ReloadChoices();
         foreach (var field in AllFields) field.Refresh();
         foreach (var list in ChipLists) list.Refresh();
     }

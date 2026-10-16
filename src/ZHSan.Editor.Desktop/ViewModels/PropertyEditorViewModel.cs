@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using GameDatas;
 using ZHSan.Editor.Application.References;
@@ -11,6 +12,11 @@ namespace ZHSan.Editor.Desktop.ViewModels;
 
 public sealed class PropertyEditorViewModel : ObservableObject
 {
+    // The reference index hands out the same target list until it is rebuilt, so options built from a list
+    // are reused when switching records (a person has 5 title fields of ~1300 titles each).
+    private static readonly ConditionalWeakTable<IReadOnlyList<ConfigReferenceTarget>, Dictionary<(bool HasEmpty, int Empty), ReferenceOptionViewModel[]>>
+        OptionCache = new();
+
     private readonly object _owner;
     private readonly PropertyInfo _property;
     private readonly Action<PropertyEditorViewModel, object?, object?> _changed;
@@ -353,26 +359,9 @@ public sealed class PropertyEditorViewModel : ObservableObject
 
         var currentIds = GetCurrentReferenceIds();
         ReferenceOptions.Clear();
-
-        if (Definition.Reference?.EmptyValue is { } emptyValue)
+        foreach (var option in GetBaseOptions(targets, Definition.Reference?.EmptyValue))
         {
-            ReferenceOptions.Add(new ReferenceOptionViewModel(emptyValue, "（无）", false));
-        }
-
-        foreach (var targetGroup in targets
-                     .Where(target => Definition.Reference?.IsEmpty(target.Id) != true)
-                     .GroupBy(target => target.Id)
-                     .OrderBy(group => group.Key))
-        {
-            var target = targetGroup.First();
-            var isDuplicate = targetGroup.Count() > 1;
-            ReferenceOptions.Add(new ReferenceOptionViewModel(
-                target.Id,
-                isDuplicate
-                    ? $"#{target.Id} · {target.DisplayName} [目标 ID 重复]"
-                    : $"#{target.Id} · {target.DisplayName}",
-                isDuplicate,
-                isDuplicate ? null : target));
+            ReferenceOptions.Add(option);
         }
 
         foreach (var currentId in currentIds.Where(currentId =>
@@ -467,6 +456,43 @@ public sealed class PropertyEditorViewModel : ObservableObject
             ReferenceOptions,
             _navigateReference);
         return item;
+    }
+
+    private static ReferenceOptionViewModel[] GetBaseOptions(IReadOnlyList<ConfigReferenceTarget> targets, int? emptyValue)
+    {
+        var byEmptyValue = OptionCache.GetOrCreateValue(targets);
+        var key = (emptyValue.HasValue, emptyValue ?? 0);
+        lock (byEmptyValue)
+        {
+            if (byEmptyValue.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var options = new List<ReferenceOptionViewModel>();
+            if (emptyValue is { } empty)
+            {
+                options.Add(new ReferenceOptionViewModel(empty, "（无）", false));
+            }
+
+            foreach (var targetGroup in targets
+                         .Where(target => target.Id != emptyValue)
+                         .GroupBy(target => target.Id)
+                         .OrderBy(group => group.Key))
+            {
+                var target = targetGroup.First();
+                var isDuplicate = targetGroup.Count() > 1;
+                options.Add(new ReferenceOptionViewModel(
+                    target.Id,
+                    isDuplicate
+                        ? $"#{target.Id} · {target.DisplayName} [目标 ID 重复]"
+                        : $"#{target.Id} · {target.DisplayName}",
+                    isDuplicate,
+                    isDuplicate ? null : target));
+            }
+
+            return byEmptyValue[key] = options.ToArray();
+        }
     }
 
     private int? GetCurrentScalarReferenceId()

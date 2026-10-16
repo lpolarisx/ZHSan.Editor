@@ -33,6 +33,9 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOw
     private PersonOptionViewModel? _selectedPerson;
     private string _searchText = string.Empty;
     private bool _synchronizing;
+    private int _selectedTabIndex;
+    private readonly HashSet<int> _staleTabs = [];
+    private bool _catalogsStale;
 
     public PersonBasicEditorViewModel(ConfigEditorContext context, PersonPortraitDirectoryStore? portraits = null)
     {
@@ -109,6 +112,7 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOw
             ("弩兵", nameof(PersonConfig.NubingExperience)),
             ("器械", nameof(PersonConfig.QixieExperience)),
             ("水军", nameof(PersonConfig.ShuijunExperience)));
+        Messages = new PersonMessagesViewModel(context, () => SelectedPerson?.Config);
         RebuildSkillButtons();
         RebuildTitleCatalog();
         _context.Document.ReferenceOptionsChanged += OnReferenceOptionsChanged;
@@ -127,9 +131,25 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOw
     public PersonFieldGroupViewModel IdentityGroup => Groups[0];
     public IEnumerable<PersonFieldGroupViewModel> LeadingGroups => Groups.Skip(1).Take(1);
     public IEnumerable<PersonFieldGroupViewModel> TrailingGroups => Groups.Skip(2);
-    public IEnumerable<PersonBasicFieldViewModel> AllFields => Groups.SelectMany(group => group.Fields)
-        .Concat(AbilityColumns.SelectMany(column => new[] { column.Ability, column.Experience }))
-        .Concat(ExperienceGroup.Fields).Append(StudyingTitleField);
+    public IEnumerable<PersonBasicFieldViewModel> AllFields => BasicTabFields.Concat(SkillTabFields);
+    private IEnumerable<PersonBasicFieldViewModel> BasicTabFields => Groups.SelectMany(group => group.Fields)
+        .Concat(AbilityColumns.SelectMany(column => new[] { column.Ability, column.Experience }));
+    private IEnumerable<PersonBasicFieldViewModel> SkillTabFields => ExperienceGroup.Fields.Append(StudyingTitleField);
+
+    public const int BasicTab = 0;
+    public const int SkillTab = 1;
+    public const int MessageTab = 2;
+
+    // Only the visible tab is refreshed when the person or the referenced data changes; the others are
+    // refreshed when they are shown.
+    public int SelectedTabIndex
+    {
+        get => _selectedTabIndex;
+        set
+        {
+            if (SetProperty(ref _selectedTabIndex, value) && _staleTabs.Remove(value)) RefreshTab(value);
+        }
+    }
     public ObservableCollection<PersonTitleSlotViewModel> TitleSlots { get; } = [];
     public string TitleStatus => GetTitleStatus();
     public PersonBasicFieldViewModel StudyingTitleField { get; }
@@ -138,6 +158,7 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOw
     public ObservableCollection<PersonSkillButtonViewModel> SkillButtons { get; } = [];
     public string SkillStatus => GetSkillStatus();
     public IReadOnlyList<BiographyTextFieldViewModel> BiographyFields { get; }
+    public PersonMessagesViewModel Messages { get; }
     public ICommand AddBiographyCommand { get; }
     public bool HasBiography => _biographyRecord is not null;
     public bool CanAddBiography => SelectedPerson is not null && _biographyDocument is not null &&
@@ -381,6 +402,9 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOw
             ];
             TitleSlots.Add(new PersonTitleSlotViewModel(kind.Key, name, options, this));
         }
+        // The 学习中 options are built from this catalogue.
+        StudyingTitleField.ReloadChoices();
+        StudyingTitleField.Refresh();
         RefreshTitles();
     }
 
@@ -519,13 +543,49 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOw
         foreach (var button in SkillButtons) button.Refresh();
     }
 
+    // Raised after every edit in either open file (including CommonData's person messages), so the skill and
+    // title catalogues are only rebuilt when their tab is shown.
     private void OnReferenceOptionsChanged(object? sender, EventArgs e)
     {
-        RebuildSkillButtons();
-        RebuildTitleCatalog();
-        foreach (var field in AllFields) field.Refresh();
-        foreach (var list in ExclusiveLists) list.Refresh();
-        RefreshFactionColor();
+        foreach (var field in AllFields) field.ReloadChoices();
+        _catalogsStale = true;
+        RefreshTabs();
+    }
+
+    private void RefreshTabs()
+    {
+        _staleTabs.UnionWith([BasicTab, SkillTab, MessageTab]);
+        _staleTabs.Remove(SelectedTabIndex);
+        RefreshTab(SelectedTabIndex);
+    }
+
+    private void RefreshTab(int tab)
+    {
+        switch (tab)
+        {
+            case BasicTab:
+                foreach (var field in BasicTabFields) field.Refresh();
+                foreach (var group in Groups) group.Refresh();
+                RefreshPortrait();
+                RefreshBiography();
+                RefreshFamily();
+                break;
+            case SkillTab:
+                if (_catalogsStale)
+                {
+                    _catalogsStale = false;
+                    RebuildSkillButtons();
+                    RebuildTitleCatalog();
+                }
+                foreach (var field in SkillTabFields) field.Refresh();
+                RefreshTitles();
+                foreach (var list in ExclusiveLists) list.Refresh();
+                RefreshSkills();
+                break;
+            case MessageTab:
+                Messages.Refresh();
+                break;
+        }
     }
 
     // Colours come from the CommonData colour table; the biography stores the table position.
@@ -606,14 +666,7 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOw
         OnPropertyChanged(nameof(HasSelection));
         OnPropertyChanged(nameof(SelectedTitle));
         OnPropertyChanged(nameof(SelectedId));
-        foreach (var field in AllFields) field.Refresh();
-        foreach (var group in Groups) group.Refresh();
-        RefreshPortrait();
-        RefreshTitles();
-        foreach (var list in ExclusiveLists) list.Refresh();
-        RefreshSkills();
-        RefreshBiography();
-        RefreshFamily();
+        RefreshTabs();
     }
 
     private void RefreshBiography()
@@ -828,6 +881,7 @@ public sealed class PersonBasicFieldViewModel : ObservableObject
     private readonly ConfigEditorContext _context;
     private readonly Func<IReadOnlyList<PersonChoiceOption>>? _choices;
     private IReadOnlyList<PersonChoiceOption> _choiceOptions = [];
+    private IReadOnlyList<PersonChoiceOption>? _baseChoices;
     private readonly PersonValueRange? _range;
     private readonly string _subject;
 
@@ -939,16 +993,21 @@ public sealed class PersonBasicFieldViewModel : ObservableObject
     // Returns true when the option list actually changed. Keeping the same list instance matters:
     // replacing a ComboBox's ItemsSource makes it re-select its previous item by value and write it
     // back, which would copy the previously shown person's choice into the newly selected person.
+    // The option list is built once and reused while switching records (the 学习中 title list has ~1300
+    // entries); editors call ReloadChoices when the referenced data changes.
     private bool RefreshChoiceOptions()
     {
         if (_choices is null) return false;
-        var options = _choices().ToList();
-        if (Value is int id && options.All(option => option.Id != id))
-            options.Insert(0, new PersonChoiceOption(id, $"{id} （未收录）"));
-        if (options.SequenceEqual(_choiceOptions)) return false;
+        var baseChoices = _baseChoices ??= _choices().ToArray();
+        IReadOnlyList<PersonChoiceOption> options = Value is int id && baseChoices.All(option => option.Id != id)
+            ? [new PersonChoiceOption(id, $"{id} （未收录）"), ..baseChoices]
+            : baseChoices;
+        if (ReferenceEquals(options, _choiceOptions) || options.SequenceEqual(_choiceOptions)) return false;
         _choiceOptions = options;
         return true;
     }
+
+    public void ReloadChoices() => _baseChoices = null;
 
     public void Refresh()
     {

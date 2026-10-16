@@ -39,7 +39,12 @@ public sealed class GameDataConfigRegistry : IConfigRegistry
         Add<MilitaryKindConfig>(definitions, "military-kinds", "兵种", "战斗", "MilitaryKinds.json");
         Add<ArchitectureKindConfig>(definitions, "architecture-kinds", "建筑类型", "建筑", "ArchitectureKinds.json");
         Add<ResourceKindConfig>(definitions, "resource-kinds", "资源类型", "建筑", "ResourceKinds.json");
-        Add<PersonMessageConfig>(definitions, "person-messages", "人物消息", "人物", "PersonMessages.json");
+        // Edited in the scenario person editor's 人物对话 tab, so it is not listed separately.
+        definitions.Add(new ConfigDefinition("person-messages", "人物消息", "人物", "PersonMessages.json",
+            typeof(PersonMessageConfig))
+        {
+            ShowInNavigation = false
+        });
         Add<AnimationConfig>(definitions, "tile-animations", "地块动画", "动画", "TileAnimations.json");
         Add<AnimationConfig>(definitions, "troop-animations", "部队动画", "动画", "TroopAnimations.json");
         Add<BiographyAdjectiveConfig>(definitions, "biography-adjectives", "列传形容词", "人物", "BiographyAdjectives.json");

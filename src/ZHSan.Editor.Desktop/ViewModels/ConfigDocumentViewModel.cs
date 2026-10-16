@@ -44,6 +44,10 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     private bool _wasDirtyBeforeHistory;
     private int _savedHistoryPosition;
     private int _linkedEditOffset;
+    private bool _arePropertyEditorsNeeded = true;
+    private bool _propertyEditorsStale;
+    private ConfigRecordViewModel? _validationTargetRecord;
+    private string? _validationTargetProperty;
     private string _searchText = string.Empty;
     private ConfigFilterFieldViewModel _selectedFilterField;
     private BatchEditFieldViewModel? _selectedBatchField;
@@ -144,6 +148,28 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     public ObservableCollection<ConfigRecordViewModel> Records { get; } = [];
     public ObservableCollection<ConfigRecordViewModel> FilteredRecords { get; } = [];
     public ObservableCollection<PropertyEditorViewModel> PropertyEditors { get; } = [];
+
+    /// <summary>
+    /// Whether the property panel is showing. While it is not, selecting a record skips building the property
+    /// editors (about 120 for a person) and builds them when the panel is shown again.
+    /// </summary>
+    public bool ArePropertyEditorsNeeded
+    {
+        get => _arePropertyEditorsNeeded;
+        set
+        {
+            if (_arePropertyEditorsNeeded == value)
+            {
+                return;
+            }
+
+            _arePropertyEditorsNeeded = value;
+            if (value && _propertyEditorsStale)
+            {
+                RebuildPropertyEditors();
+            }
+        }
+    }
     public ConfigEditorHostViewModel? SpecializedEditor { get; }
     public ICommand SelectCommand { get; }
     public ICommand InitializeEntryCommand { get; }
@@ -349,12 +375,18 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             }
         }
 
+        // Remembered so editors built later (while the property panel was hidden) are marked too.
+        _validationTargetRecord = SelectedRecord;
+        _validationTargetProperty = propertyName;
+        MarkValidationTarget();
+    }
+
+    private void MarkValidationTarget()
+    {
+        var target = ReferenceEquals(SelectedRecord, _validationTargetRecord) ? _validationTargetProperty : null;
         foreach (var editor in PropertyEditors)
         {
-            editor.SetValidationTarget(string.Equals(
-                editor.Definition.Name,
-                propertyName,
-                StringComparison.Ordinal));
+            editor.SetValidationTarget(string.Equals(editor.Definition.Name, target, StringComparison.Ordinal));
         }
     }
 
@@ -622,6 +654,37 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             () => { InsertRecords([(index, record)], record); biographies.Redo(); }),
             $"已{editDescription}{biographies.Message}");
         return record;
+    }
+
+    // Removes records on behalf of a specialized editor, as one undoable step and without the reference prompt.
+    internal void RemoveRecordsWithHistory(IReadOnlyList<ConfigRecordViewModel> records, string editDescription)
+    {
+        ArgumentNullException.ThrowIfNull(records);
+        ArgumentException.ThrowIfNullOrWhiteSpace(editDescription);
+        if (!CanMutateRecordStructure)
+        {
+            throw new InvalidOperationException("请先初始化缺失或为 null 的条目，并处理列表中的 null 记录。");
+        }
+
+        var removed = records.Where(Records.Contains)
+            .Select(record => (Index: Records.IndexOf(record), Record: record))
+            .OrderBy(item => item.Index)
+            .ToArray();
+        if (removed.Length == 0)
+        {
+            return;
+        }
+
+        var removedRecords = removed.Select(item => item.Record).ToArray();
+        var selection = SelectedRecord is { } selected && !removedRecords.Contains(selected)
+            ? selected
+            : Records.FirstOrDefault(record => !removedRecords.Contains(record));
+        RemoveRecords(removedRecords, selection);
+        RecordEdit(new DelegateUndoableEdit(
+            editDescription,
+            () => InsertRecords(removed, removed[0].Record),
+            () => RemoveRecords(removedRecords, selection)),
+            $"已{editDescription}");
     }
 
     private void CopySelectedRecords()
@@ -1239,7 +1302,15 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         PropertyEditors.Clear();
         if (SelectedRecord is null)
         {
+            _propertyEditorsStale = false;
             SetRawJson("选择一条记录以查看 JSON。");
+            return;
+        }
+
+        _propertyEditorsStale = !_arePropertyEditorsNeeded;
+        if (_propertyEditorsStale)
+        {
+            RefreshRawJson();
             return;
         }
 
@@ -1255,6 +1326,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
                 _navigateReference));
         }
 
+        MarkValidationTarget();
         RefreshRawJson();
     }
 

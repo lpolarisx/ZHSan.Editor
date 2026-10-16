@@ -168,6 +168,7 @@ public sealed class PersonBasicEditorViewModelTests
             referenceIndex: references,
             editorProviderRegistry: new ConfigEditorProviderRegistry([new PersonBasicEditorProvider()]));
         var editor = Assert.IsType<PersonBasicEditorViewModel>(document.SpecializedEditor?.Content);
+        editor.SelectedTabIndex = PersonBasicEditorViewModel.SkillTab;
         var riding = Assert.Single(editor.SkillButtons, button => button.Name == "骑术");
         var archery = Assert.Single(editor.SkillButtons, button => button.Name == "弓术");
         Assert.True(riding.IsSelected);

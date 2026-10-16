@@ -325,9 +325,23 @@
                       SelectedIndex="{Binding SelectedDetailsTabIndex, Mode=TwoWay}"
                       IsVisible="{Binding HasSelectedDocument}">
             <TabItem Header="属性">
-              <ScrollViewer>
-                <ItemsControl ItemsSource="{Binding SelectedDocument.PropertyEditors}" Margin="12">
-                  <ItemsControl.ItemTemplate>
+              <!-- Virtualized: a person has about 120 properties and each card holds every editor control,
+                   so only the cards in view are created. -->
+              <ListBox ItemsSource="{Binding SelectedDocument.PropertyEditors}" Classes="property-cards"
+                       Background="Transparent" Padding="12,12,12,4"
+                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.Styles>
+                  <!-- A plain list: no selection or hover highlight, cards keep their own look. -->
+                  <Style Selector="ListBox.property-cards ListBoxItem">
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Focusable" Value="False" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                  </Style>
+                  <Style Selector="ListBox.property-cards ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+                    <Setter Property="Background" Value="Transparent" />
+                  </Style>
+                </ListBox.Styles>
+                  <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:PropertyEditorViewModel">
                       <Border Padding="10" Margin="0,0,0,8" CornerRadius="5" Background="#0DFFFFFF">
                         <StackPanel Spacing="6">
@@ -398,9 +412,8 @@
                         </StackPanel>
                       </Border>
                     </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-              </ScrollViewer>
+                  </ListBox.ItemTemplate>
+              </ListBox>
             </TabItem>
 
             <TabItem Header="{Binding ValidationTabHeader}">
