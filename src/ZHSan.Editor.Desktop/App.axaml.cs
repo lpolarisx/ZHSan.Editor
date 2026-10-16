@@ -70,6 +70,7 @@ public sealed partial class App : Avalonia.Application
             services.AddSingleton<IConfigEditorProvider, DiplomacyEditorProvider>();
             services.AddSingleton<IConfigEditorProvider, RegionEditorProvider>();
             services.AddSingleton<IConfigEditorProvider, StateEditorProvider>();
+            services.AddSingleton<IConfigEditorProvider, ArchitectureEditorProvider>();
             services.AddSingleton<ConfigEditorProviderRegistry>();
             services.AddSingleton<IArchivePicker>(new AvaloniaArchivePicker(mainWindow));
             services.AddSingleton<IUnsavedChangesPrompt>(new AvaloniaUnsavedChangesPrompt(mainWindow));

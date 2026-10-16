@@ -76,8 +76,9 @@ public abstract class RecordListEditorViewModel<TConfig> : ObservableObject, IId
 
     protected virtual Func<IReadOnlyList<PersonChoiceOption>>? GetChoiceProvider(string propertyName) => null;
 
-    protected PersonIdChipListViewModel ChipList(string label, string propertyName, string targetKey) =>
-        new(label, propertyName, targetKey, this);
+    protected PersonIdChipListViewModel ChipList(string label, string propertyName, string targetKey,
+        string? hint = null) =>
+        new(label, propertyName, targetKey, this) { Hint = hint };
 
     // Scenario tables (architectures, persons, …) are looked up in the scenario first, then in CommonData.
     protected IReadOnlyList<ConfigReferenceTarget> Targets(string key)
@@ -110,12 +111,17 @@ public abstract class RecordListEditorViewModel<TConfig> : ObservableObject, IId
         foreach (var list in ChipLists) list.Refresh();
     }
 
-    public IReadOnlyList<PersonChoiceOption> GetChipCandidates(string targetKey) => [..ReferenceOptions(Targets(targetKey))];
+    public virtual IReadOnlyList<PersonChoiceOption> GetChipCandidates(string targetKey) =>
+        [..Targets(targetKey).GroupBy(target => target.Id).Select(group => group.First()).OrderBy(target => target.Id)
+            .Select(target => new PersonChoiceOption(target.Id, ChipLabel(targetKey, target)))];
 
     public string GetChipLabel(string targetKey, int id) =>
         Targets(targetKey).FirstOrDefault(target => target.Id == id) is { } target
-            ? IdLabel(target)
+            ? ChipLabel(targetKey, target)
             : $"{id} （未收录）";
+
+    // Records without a name of their own (facilities, captives, …) can be labelled from what they point to.
+    protected virtual string ChipLabel(string targetKey, ConfigReferenceTarget target) => IdLabel(target);
 
     protected virtual void OnReferenceOptionsChanged(object? sender, EventArgs e)
     {

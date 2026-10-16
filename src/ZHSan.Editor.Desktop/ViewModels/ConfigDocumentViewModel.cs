@@ -972,14 +972,15 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         ? _selectedRecords.ToArray()
         : SelectedRecord is null ? [] : [SelectedRecord];
 
-    // Person, treasure and faction IDs are sequential: new records continue after the highest ID in use.
+    // Person, treasure, faction and architecture IDs are sequential: new records continue after the highest ID in use.
     // Biographies are keyed by person ID, so leftover biographies count as in use and a new person never
     // inherits another's text.
     private static readonly IReadOnlySet<Type> SequentialIdTypes = new HashSet<Type>
     {
         typeof(PersonConfig),
         typeof(TreasureConfig),
-        typeof(FactionConfig)
+        typeof(FactionConfig),
+        typeof(ArchitectureConfig)
     };
 
     private bool HasSequentialIds => SequentialIdTypes.Contains(Document.Definition.ItemType);

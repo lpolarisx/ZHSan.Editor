@@ -1085,6 +1085,7 @@ public sealed class PersonIdChipListViewModel : ObservableObject
     private readonly IIdChipListOwner _owner;
     private IReadOnlyList<PersonChoiceOption> _candidates = [];
     private PersonChoiceOption? _candidate;
+    private string _candidateText = string.Empty;
 
     public PersonIdChipListViewModel(string label, string propertyName, string targetKey, IIdChipListOwner owner)
     {
@@ -1096,6 +1097,17 @@ public sealed class PersonIdChipListViewModel : ObservableObject
     }
 
     public string Label { get; }
+    // What the list means in the game, shown under the list by editors that explain their lists.
+    public string? Hint { get; init; }
+    public bool HasHint => !string.IsNullOrEmpty(Hint);
+    public string Placeholder => $"搜索要添加的{Label}（名称或 ID）";
+
+    // Text typed into a searchable candidate box; cleared once the candidate is added.
+    public string CandidateText
+    {
+        get => _candidateText;
+        set => SetProperty(ref _candidateText, value ?? string.Empty);
+    }
     public ObservableCollection<PersonIdChipViewModel> Items { get; } = [];
     public bool IsEmpty => Items.Count == 0;
     public IReadOnlyList<PersonChoiceOption> Candidates => _candidates;
@@ -1122,6 +1134,7 @@ public sealed class PersonIdChipListViewModel : ObservableObject
         _owner.SetValue(_propertyName,
             ConfigStructuredStringCodec.FormatIds(ParseCurrent()!.Items.Append(candidate.Id)), $"添加{Label}");
         Candidate = null;
+        CandidateText = string.Empty;
     }
 
     private void Remove(int id)

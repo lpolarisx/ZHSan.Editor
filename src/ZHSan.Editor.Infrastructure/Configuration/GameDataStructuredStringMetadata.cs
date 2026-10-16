@@ -29,6 +29,28 @@ internal static class GameDataStructuredStringMetadata
 
             [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.ResourceKindsString))] =
                 new(ConfigStructuredStringKind.ReferenceIds, "resource-kinds"),
+            [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.CharacteristicsString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "influences"),
+            [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.FacilitiesString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "facilities", ConfigScope.Scenario),
+            [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.MilitariesString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "militaries", ConfigScope.Scenario),
+            [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.AILandLinksString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "architectures", ConfigScope.Scenario),
+            [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.AIWaterLinksString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "architectures", ConfigScope.Scenario),
+            [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.PersonsString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "persons", ConfigScope.Scenario),
+            [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.NoFactionPersonsString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "persons", ConfigScope.Scenario),
+            [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.MovingPersonsString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "persons", ConfigScope.Scenario),
+            [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.NoFactionMovingPersonsString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "persons", ConfigScope.Scenario),
+            [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.ConcubineString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "persons", ConfigScope.Scenario),
+            [(typeof(ArchitectureConfig), nameof(ArchitectureConfig.CaptivesString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "captives", ConfigScope.Scenario),
             [(typeof(RegionConfig), nameof(RegionConfig.StatesListString))] =
                 new(ConfigStructuredStringKind.ReferenceIds, "states", ConfigScope.Scenario),
             [(typeof(StateConfig), nameof(StateConfig.ContactStatesString))] =
