@@ -56,7 +56,7 @@ public sealed class ScenarioArchiveCompatibilityTests
                         "Architectures.json" => "[null," + string.Join(',', Enumerable.Range(1, count - 1)
                             .Select(id => $"{{\"Id\":{id},\"Name\":\"建筑{id}\"}}")) + "]",
                         "Captives.json" => "null",
-                        "FirePositions.json" => "[]",
+                        "Troops.json" => "[]",
                         _ => "[]"
                     };
                     await WriteEntryAsync(zip, entry, json);
@@ -69,12 +69,12 @@ public sealed class ScenarioArchiveCompatibilityTests
             var repository = new GameDataArchiveRepository();
             var definitions = new GameDataConfigRegistry().GetDefinitions(ConfigScope.Scenario);
             var project = await repository.LoadAsync(source, definitions);
-            Assert.Equal(23, project.Documents.Count);
+            Assert.Equal(18, project.Documents.Count);
             var persons = GetDocument(project, "Persons.json");
             Assert.Equal(1374, persons.Items.Count);
             Assert.Equal([0], persons.NullRecordIndices);
             Assert.Equal(ArchiveEntryState.Null, GetDocument(project, "Captives.json").EntryState);
-            Assert.Equal(ArchiveEntryState.Empty, GetDocument(project, "FirePositions.json").EntryState);
+            Assert.Equal(ArchiveEntryState.Empty, GetDocument(project, "Troops.json").EntryState);
 
             var person = Assert.IsType<PersonConfig>(persons.Items[0]);
             person.Name = "编辑后人物";
@@ -88,7 +88,7 @@ public sealed class ScenarioArchiveCompatibilityTests
                 Assert.Equal(contents, after[entry]);
 
             var reopened = await repository.LoadAsync(source, definitions);
-            Assert.Equal(23, reopened.Documents.Count);
+            Assert.Equal(18, reopened.Documents.Count);
             Assert.Equal([0], GetDocument(reopened, "Persons.json").NullRecordIndices);
             Assert.Equal("编辑后人物", Assert.IsType<PersonConfig>(GetDocument(reopened, "Persons.json").Items[0]).Name);
             Assert.Null(Assert.IsType<PersonConfig>(GetDocument(reopened, "Persons.json").Items[1]).Name);
@@ -103,7 +103,7 @@ public sealed class ScenarioArchiveCompatibilityTests
     }
 
     [Fact]
-    public async Task LocalGameSample_All22Lists_LoadEditCopyAndReopen()
+    public async Task LocalGameSample_All17Lists_LoadEditCopyAndReopen()
     {
         var sample = Environment.GetEnvironmentVariable("ZHSAN_SCENARIO_SAMPLE");
         if (string.IsNullOrWhiteSpace(sample)) return;
@@ -120,7 +120,7 @@ public sealed class ScenarioArchiveCompatibilityTests
             var repository = new GameDataArchiveRepository();
             var definitions = new GameDataConfigRegistry().GetDefinitions(ConfigScope.Scenario);
             var project = await repository.LoadAsync(source, definitions);
-            Assert.Equal(23, project.Documents.Count);
+            Assert.Equal(18, project.Documents.Count);
             foreach (var definition in definitions)
                 Assert.Equal(SampleCounts[definition.EntryName], GetDocument(project, definition.EntryName).Items.Count);
 

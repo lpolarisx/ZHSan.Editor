@@ -1,5 +1,4 @@
 using GameDatas;
-using Microsoft.Xna.Framework;
 using ZHSan.Editor.Application.Abstractions;
 using ZHSan.Editor.Domain.Configuration;
 
@@ -64,11 +63,8 @@ public sealed class GameDataConfigRegistry : IConfigRegistry
         Add<EventConfig>(definitions, "events", "事件", "事件与情报", "Events.json", ConfigScope.Scenario);
         Add<FacilityConfig>(definitions, "facilities", "设施", "世界与地图", "Facilities.json", ConfigScope.Scenario);
         Add<FactionConfig>(definitions, "factions", "势力", "势力与组织", "Factions.json", ConfigScope.Scenario);
-        Add<Point>(definitions, "fire-positions", "火灾位置", "世界与地图", "FirePositions.json", ConfigScope.Scenario);
-        Add<InformationConfig>(definitions, "informations", "情报", "事件与情报", "Informations.json", ConfigScope.Scenario);
         Add<LegionConfig>(definitions, "legions", "军团", "势力与组织", "Legions.json", ConfigScope.Scenario);
         Add<MilitaryConfig>(definitions, "militaries", "军事单位", "军事", "Militaries.json", ConfigScope.Scenario);
-        Add<NoFoodConfig>(definitions, "no-food-positions", "禁粮位置", "世界与地图", "NoFoodPositions.json", ConfigScope.Scenario);
         Add<PersonRelationConfig>(definitions, "person-relations", "人物关系", "人物", "PersonRelations.json", ConfigScope.Scenario);
         Add<PersonConfig>(definitions, "persons", "人物", "人物", "Persons.json", ConfigScope.Scenario);
         // Edited in the person editor's 亲属与人际 card, so it is not listed separately.
@@ -78,12 +74,10 @@ public sealed class GameDataConfigRegistry : IConfigRegistry
             ShowInNavigation = false,
             NavigationTargetKey = "persons"
         });
-        Add<RoutewayConfig>(definitions, "routeways", "路径", "世界与地图", "Routeways.json", ConfigScope.Scenario);
         Add<SectionConfig>(definitions, "sections", "军势", "势力与组织", "Sections.json", ConfigScope.Scenario);
         Add<TreasureConfig>(definitions, "treasures", "宝物", "宝物", "Treasures.json", ConfigScope.Scenario);
         Add<TroopEventConfig>(definitions, "troop-events", "部队事件", "事件与情报", "TroopEvents.json", ConfigScope.Scenario);
         Add<TroopConfig>(definitions, "troops", "部队", "军事", "Troops.json", ConfigScope.Scenario);
-        Add<YearTableConfig>(definitions, "year-tables", "年表", "时间与历史", "YearTables.json", ConfigScope.Scenario);
 
         _catalog = new ConfigDefinitionCatalog(definitions);
     }

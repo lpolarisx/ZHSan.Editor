@@ -43,7 +43,7 @@ public sealed class GameDataArchiveRepositoryTests
             var project = await repository.LoadAsync(archivePath, definitions);
 
             Assert.Equal(ConfigScope.Scenario, project.Scope);
-            Assert.Equal(23, project.Documents.Count);
+            Assert.Equal(18, project.Documents.Count);
             Assert.All(project.Documents, document => Assert.Equal(ConfigScope.Scenario, document.Definition.Scope));
             Assert.Equal(
                 "原建筑",

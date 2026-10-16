@@ -1,5 +1,4 @@
 using GameDatas;
-using Microsoft.Xna.Framework;
 using ZHSan.Editor.Domain.Configuration;
 using ZHSan.Editor.Infrastructure.Configuration;
 
@@ -47,29 +46,24 @@ public sealed class GameDataConfigRegistryTests
             ["Facilities.json"] = typeof(FacilityConfig),
             ["Factions.json"] = typeof(FactionConfig),
             ["GameScenarios.json"] = typeof(PersonFamilyConfig),
-            ["FirePositions.json"] = typeof(Point),
-            ["Informations.json"] = typeof(InformationConfig),
             ["Legions.json"] = typeof(LegionConfig),
             ["Militaries.json"] = typeof(MilitaryConfig),
-            ["NoFoodPositions.json"] = typeof(NoFoodConfig),
             ["PersonRelations.json"] = typeof(PersonRelationConfig),
             ["Persons.json"] = typeof(PersonConfig),
             ["Regions.json"] = typeof(RegionConfig),
-            ["Routeways.json"] = typeof(RoutewayConfig),
             ["Sections.json"] = typeof(SectionConfig),
             ["States.json"] = typeof(StateConfig),
             ["Treasures.json"] = typeof(TreasureConfig),
             ["TroopEvents.json"] = typeof(TroopEventConfig),
-            ["Troops.json"] = typeof(TroopConfig),
-            ["YearTables.json"] = typeof(YearTableConfig)
+            ["Troops.json"] = typeof(TroopConfig)
         };
 
         var definitions = registry.GetDefinitions(ConfigScope.Scenario);
 
-        Assert.Equal(23, definitions.Count);
-        Assert.Equal(23, definitions.Select(definition => definition.Key)
+        Assert.Equal(18, definitions.Count);
+        Assert.Equal(18, definitions.Select(definition => definition.Key)
             .Distinct(StringComparer.OrdinalIgnoreCase).Count());
-        Assert.Equal(23, definitions.Select(definition => definition.EntryName)
+        Assert.Equal(18, definitions.Select(definition => definition.EntryName)
             .Distinct(StringComparer.OrdinalIgnoreCase).Count());
         Assert.All(definitions, definition =>
         {
