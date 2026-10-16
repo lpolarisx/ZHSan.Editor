@@ -14,7 +14,7 @@ using ZHSan.Editor.Desktop.ViewModels;
 
 namespace ZHSan.Editor.Desktop.Editors;
 
-public sealed class PersonBasicEditorViewModel : ObservableObject, IDisposable
+public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOwner, IDisposable
 {
     private readonly ConfigEditorContext _context;
     private readonly ConfigDocumentViewModel? _biographyDocument;
@@ -460,15 +460,20 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IDisposable
         foreach (var list in ExclusiveLists) list.Refresh();
     }
 
-    internal IReadOnlyList<PersonChoiceOption> GetChipCandidates(string targetKey) =>
+    public IReadOnlyList<PersonChoiceOption> GetChipCandidates(string targetKey) =>
         [.._context.GetReferenceTargets(targetKey).GroupBy(target => target.Id).Select(group => group.First())
             .OrderBy(target => target.Id)
             .Select(target => new PersonChoiceOption(target.Id, ChipLabel(targetKey, target)))];
 
-    internal string GetChipLabel(string targetKey, int id) =>
+    public string GetChipLabel(string targetKey, int id) =>
         _context.GetReferenceTargets(targetKey).FirstOrDefault(target => target.Id == id) is { } target
             ? ChipLabel(targetKey, target)
             : $"{id} （未收录）";
+
+    object? IIdChipListOwner.GetValue(string propertyName) => GetPersonValue(propertyName);
+    void IIdChipListOwner.SetValue(string propertyName, object value, string description) =>
+        SetPersonValue(propertyName, value, description);
+
     private void RebuildSkillButtons()
     {
         SkillButtons.Clear();
@@ -824,21 +829,26 @@ public sealed class PersonBasicFieldViewModel : ObservableObject
     private readonly Func<IReadOnlyList<PersonChoiceOption>>? _choices;
     private IReadOnlyList<PersonChoiceOption> _choiceOptions = [];
     private readonly PersonValueRange? _range;
+    private readonly string _subject;
 
     private bool _refreshing;
 
+    // Also used by other editors (e.g. treasures): itemType and subject name the edited record kind.
     public PersonBasicFieldViewModel(string label, string propertyName,
         Func<ConfigRecordViewModel?> record, ConfigEditorContext context,
-        Func<IReadOnlyList<PersonChoiceOption>>? choices = null, PersonValueRange? range = null)
+        Func<IReadOnlyList<PersonChoiceOption>>? choices = null, PersonValueRange? range = null,
+        Type? itemType = null, string subject = "人物")
     {
         _range = range;
+        _subject = subject;
         Label = label;
-        _property = typeof(PersonConfig).GetProperty(propertyName)
-            ?? throw new ArgumentException($"未知人物字段：{propertyName}");
+        itemType ??= typeof(PersonConfig);
+        _property = itemType.GetProperty(propertyName)
+            ?? throw new ArgumentException($"未知{subject}字段：{propertyName}");
         _record = record;
         _context = context;
         IsText = _property.PropertyType == typeof(string);
-        IsSex = propertyName == nameof(PersonConfig.Sex);
+        IsSex = itemType == typeof(PersonConfig) && propertyName == nameof(PersonConfig.Sex);
         IsBoolean = _property.PropertyType == typeof(bool) && !IsSex;
         IsEnum = _property.PropertyType.IsEnum;
         _choices = _property.PropertyType == typeof(int) ? choices : null;
@@ -922,7 +932,7 @@ public sealed class PersonBasicFieldViewModel : ObservableObject
     private void Set(object value)
     {
         if (_record() is not { } record || Equals(_property.GetValue(record.Item), value)) return;
-        _context.SetPropertyValue(record, _property.Name, value, $"修改人物{Label}");
+        _context.SetPropertyValue(record, _property.Name, value, $"修改{_subject}{Label}");
         Refresh();
     }
 
@@ -999,15 +1009,25 @@ public sealed class PersonIdChipViewModel(int id, string label, ICommand removeC
     public ICommand RemoveCommand { get; } = removeCommand;
 }
 
+/// <summary>The editor whose selected record holds the ID lists edited by <see cref="PersonIdChipListViewModel"/>.</summary>
+public interface IIdChipListOwner
+{
+    bool HasSelection { get; }
+    object? GetValue(string propertyName);
+    void SetValue(string propertyName, object value, string description);
+    IReadOnlyList<PersonChoiceOption> GetChipCandidates(string targetKey);
+    string GetChipLabel(string targetKey, int id);
+}
+
 public sealed class PersonIdChipListViewModel : ObservableObject
 {
     private readonly string _propertyName;
     private readonly string _targetKey;
-    private readonly PersonBasicEditorViewModel _owner;
+    private readonly IIdChipListOwner _owner;
     private IReadOnlyList<PersonChoiceOption> _candidates = [];
     private PersonChoiceOption? _candidate;
 
-    public PersonIdChipListViewModel(string label, string propertyName, string targetKey, PersonBasicEditorViewModel owner)
+    public PersonIdChipListViewModel(string label, string propertyName, string targetKey, IIdChipListOwner owner)
     {
         Label = label;
         _propertyName = propertyName;
@@ -1034,13 +1054,13 @@ public sealed class PersonIdChipListViewModel : ObservableObject
     }
 
     private ConfigStructuredStringParseResult<int>? ParseCurrent() => _owner.HasSelection
-        ? ConfigStructuredStringCodec.ParseIds(_owner.GetPersonValue(_propertyName) as string ?? "")
+        ? ConfigStructuredStringCodec.ParseIds(_owner.GetValue(_propertyName) as string ?? "")
         : null;
 
     private void Add()
     {
         if (!CanAdd || Candidate is not { } candidate) return;
-        _owner.SetPersonValue(_propertyName,
+        _owner.SetValue(_propertyName,
             ConfigStructuredStringCodec.FormatIds(ParseCurrent()!.Items.Append(candidate.Id)), $"添加{Label}");
         Candidate = null;
     }
@@ -1048,7 +1068,7 @@ public sealed class PersonIdChipListViewModel : ObservableObject
     private void Remove(int id)
     {
         if (!CanEdit) return;
-        _owner.SetPersonValue(_propertyName,
+        _owner.SetValue(_propertyName,
             ConfigStructuredStringCodec.FormatIds(ParseCurrent()!.Items.Where(value => value != id)), $"移除{Label}");
     }
 

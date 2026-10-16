@@ -96,6 +96,10 @@ internal static class GameDataPropertyReferenceMetadata
                 new("states", emptyValue: -1, targetScope: ConfigScope.Scenario),
             [(typeof(SectionConfig), nameof(SectionConfig.OrientationArchitectureID))] =
                 new("architectures", emptyValue: -1, targetScope: ConfigScope.Scenario),
+            [(typeof(TreasureConfig), nameof(TreasureConfig.BelongedPersonIDString))] =
+                new("persons", emptyValue: -1, targetScope: ConfigScope.Scenario),
+            [(typeof(TreasureConfig), nameof(TreasureConfig.HidePlaceIDString))] =
+                new("architectures", emptyValue: -1, targetScope: ConfigScope.Scenario),
             [(typeof(TroopConfig), nameof(TroopConfig.LeaderId))] =
                 new("persons", emptyValue: 0, targetScope: ConfigScope.Scenario),
             [(typeof(TroopConfig), nameof(TroopConfig.MilitaryID))] =

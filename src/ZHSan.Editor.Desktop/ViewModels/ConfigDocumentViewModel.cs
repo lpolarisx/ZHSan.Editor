@@ -600,9 +600,9 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             property.SetValue(item, CloneValue(value));
         }
 
-        if (item is PersonConfig person && !initialValues.ContainsKey(nameof(PersonConfig.Id)))
+        if (HasSequentialIds && !initialValues.ContainsKey("Id"))
         {
-            person.Id = AllocatePersonIds(1)[0];
+            SetSequentialId(item, AllocateSequentialIds(1)[0]);
         }
 
         Document.Items.Add(item);
@@ -628,11 +628,11 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         try
         {
             var copies = new List<(int Index, ConfigRecordViewModel Record)>();
-            var personIds = new Queue<int>(AllocatePersonIds(sourceRecords.Length));
+            var newIds = new Queue<int>(AllocateSequentialIds(sourceRecords.Length));
             foreach (var source in sourceRecords)
             {
                 var copy = CloneRecord(source.Item);
-                if (copy is PersonConfig person) person.Id = personIds.Dequeue();
+                if (HasSequentialIds) SetSequentialId(copy, newIds.Dequeue());
                 Document.Items.Add(copy);
                 var copyRecord = CreateRecordViewModel(copy);
                 Records.Add(copyRecord);
@@ -784,8 +784,11 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         try
         {
             var clones = _clipboard.Items.Select(CloneRecord).ToArray();
-            var personIds = new Queue<int>(AllocatePersonIds(clones.Length));
-            foreach (var person in clones.OfType<PersonConfig>()) person.Id = personIds.Dequeue();
+            var newIds = new Queue<int>(AllocateSequentialIds(clones.Length));
+            if (HasSequentialIds)
+            {
+                foreach (var clone in clones) SetSequentialId(clone, newIds.Dequeue());
+            }
             var pasted = clones.Select(CreateRecordViewModel).ToArray();
             var insertions = new List<(int Index, ConfigRecordViewModel Record)>();
             foreach (var record in pasted)
@@ -886,19 +889,33 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         ? _selectedRecords.ToArray()
         : SelectedRecord is null ? [] : [SelectedRecord];
 
-    // Person IDs are sequential: new persons continue after the highest ID in use. Biographies are keyed by
-    // person ID, so leftover biographies count as in use and a new person never inherits another's text.
-    private int[] AllocatePersonIds(int count)
+    // Person and treasure IDs are sequential: new records continue after the highest ID in use. Biographies
+    // are keyed by person ID, so leftover biographies count as in use and a new person never inherits another's text.
+    private static readonly IReadOnlySet<Type> SequentialIdTypes = new HashSet<Type>
     {
-        if (Document.Definition.ItemType != typeof(PersonConfig))
+        typeof(PersonConfig),
+        typeof(TreasureConfig)
+    };
+
+    private bool HasSequentialIds => SequentialIdTypes.Contains(Document.Definition.ItemType);
+
+    private static int GetSequentialId(object item) => (int)item.GetType().GetProperty("Id")!.GetValue(item)!;
+
+    private static void SetSequentialId(object item, int id) => item.GetType().GetProperty("Id")!.SetValue(item, id);
+
+    private int[] AllocateSequentialIds(int count)
+    {
+        if (!HasSequentialIds)
         {
             return [];
         }
 
-        var biographyIds = FindRelatedDocument(BiographiesKey)?.Records
-            .Select(record => record.Item).OfType<BiographyConfig>().Select(biography => biography.Id) ?? [];
-        var next = Records.Select(record => record.Item).OfType<PersonConfig>().Select(person => person.Id)
-            .Concat(biographyIds).DefaultIfEmpty(-1).Max() + 1;
+        var linkedIds = Document.Definition.ItemType == typeof(PersonConfig)
+            ? FindRelatedDocument(BiographiesKey)?.Records
+                .Select(record => record.Item).OfType<BiographyConfig>().Select(biography => biography.Id) ?? []
+            : [];
+        var next = Records.Select(record => GetSequentialId(record.Item))
+            .Concat(linkedIds).DefaultIfEmpty(-1).Max() + 1;
         return Enumerable.Range(next, count).ToArray();
     }
 

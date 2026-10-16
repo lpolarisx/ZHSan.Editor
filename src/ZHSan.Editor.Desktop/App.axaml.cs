@@ -61,9 +61,11 @@ public sealed partial class App : Avalonia.Application
             services.AddSingleton<PublishArchiveService>();
             services.AddSingleton<EditorUiStateStore>();
             services.AddSingleton<PersonPortraitDirectoryStore>();
+            services.AddSingleton<TreasurePictureDirectoryStore>();
             services.AddSingleton<IConfigEditorProvider, TechniqueTreeEditorProvider>();
             services.AddSingleton<IConfigEditorProvider, FacilityKindLevelEditorProvider>();
             services.AddSingleton<IConfigEditorProvider, PersonBasicEditorProvider>();
+            services.AddSingleton<IConfigEditorProvider, TreasureEditorProvider>();
             services.AddSingleton<ConfigEditorProviderRegistry>();
             services.AddSingleton<IArchivePicker>(new AvaloniaArchivePicker(mainWindow));
             services.AddSingleton<IUnsavedChangesPrompt>(new AvaloniaUnsavedChangesPrompt(mainWindow));

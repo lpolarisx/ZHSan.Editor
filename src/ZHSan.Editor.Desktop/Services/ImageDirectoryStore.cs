@@ -3,31 +3,28 @@ using System.Text.Json;
 namespace ZHSan.Editor.Desktop.Services;
 
 /// <summary>
-/// Remembers the folder holding the game's person portraits (e.g.
-/// Content/Textures/GameComponents/PersonPortrait/Images/Default). It is kept in its own file so
-/// it is not overwritten by the main window's settings and UI state, which are saved as whole objects.
+/// Remembers a folder of game images. Each store is kept in its own file so it is not overwritten
+/// by the main window's settings and UI state, which are saved as whole objects.
 /// </summary>
-public class PersonPortraitDirectoryStore
+public abstract class ImageDirectoryStore
 {
     private readonly string? _path;
     private string? _directory;
     private bool _loaded;
 
-    public PersonPortraitDirectoryStore(string? path = null)
+    protected ImageDirectoryStore(string? path, string defaultFileName)
     {
         _path = path ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "ZHSan.Editor",
-            "person-portraits.json");
+            defaultFileName);
     }
 
-    private PersonPortraitDirectoryStore(bool inMemory)
+    /// <summary>Creates a store that never touches the disk.</summary>
+    protected ImageDirectoryStore()
     {
-        _loaded = inMemory;
+        _loaded = true;
     }
-
-    /// <summary>A store that never touches the disk.</summary>
-    public static PersonPortraitDirectoryStore InMemory() => new(inMemory: true);
 
     public string? Directory
     {
@@ -76,4 +73,34 @@ public class PersonPortraitDirectoryStore
     {
         public string? Directory { get; set; }
     }
+}
+
+/// <summary>The person portrait folder, e.g. Content/Textures/GameComponents/PersonPortrait/Images/Default.</summary>
+public class PersonPortraitDirectoryStore : ImageDirectoryStore
+{
+    public PersonPortraitDirectoryStore(string? path = null) : base(path, "person-portraits.json")
+    {
+    }
+
+    private PersonPortraitDirectoryStore()
+    {
+    }
+
+    /// <summary>A store that never touches the disk.</summary>
+    public static PersonPortraitDirectoryStore InMemory() => new();
+}
+
+/// <summary>The treasure picture folder, e.g. Content/Textures/Resources/Treasure.</summary>
+public class TreasurePictureDirectoryStore : ImageDirectoryStore
+{
+    public TreasurePictureDirectoryStore(string? path = null) : base(path, "treasure-pictures.json")
+    {
+    }
+
+    private TreasurePictureDirectoryStore()
+    {
+    }
+
+    /// <summary>A store that never touches the disk.</summary>
+    public static TreasurePictureDirectoryStore InMemory() => new();
 }

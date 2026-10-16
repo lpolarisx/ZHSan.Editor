@@ -47,6 +47,7 @@ internal static class GameDataStructuredStringMetadata
             [(typeof(StuntConfig), nameof(StuntConfig.InfluencesString))] = InfluenceIds,
             [(typeof(TechniqueConfig), nameof(TechniqueConfig.InfluencesString))] = InfluenceIds,
             [(typeof(TitleConfig), nameof(TitleConfig.InfluencesString))] = InfluenceIds,
+            [(typeof(TreasureConfig), nameof(TreasureConfig.InfluencesString))] = InfluenceIds,
             [(typeof(StatusEffectConfig), nameof(StatusEffectConfig.Influences))] = InfluenceIds,
 
             [(typeof(CombatMethodConfig), nameof(CombatMethodConfig.CastConditionsString))] = ConditionIds,

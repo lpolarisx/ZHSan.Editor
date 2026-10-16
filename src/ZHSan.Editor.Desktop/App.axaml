@@ -12,6 +12,9 @@
     <DataTemplate DataType="editors:PersonBasicEditorViewModel">
       <views:PersonBasicEditorView />
     </DataTemplate>
+    <DataTemplate DataType="editors:TreasureEditorViewModel">
+      <views:TreasureEditorView />
+    </DataTemplate>
     <DataTemplate DataType="editors:FacilityKindLevelEditorViewModel">
       <views:FacilityKindLevelEditorView />
     </DataTemplate>
