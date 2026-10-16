@@ -31,7 +31,7 @@ public sealed class GameDataArchiveTypeDetector(IConfigRegistry registry) : IArc
         catch (InvalidDataException exception)
         {
             throw new InvalidDataException(
-                $"无法读取游戏数据档案 {Path.GetFileName(archivePath)}：文件不是有效的 ZIP 档案。",
+                $"无法读取游戏数据文件 {Path.GetFileName(archivePath)}：不是有效的 ZIP 压缩包。",
                 exception);
         }
 

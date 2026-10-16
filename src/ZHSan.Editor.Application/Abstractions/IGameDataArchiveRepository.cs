@@ -43,5 +43,5 @@ public interface IGameDataArchiveRepository
         EditorProject project,
         string destinationPath,
         CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("当前档案仓储不支持发布。");
+        throw new NotSupportedException("当前文件仓储不支持发布。");
 }

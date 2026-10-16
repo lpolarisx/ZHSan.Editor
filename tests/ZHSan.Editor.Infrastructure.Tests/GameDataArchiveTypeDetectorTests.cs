@@ -44,7 +44,7 @@ public sealed class GameDataArchiveTypeDetectorTests
             var exception = await Assert.ThrowsAsync<InvalidDataException>(
                 () => detector.DetectAsync(path));
 
-            Assert.Contains("不是有效的 ZIP 档案", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("不是有效的 ZIP 压缩包", exception.Message, StringComparison.Ordinal);
         }
         finally
         {

@@ -34,14 +34,13 @@
   <DockPanel>
     <Menu DockPanel.Dock="Top">
       <MenuItem Header="文件">
-        <MenuItem Header="打开当前档案…" Command="{Binding OpenArchiveCommand}" InputGesture="Ctrl+O" />
         <MenuItem Header="打开 CommonData…" Command="{Binding OpenCommonArchiveCommand}" />
         <MenuItem Header="打开剧本 / 存档…" Command="{Binding OpenScenarioArchiveCommand}" />
-        <MenuItem Header="关闭当前档案" Command="{Binding CloseProjectCommand}" InputGesture="Ctrl+W" />
+        <MenuItem Header="{Binding CloseArchiveLabel}" Command="{Binding CloseProjectCommand}" InputGesture="Ctrl+W" />
         <Separator />
-        <MenuItem Header="保存当前配置" Command="{Binding SaveDocumentCommand}" InputGesture="Ctrl+S" />
-        <MenuItem Header="保存当前档案" Command="{Binding SaveCurrentArchiveCommand}" InputGesture="Ctrl+Alt+S" />
-        <MenuItem Header="保存全部档案" Command="{Binding SaveAllCommand}" InputGesture="Ctrl+Shift+S" />
+        <MenuItem Header="{Binding SaveDocumentLabel}" Command="{Binding SaveDocumentCommand}" InputGesture="Ctrl+S" />
+        <MenuItem Header="{Binding SaveCurrentArchiveLabel}" Command="{Binding SaveCurrentArchiveCommand}" InputGesture="Ctrl+Alt+S" />
+        <MenuItem Header="全部保存" Command="{Binding SaveAllCommand}" InputGesture="Ctrl+Shift+S" />
         <Separator />
         <MenuItem Header="另存为…" Command="{Binding SaveAsCommand}" />
         <MenuItem Header="保存副本…" Command="{Binding SaveCopyCommand}" />
@@ -63,7 +62,7 @@
         <MenuItem Header="转换旧版游戏剧本…" Command="{Binding ConvertLegacyScenarioCommand}" />
         <Separator />
         <MenuItem Header="导入当前配置 JSON…" Command="{Binding ImportJsonCommand}" InputGesture="Ctrl+I" />
-        <MenuItem Header="从数据档案批量导入…" Command="{Binding ImportArchiveCommand}" InputGesture="Ctrl+Shift+I" />
+        <MenuItem Header="从数据文件批量导入…" Command="{Binding ImportArchiveCommand}" InputGesture="Ctrl+Shift+I" />
         <Separator />
         <MenuItem Header="导出当前配置 JSON…" Command="{Binding ExportJsonCommand}" InputGesture="Ctrl+E" />
         <MenuItem Header="导出全项目到目录…" Command="{Binding ExportProjectDirectoryCommand}" InputGesture="Ctrl+Shift+E" />
@@ -90,23 +89,18 @@
 
     <Border DockPanel.Dock="Top" Padding="14,10" BorderThickness="0,0,0,1"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-      <Grid ColumnDefinitions="Auto,8,Auto,8,Auto,8,Auto,8,Auto,16,Auto,6,Auto,16,*,Auto">
-        <Button Grid.Column="0" Content="打开数据档案" Command="{Binding OpenArchiveCommand}" />
-        <Button Grid.Column="2" Content="保存" Command="{Binding SaveDocumentCommand}" />
-        <Button Grid.Column="4" Content="撤销" Command="{Binding SelectedDocument.UndoCommand}" />
-        <Button Grid.Column="6" Content="重做" Command="{Binding SelectedDocument.RedoCommand}" />
-        <Button Grid.Column="8" Content="校验" Command="{Binding ValidateCommand}" />
-        <ToggleButton Grid.Column="10" Content="导航栏"
+      <Grid ColumnDefinitions="Auto,8,Auto,8,Auto,8,Auto,16,Auto,6,Auto,16,*,Auto">
+        <Button Grid.Column="0" Content="保存" Command="{Binding SaveDocumentCommand}" />
+        <Button Grid.Column="2" Content="撤销" Command="{Binding SelectedDocument.UndoCommand}" />
+        <Button Grid.Column="4" Content="重做" Command="{Binding SelectedDocument.RedoCommand}" />
+        <Button Grid.Column="6" Content="校验" Command="{Binding ValidateCommand}" />
+        <ToggleButton Grid.Column="8" Content="导航栏"
                       IsChecked="{Binding IsNavigationPaneVisible, Mode=TwoWay}"
                       ToolTip.Tip="显示或隐藏左侧配置导航" />
-        <ToggleButton Grid.Column="12" Content="属性栏"
+        <ToggleButton Grid.Column="10" Content="属性栏"
                       IsChecked="{Binding IsDetailsPaneVisible, Mode=TwoWay}"
                       ToolTip.Tip="显示或隐藏右侧属性详情" />
-        <StackPanel Grid.Column="14" VerticalAlignment="Center">
-          <TextBlock Text="{Binding ProjectTitle}" FontWeight="SemiBold" />
-          <TextBlock Text="{Binding ActiveScopeDisplayName}" FontSize="12" Opacity="0.58" />
-        </StackPanel>
-        <TextBlock Grid.Column="15" Text="NET 9 · Avalonia" VerticalAlignment="Center" Opacity="0.58" />
+        <TextBlock Grid.Column="13" Text="NET 9 · Avalonia" VerticalAlignment="Center" Opacity="0.58" />
       </Grid>
     </Border>
 
@@ -279,7 +273,7 @@
               </Border>
               <TextBlock Text="{Binding EmptyArchiveMessage}" FontSize="18" FontWeight="SemiBold"
                          HorizontalAlignment="Center" />
-              <TextBlock Text="当前槽位独立保存活动配置和编辑状态；可随时切换上方档案 Tab。"
+              <TextBlock Text="当前槽位独立保存活动配置和编辑状态；可随时切换上方 Tab。"
                          TextWrapping="Wrap" TextAlignment="Center" Opacity="0.62" />
               <Button Content="{Binding OpenActiveArchiveLabel}" Command="{Binding OpenArchiveCommand}"
                       HorizontalAlignment="Center" />

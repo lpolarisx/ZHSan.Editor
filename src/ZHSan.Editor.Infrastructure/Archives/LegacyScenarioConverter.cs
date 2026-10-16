@@ -57,7 +57,7 @@ public sealed class LegacyScenarioConverter : ILegacyScenarioConverter
         var fullDestinationPath = Path.GetFullPath(destinationPath);
         if (PathsEqual(fullSourcePath, fullDestinationPath))
         {
-            throw new ArgumentException("新格式档案不能覆盖旧版 JSON 文件。", nameof(destinationPath));
+            throw new ArgumentException("新格式文件不能覆盖旧版 JSON 文件。", nameof(destinationPath));
         }
 
         JsonObject root;

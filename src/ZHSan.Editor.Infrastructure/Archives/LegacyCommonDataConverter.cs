@@ -113,7 +113,7 @@ public sealed class LegacyCommonDataConverter(IConfigRegistry registry) : ILegac
         var fullDestinationPath = Path.GetFullPath(destinationPath);
         if (PathsEqual(fullSourcePath, fullDestinationPath))
         {
-            throw new ArgumentException("新格式档案不能覆盖旧版 CommonData JSON 文件。", nameof(destinationPath));
+            throw new ArgumentException("新格式文件不能覆盖旧版 CommonData JSON 文件。", nameof(destinationPath));
         }
 
         JsonObject root;
@@ -339,7 +339,7 @@ public sealed class LegacyCommonDataConverter(IConfigRegistry registry) : ILegac
         CancellationToken cancellationToken)
     {
         var directory = Path.GetDirectoryName(destinationPath)
-            ?? throw new InvalidOperationException("CommonData 档案输出路径无效。");
+            ?? throw new InvalidOperationException("CommonData 文件输出路径无效。");
         Directory.CreateDirectory(directory);
         var temporaryPath = destinationPath + ".tmp";
         var backupPath = destinationPath + ".bak";
@@ -367,7 +367,7 @@ public sealed class LegacyCommonDataConverter(IConfigRegistry registry) : ILegac
                     if (loaded?.Count != entry.Count)
                     {
                         throw new InvalidDataException(
-                            $"转换档案验证失败：{entry.Name} 预期 {entry.Count} 条，实际 {loaded?.Count ?? -1} 条。");
+                            $"转换文件验证失败：{entry.Name} 预期 {entry.Count} 条，实际 {loaded?.Count ?? -1} 条。");
                     }
                 }
             }

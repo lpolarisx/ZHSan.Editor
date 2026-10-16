@@ -21,7 +21,7 @@ public sealed class AvaloniaArchivePicker(Window owner) : IArchivePicker
     {
         var files = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "打开游戏数据档案",
+            Title = "打开游戏数据文件",
             AllowMultiple = false,
             FileTypeFilter = [ArchiveFileType, FilePickerFileTypes.All]
         });
@@ -51,7 +51,7 @@ public sealed class AvaloniaArchivePicker(Window owner) : IArchivePicker
     {
         var file = await owner.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Title = "保存游戏数据档案",
+            Title = "保存游戏数据文件",
             SuggestedFileName = suggestedFileName,
             DefaultExtension = "dat",
             FileTypeChoices = [ArchiveFileType, FilePickerFileTypes.All],
@@ -66,7 +66,7 @@ public sealed class AvaloniaArchivePicker(Window owner) : IArchivePicker
     {
         var files = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "从游戏数据档案批量导入",
+            Title = "从游戏数据文件批量导入",
             AllowMultiple = false,
             FileTypeFilter = [ArchiveFileType, FilePickerFileTypes.All]
         });
@@ -126,7 +126,7 @@ public sealed class AvaloniaArchivePicker(Window owner) : IArchivePicker
     {
         var file = await owner.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Title = "发布游戏配置包（请选择工作档案之外的位置）",
+            Title = "发布游戏配置包（请选择工作文件之外的位置）",
             SuggestedFileName = suggestedFileName,
             DefaultExtension = "dat",
             FileTypeChoices = [ArchiveFileType, FilePickerFileTypes.All],
@@ -186,7 +186,7 @@ public sealed class AvaloniaArchivePicker(Window owner) : IArchivePicker
     {
         var file = await owner.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Title = "导出新格式 CommonData 档案",
+            Title = "导出新格式 CommonData 文件",
             SuggestedFileName = suggestedFileName,
             DefaultExtension = "dat",
             FileTypeChoices = [ArchiveFileType, FilePickerFileTypes.All],

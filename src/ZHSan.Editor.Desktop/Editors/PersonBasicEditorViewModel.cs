@@ -629,7 +629,7 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IDisposable
     private string GetBiographyStatus()
     {
         if (SelectedPerson is null) return "请先选择人物。";
-        if (_biographyDocument is null) return "当前档案没有列传配置。";
+        if (_biographyDocument is null) return "当前文件没有列传配置。";
         if (_biographyDocument.HasNullRecords) return "列传包含 null 记录，请先在列传配置中处理。";
         var count = _biographyDocument.Records.Count(record =>
             record.Item is BiographyConfig biography && biography.Id == SelectedPerson.Config.Id);
@@ -687,7 +687,7 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IDisposable
     private string GetFamilyStatus()
     {
         if (SelectedPerson is null) return "请先选择人物。";
-        if (_familyDocument is null) return "当前档案没有人物亲属配置（GameScenarios.json）。";
+        if (_familyDocument is null) return "当前文件没有人物亲属配置（GameScenarios.json）。";
         if (_familyDocument.HasNullRecords) return "人物亲属包含 null 记录，请先在人物亲属配置中处理。";
         return FindFamilyRecords().Length > 1
             ? "找到重复的人物亲属 ID，请先在人物亲属配置中处理。"

@@ -28,7 +28,7 @@ public sealed class ArchiveSlot
         EnsureOpen();
         if (document is not null && !Project!.Documents.Contains(document))
         {
-            throw new ArgumentException("活动文档必须属于当前档案槽位。", nameof(document));
+            throw new ArgumentException("活动文档必须属于当前文件槽位。", nameof(document));
         }
 
         Project!.ActiveDocument = document;
@@ -47,7 +47,7 @@ public sealed class ArchiveSlot
         ArgumentNullException.ThrowIfNull(project);
         if (Lifecycle is not (ArchiveSlotLifecycle.Opening or ArchiveSlotLifecycle.Replacing))
         {
-            throw new InvalidOperationException("档案槽位当前没有正在进行的打开操作。");
+            throw new InvalidOperationException("文件槽位当前没有正在进行的打开操作。");
         }
 
         ValidateProject(project);
@@ -59,7 +59,7 @@ public sealed class ArchiveSlot
     {
         if (Lifecycle is not (ArchiveSlotLifecycle.Opening or ArchiveSlotLifecycle.Replacing))
         {
-            throw new InvalidOperationException("档案槽位当前没有正在进行的打开操作。");
+            throw new InvalidOperationException("文件槽位当前没有正在进行的打开操作。");
         }
 
         Lifecycle = Project is null
@@ -78,7 +78,7 @@ public sealed class ArchiveSlot
     {
         if (Lifecycle != ArchiveSlotLifecycle.Closing)
         {
-            throw new InvalidOperationException("档案槽位当前没有正在进行的关闭操作。");
+            throw new InvalidOperationException("文件槽位当前没有正在进行的关闭操作。");
         }
 
         Project = null;
@@ -89,12 +89,12 @@ public sealed class ArchiveSlot
     {
         if (project.Scope != Scope)
         {
-            throw new ArgumentException("档案项目的作用域与槽位不匹配。", nameof(project));
+            throw new ArgumentException("文件项目的作用域与槽位不匹配。", nameof(project));
         }
 
         if (project.Documents.Any(document => document.Definition.Scope != Scope))
         {
-            throw new ArgumentException("档案项目包含其他作用域的文档。", nameof(project));
+            throw new ArgumentException("文件项目包含其他作用域的文档。", nameof(project));
         }
     }
 
@@ -102,7 +102,7 @@ public sealed class ArchiveSlot
     {
         if (Project is null)
         {
-            throw new InvalidOperationException("档案槽位尚未打开。");
+            throw new InvalidOperationException("文件槽位尚未打开。");
         }
     }
 
@@ -110,7 +110,7 @@ public sealed class ArchiveSlot
     {
         if (IsTransitioning)
         {
-            throw new InvalidOperationException("档案槽位正在执行其他生命周期操作。");
+            throw new InvalidOperationException("文件槽位正在执行其他生命周期操作。");
         }
     }
 }

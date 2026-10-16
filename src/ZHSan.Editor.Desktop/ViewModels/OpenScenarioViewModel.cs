@@ -54,7 +54,7 @@ public sealed class OpenScenarioViewModel : ObservableObject
     public string CommonHint => UsesCurrentCommon
         ? "已沿用当前打开的公共配置，保留其中尚未保存的修改。"
         : _commonWasChosen
-            ? "将使用所选公共配置；如需替换当前档案，加载前会处理未保存修改。"
+            ? "将使用所选公共配置；如需替换当前文件，加载前会处理未保存修改。"
             : string.IsNullOrWhiteSpace(CommonPath)
                 ? "首次打开时，请选择此游戏或模组对应的 CommonData 文件。"
                 : "已填入此剧本上次使用的公共配置，可点击“更换”重新选择。";

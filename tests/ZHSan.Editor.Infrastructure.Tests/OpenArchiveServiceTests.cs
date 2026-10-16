@@ -48,7 +48,7 @@ public sealed class OpenArchiveServiceTests
             var exception = await Assert.ThrowsAsync<InvalidDataException>(
                 () => service.OpenAsync(path));
 
-            Assert.Contains("是剧本/存档档案", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("是剧本/存档文件", exception.Message, StringComparison.Ordinal);
             Assert.Null(repository.LoadedDefinitions);
         }
         finally

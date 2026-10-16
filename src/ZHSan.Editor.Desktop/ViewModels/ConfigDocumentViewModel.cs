@@ -164,7 +164,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         {
             if (Document.EntryState == ArchiveEntryState.Missing)
             {
-                return $"档案中缺少 {EntryName}。在明确初始化前，保存不会创建该条目。";
+                return $"文件中缺少 {EntryName}。在明确初始化前，保存不会创建该条目。";
             }
 
             if (Document.EntryState == ArchiveEntryState.Null)

@@ -124,6 +124,24 @@ public sealed class MainWindowProjectLifecycleTests
     }
 
     [Fact]
+    public void FileMenuLabels_NameActiveFileAndSelectedConfig()
+    {
+        using var context = new TestContext();
+        var viewModel = context.CreateViewModel();
+
+        Assert.Equal("关闭文件", viewModel.CloseArchiveLabel);
+        Assert.Equal("保存文件", viewModel.SaveCurrentArchiveLabel);
+        Assert.Equal("保存配置", viewModel.SaveDocumentLabel);
+
+        viewModel.OpenArchiveCommand.Execute(null);
+
+        var fileName = Path.GetFileName(context.ArchivePath).Replace("_", "__");
+        Assert.Equal($"关闭 {fileName}", viewModel.CloseArchiveLabel);
+        Assert.Equal($"保存 {fileName}", viewModel.SaveCurrentArchiveLabel);
+        Assert.Equal($"保存「{viewModel.SelectedDocument!.DisplayName}」", viewModel.SaveDocumentLabel);
+    }
+
+    [Fact]
     public void ValidateProject_FiltersIssuesAndNavigatesToField()
     {
         using var context = new TestContext();
@@ -193,7 +211,7 @@ public sealed class MainWindowProjectLifecycleTests
         Assert.Equal("剧本 / 存档", viewModel.ActiveScopeDisplayName);
         Assert.Single(viewModel.ArchiveCategories);
         Assert.Single(viewModel.Documents);
-        Assert.Contains("Scenario.dat", viewModel.ScenarioTabHeader, StringComparison.Ordinal);
+        Assert.Equal("剧本 / 存档", viewModel.ScenarioTabHeader);
 
         viewModel.SelectedArchiveTabIndex = 0;
 
@@ -287,7 +305,7 @@ public sealed class MainWindowProjectLifecycleTests
         Assert.False(commonDocument.IsDirty);
         Assert.True(viewModel.SelectedDocument.Document.IsDirty);
         Assert.Contains("剧本/存档", viewModel.ErrorMessage, StringComparison.Ordinal);
-        Assert.Contains("失败 1 个档案", viewModel.StatusText, StringComparison.Ordinal);
+        Assert.Contains("失败 1 个文件", viewModel.StatusText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -366,7 +384,7 @@ public sealed class MainWindowProjectLifecycleTests
 
         Assert.Equal(1, viewModel.SelectedArchiveTabIndex);
         Assert.Equal("剧本 / 存档", viewModel.ActiveScopeDisplayName);
-        Assert.Contains("Scenario.dat", viewModel.ProjectTitle, StringComparison.Ordinal);
+        Assert.Equal(context.ScenarioArchivePath, context.Repository.LoadedPaths[^1]);
     }
 
     [Fact]
@@ -579,7 +597,7 @@ public sealed class MainWindowProjectLifecycleTests
                 .Single(entry => entry.Scope == ConfigScope.Scenario).CommonArchivePath);
             viewModel.SelectedArchiveTabIndex = 0;
             Assert.NotSame(common, viewModel.SelectedDocument);
-            Assert.Contains("OtherCommon.dat", viewModel.CommonTabHeader);
+            Assert.Equal(replacement, context.Repository.LoadedPaths[^2]);
         }
     }
 
@@ -697,7 +715,7 @@ public sealed class MainWindowProjectLifecycleTests
             LoadedPaths.Add(archivePath);
             if (definitions[0].Scope == FailLoadScope)
             {
-                throw new InvalidDataException("模拟档案加载失败");
+                throw new InvalidDataException("模拟文件加载失败");
             }
 
             return Task.FromResult(new EditorProject

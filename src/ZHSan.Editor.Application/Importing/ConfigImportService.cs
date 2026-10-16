@@ -155,7 +155,7 @@ public sealed class ConfigImportService
             _ => "未知"
         };
         throw new InvalidDataException(
-            $"导入档案 {fileName} 是{actualName}档案，不能导入到 {GetScopeName(expectedScope)} 工作区。");
+            $"导入文件 {fileName} 是{actualName}文件，不能导入到 {GetScopeName(expectedScope)} 工作区。");
     }
 
     private static string GetScopeName(ConfigScope scope) =>

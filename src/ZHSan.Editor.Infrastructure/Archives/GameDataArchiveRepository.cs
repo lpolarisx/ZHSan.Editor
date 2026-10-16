@@ -170,7 +170,7 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
         if (definitions.Any(definition => definition.Scope != scope))
         {
             throw new ArgumentException(
-                "不能在同一档案项目中混用 Common 与剧本/存档配置定义。",
+                "不能在同一文件项目中混用 Common 与剧本/存档配置定义。",
                 nameof(definitions));
         }
 
@@ -195,7 +195,7 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
         var targetPath = Path.GetFullPath(destinationPath);
         if (PathsEqual(sourcePath, targetPath))
         {
-            throw new ArgumentException("发布路径不能与当前工作档案相同。", nameof(destinationPath));
+            throw new ArgumentException("发布路径不能与当前工作文件相同。", nameof(destinationPath));
         }
 
         var targetDirectory = Path.GetDirectoryName(targetPath)
@@ -259,7 +259,7 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
         if (source.Documents.Count != published.Documents.Count)
         {
             throw new InvalidDataException(
-                $"发布档案验证失败：预期 {source.Documents.Count} 项配置，实际读取 {published.Documents.Count} 项。");
+                $"发布文件验证失败：预期 {source.Documents.Count} 项配置，实际读取 {published.Documents.Count} 项。");
         }
 
         var publishedByKey = published.Documents.ToDictionary(
@@ -270,13 +270,13 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
             if (!publishedByKey.TryGetValue(sourceDocument.Definition.Key, out var publishedDocument))
             {
                 throw new InvalidDataException(
-                    $"发布档案验证失败：缺少配置 {sourceDocument.Definition.DisplayName}。");
+                    $"发布文件验证失败：缺少配置 {sourceDocument.Definition.DisplayName}。");
             }
 
             if (sourceDocument.Items.Count != publishedDocument.Items.Count)
             {
                 throw new InvalidDataException(
-                    $"发布档案验证失败：配置 {sourceDocument.Definition.DisplayName} " +
+                    $"发布文件验证失败：配置 {sourceDocument.Definition.DisplayName} " +
                     $"预期 {sourceDocument.Items.Count} 条记录，实际读取 {publishedDocument.Items.Count} 条。");
             }
         }
@@ -391,7 +391,7 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
     {
         if (documents.Any(document => document.Definition.Scope != project.Scope))
         {
-            throw new InvalidOperationException("不能把其他作用域的配置写入当前档案。");
+            throw new InvalidOperationException("不能把其他作用域的配置写入当前文件。");
         }
     }
 

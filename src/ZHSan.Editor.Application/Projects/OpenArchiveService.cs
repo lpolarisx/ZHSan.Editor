@@ -23,7 +23,7 @@ public sealed class OpenArchiveService(
 
         if (!File.Exists(archivePath))
         {
-            throw new FileNotFoundException("找不到游戏数据档案。", archivePath);
+            throw new FileNotFoundException("找不到游戏数据文件。", archivePath);
         }
 
         if (archiveTypeDetector is not null)
@@ -46,12 +46,12 @@ public sealed class OpenArchiveService(
         var fileName = Path.GetFileName(archivePath);
         if (detectedKind == ArchiveContentKind.Unknown)
         {
-            throw new InvalidDataException($"无法识别档案 {fileName} 的数据类型。");
+            throw new InvalidDataException($"无法识别文件 {fileName} 的数据类型。");
         }
 
         if (detectedKind == ArchiveContentKind.Mixed)
         {
-            throw new InvalidDataException($"档案 {fileName} 同时包含 Common 与剧本/存档条目，无法安全打开。");
+            throw new InvalidDataException($"文件 {fileName} 同时包含 Common 与剧本/存档条目，无法安全打开。");
         }
 
         var expectedKind = expectedScope == ConfigScope.Common
@@ -65,6 +65,6 @@ public sealed class OpenArchiveService(
         var actualName = detectedKind == ArchiveContentKind.Common ? "Common" : "剧本/存档";
         var expectedName = expectedKind == ArchiveContentKind.Common ? "Common" : "剧本/存档";
         throw new InvalidDataException(
-            $"所选档案 {fileName} 是{actualName}档案，不能作为{expectedName}档案打开。");
+            $"所选文件 {fileName} 是{actualName}文件，不能作为{expectedName}文件打开。");
     }
 }

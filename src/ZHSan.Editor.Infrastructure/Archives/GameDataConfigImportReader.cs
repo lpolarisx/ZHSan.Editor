@@ -90,7 +90,7 @@ public sealed class GameDataConfigImportReader : IConfigImportReader
                     definition.Key,
                     definition.DisplayName,
                     definition.EntryName,
-                    $"源档案不包含条目 {definition.EntryName}。"));
+                    $"源文件不包含条目 {definition.EntryName}。"));
                 continue;
             }
 

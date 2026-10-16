@@ -60,7 +60,6 @@ public sealed class MainWindowViewModel : ObservableObject
     private string _validationSummary = "尚未执行校验";
     private ValidationSeverityFilterViewModel _selectedValidationSeverityFilter;
     private int _selectedDetailsTabIndex;
-    private string _projectTitle = "尚未打开数据档案";
     private string _statusText = "就绪";
     private string? _errorMessage;
     private string? _externalChangeMessage;
@@ -245,7 +244,16 @@ public sealed class MainWindowViewModel : ObservableObject
     public string OpenActiveArchiveLabel => ActiveScope == ConfigScope.Common
         ? "打开 CommonData.dat"
         : "打开剧本 / 存档";
-    public string EmptyArchiveMessage => $"尚未打开{ActiveScopeDisplayName}档案";
+    public string EmptyArchiveMessage => $"尚未打开{ActiveScopeDisplayName}文件";
+    public string CloseArchiveLabel => _project is null
+        ? "关闭文件"
+        : $"关闭 {EscapeAccessKey(Path.GetFileName(_project.ArchivePath))}";
+    public string SaveDocumentLabel => SelectedDocument is null
+        ? "保存配置"
+        : $"保存「{EscapeAccessKey(SelectedDocument.DisplayName)}」";
+    public string SaveCurrentArchiveLabel => _project is null
+        ? "保存文件"
+        : $"保存 {EscapeAccessKey(Path.GetFileName(_project.ArchivePath))}";
     private ConfigScope ActiveScope => SelectedArchiveTabIndex == 0
         ? ConfigScope.Common
         : ConfigScope.Scenario;
@@ -413,12 +421,6 @@ public sealed class MainWindowViewModel : ObservableObject
         }
     }
 
-    public string ProjectTitle
-    {
-        get => _projectTitle;
-        private set => SetProperty(ref _projectTitle, value);
-    }
-
     public string StatusText
     {
         get => _statusText;
@@ -464,6 +466,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 OnPropertyChanged(nameof(SelectedDocumentSummary));
                 OnPropertyChanged(nameof(HasSelectedDocument));
                 OnPropertyChanged(nameof(HasNoSelectedDocument));
+                OnPropertyChanged(nameof(SaveDocumentLabel));
                 ((AsyncCommand)SaveDocumentCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)ImportJsonCommand).RaiseCanExecuteChanged();
                 ((AsyncCommand)ExportJsonCommand).RaiseCanExecuteChanged();
@@ -474,7 +477,7 @@ public sealed class MainWindowViewModel : ObservableObject
     public string SelectedDocumentTitle => SelectedDocument?.DisplayName ?? "欢迎使用 ZHSan 编辑器";
 
     public string SelectedDocumentSummary => SelectedDocument is null
-        ? $"打开{ActiveScopeDisplayName}档案后，从左侧选择一项配置开始查看和编辑。"
+        ? $"打开{ActiveScopeDisplayName}文件后，从左侧选择一项配置开始查看和编辑。"
         : $"{SelectedDocument.EntryName} · {SelectedDocument.ItemCount} 条记录";
 
     private async Task OpenArchiveAsync()
@@ -585,7 +588,7 @@ public sealed class MainWindowViewModel : ObservableObject
         await ReadImportSourceAsync(
             path,
             () => _configImportService.ReadArchiveAsync(path, _project),
-            "正在读取导入数据档案…");
+            "正在读取导入数据文件…");
     }
 
     private async Task ExportJsonAsync()
@@ -804,7 +807,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 result.DestinationPath,
                 Path.GetFileName(result.DestinationPath),
                 result.Warnings.Count > 0 ? "成功（有提示）" : "成功",
-                $"已转换 {result.ConfigCount} 项配置、{result.EntryCount} 个档案条目、{result.ItemCount} 条记录" +
+                $"已转换 {result.ConfigCount} 项配置、{result.EntryCount} 个数据条目、{result.ItemCount} 条记录" +
                 (result.Warnings.Count > 0 ? Environment.NewLine + warningText : string.Empty),
                 "CommonData 转换",
                 ConfigScope.Common);
@@ -871,7 +874,7 @@ public sealed class MainWindowViewModel : ObservableObject
         catch (ArchiveConflictException exception)
         {
             ShowExternalChange(exception.ArchivePath);
-            StatusText = "发布已阻止：工作档案发生外部变更";
+            StatusText = "发布已阻止：工作文件发生外部变更";
             AddTransferLog(path, "游戏配置包", "失败", exception.Message, "发布");
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -914,7 +917,7 @@ public sealed class MainWindowViewModel : ObservableObject
             var message = exception.Message;
             ErrorMessage = message;
             StatusText = "读取导入源失败";
-            AddTransferLog(path, SelectedDocument?.DisplayName ?? "数据档案", "失败", message);
+            AddTransferLog(path, SelectedDocument?.DisplayName ?? "数据文件", "失败", message);
         }
         finally
         {
@@ -998,7 +1001,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 $"新增 {item.Difference.AddedCount}，修改 {appliedModifiedCount}，删除 {appliedDeletedCount}；{GetStrategyName(item.Strategy)}");
         }
 
-        StatusText = $"已导入 {appliedCount} 项配置；更改尚未保存，可撤销或保存后写入档案";
+        StatusText = $"已导入 {appliedCount} 项配置；更改尚未保存，可撤销或保存后写入文件";
         ClearImportPreview();
         SelectedDetailsTabIndex = 6;
     }
@@ -1094,7 +1097,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
         IsBusy = true;
         ErrorMessage = null;
-        StatusText = "正在加载数据档案…";
+        StatusText = "正在加载数据文件…";
 
         try
         {
@@ -1119,7 +1122,6 @@ public sealed class MainWindowViewModel : ObservableObject
             RefreshExternalChangeMessage();
 
             AddRecentProject(project.ArchivePath, scope);
-            ProjectTitle = Path.GetFileName(project.ArchivePath);
             var documents = GetSlotDocuments(scope);
             StatusText = $"已加载 {documents.Count} 项配置，共 {documents.Sum(x => x.ItemCount)} 条记录";
             ClearGlobalSearch();
@@ -1253,7 +1255,7 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         IsBusy = true;
         ErrorMessage = null;
-        StatusText = "正在保存全部档案…";
+        StatusText = "正在保存全部文件…";
         try
         {
             var result = await _saveWorkspaceService.SaveAllAsync(_workspaceService.Workspace);
@@ -1282,13 +1284,13 @@ public sealed class MainWindowViewModel : ObservableObject
             RefreshExternalChangeMessage();
             if (result.Failures.Count == 0)
             {
-                StatusText = $"全部保存完成：{result.Successes.Count} 个档案";
+                StatusText = $"全部保存完成：{result.Successes.Count} 个文件";
             }
             else
             {
                 ErrorMessage = string.Join("；", result.Failures.Select(failure =>
                     $"{GetScopeDisplayName(failure.Scope)} {Path.GetFileName(failure.Project.ArchivePath)}：{failure.Message}"));
-                StatusText = $"保存完成：成功 {result.Successes.Count} 个，失败 {result.Failures.Count} 个档案";
+                StatusText = $"保存完成：成功 {result.Successes.Count} 个，失败 {result.Failures.Count} 个文件";
             }
 
             RefreshProjectState();
@@ -1297,7 +1299,7 @@ public sealed class MainWindowViewModel : ObservableObject
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             ErrorMessage = exception.GetBaseException().Message;
-            StatusText = "保存全部档案失败";
+            StatusText = "全部保存失败";
             return false;
         }
         finally
@@ -1422,7 +1424,7 @@ public sealed class MainWindowViewModel : ObservableObject
         ClearValidationResults();
         ClearImportPreview();
         StatusText = _project is null
-            ? $"{ActiveScopeDisplayName} 档案尚未打开"
+            ? $"{ActiveScopeDisplayName} 文件尚未打开"
             : $"已切换到 {ActiveScopeDisplayName}：{Path.GetFileName(_project.ArchivePath)}";
         NotifyProjectChanged();
         RefreshProjectState();
@@ -1476,8 +1478,7 @@ public sealed class MainWindowViewModel : ObservableObject
             return displayName;
         }
 
-        var dirtyMarker = slot.HasUnsavedChanges ? " ●" : string.Empty;
-        return $"{displayName} · {Path.GetFileName(slot.ArchivePath)}{dirtyMarker}";
+        return slot.HasUnsavedChanges ? $"{displayName} ●" : displayName;
     }
 
     public async Task<bool> TryCloseProjectAsync()
@@ -1587,7 +1588,6 @@ public sealed class MainWindowViewModel : ObservableObject
         ClearGlobalSearch();
         ClearValidationResults();
         ClearImportPreview();
-        ProjectTitle = "尚未打开数据档案";
         StatusText = "项目已关闭";
         _recordClipboard.Clear();
         NotifyProjectChanged();
@@ -1676,10 +1676,6 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private void RefreshProjectState()
     {
-        var dirtyCount = _project?.Documents.Count(document => document.IsDirty) ?? 0;
-        ProjectTitle = _project is null
-            ? "\u5c1a\u672a\u6253\u5f00\u6570\u636e\u6863\u6848"
-            : $"{Path.GetFileName(_project.ArchivePath)}{(dirtyCount > 0 ? $" \u00b7 {dirtyCount} \u9879\u672a\u4fdd\u5b58" : string.Empty)}";
         ((AsyncCommand)SaveDocumentCommand).RaiseCanExecuteChanged();
         ((AsyncCommand)SaveCurrentArchiveCommand).RaiseCanExecuteChanged();
         ((AsyncCommand)SaveAllCommand).RaiseCanExecuteChanged();
@@ -1688,7 +1684,12 @@ public sealed class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedDocumentSummary));
         OnPropertyChanged(nameof(CommonTabHeader));
         OnPropertyChanged(nameof(ScenarioTabHeader));
+        OnPropertyChanged(nameof(CloseArchiveLabel));
+        OnPropertyChanged(nameof(SaveCurrentArchiveLabel));
     }
+
+    // 菜单标题中的 "_" 会被当作访问键，文件名需要转义后才能原样显示。
+    private static string EscapeAccessKey(string text) => text.Replace("_", "__", StringComparison.Ordinal);
 
     private void SelectDocument(ConfigDocumentViewModel? document)
     {
@@ -2107,7 +2108,7 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         RefreshExternalChangeMessage();
-        StatusText = "检测到数据档案的外部变更";
+        StatusText = "检测到数据文件的外部变更";
     }
 
     private void RefreshExternalChangeMessage()
@@ -2121,7 +2122,7 @@ public sealed class MainWindowViewModel : ObservableObject
             .ToArray();
         ExternalChangeMessage = changedArchives.Length == 0
             ? null
-            : $"{string.Join("、", changedArchives)} 已被外部程序修改。为避免覆盖，保存到原档案将被阻止；可先另存为保留当前编辑，再重新打开外部版本。";
+            : $"{string.Join("、", changedArchives)} 已被外部程序修改。为避免覆盖，保存到原文件将被阻止；可先另存为保留当前编辑，再重新打开外部版本。";
     }
 
     private IReadOnlyList<ConfigDocumentViewModel> GetSlotDocuments(ConfigScope scope) =>

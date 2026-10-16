@@ -108,7 +108,7 @@ public sealed class ScenarioArchiveCompatibilityTests
         var sample = Environment.GetEnvironmentVariable("ZHSAN_SCENARIO_SAMPLE");
         if (string.IsNullOrWhiteSpace(sample)) return;
 
-        Assert.True(File.Exists(sample), $"找不到样例档案：{sample}");
+        Assert.True(File.Exists(sample), $"找不到样例文件：{sample}");
         var directory = Directory.CreateTempSubdirectory("zhsan-real-scenario-").FullName;
         var source = Path.Combine(directory, "190FDLM.dat");
         var copy = Path.Combine(directory, "190FDLM-edited.dat");

@@ -219,7 +219,7 @@ public sealed class EditorWorkspaceServiceTests
             LoadedScopes.Add(scope);
             if (scope == FailScope)
             {
-                throw new InvalidDataException("模拟档案加载失败");
+                throw new InvalidDataException("模拟文件加载失败");
             }
 
             if (Exception is not null)

@@ -163,7 +163,7 @@ public sealed class GameDataArchiveRepositoryTests
         var exception = await Assert.ThrowsAsync<ArgumentException>(
             () => new GameDataArchiveRepository().LoadAsync("not-created.dat", definitions));
 
-        Assert.Contains("不能在同一档案项目中混用", exception.Message);
+        Assert.Contains("不能在同一文件项目中混用", exception.Message);
     }
 
     [Fact]
@@ -655,7 +655,7 @@ public sealed class GameDataArchiveRepositoryTests
             {
                 archive.Save("Techniques.json", new List<TechniqueConfig>
                 {
-                    new() { Id = 1, Name = "工作档案" }
+                    new() { Id = 1, Name = "工作文件" }
                 });
             }
             using (var zip = ZipFile.Open(sourcePath, ZipArchiveMode.Update))
@@ -679,7 +679,7 @@ public sealed class GameDataArchiveRepositoryTests
             using (var source = GameDataArchive.Open(sourcePath))
             using (var published = GameDataArchive.Open(publishPath))
             {
-                Assert.Equal("工作档案", source.Load<List<TechniqueConfig>>("Techniques.json")![0].Name);
+                Assert.Equal("工作文件", source.Load<List<TechniqueConfig>>("Techniques.json")![0].Name);
                 Assert.Equal("正式发布", published.Load<List<TechniqueConfig>>("Techniques.json")![0].Name);
             }
 
@@ -719,7 +719,7 @@ public sealed class GameDataArchiveRepositoryTests
             var exception = await Assert.ThrowsAsync<ArgumentException>(
                 () => repository.PublishAsync(project, sourcePath));
 
-            Assert.Contains("不能与当前工作档案相同", exception.Message);
+            Assert.Contains("不能与当前工作文件相同", exception.Message);
             using var source = GameDataArchive.Open(sourcePath);
             Assert.Equal("原始内容", source.Load<List<TechniqueConfig>>("Techniques.json")![0].Name);
         }

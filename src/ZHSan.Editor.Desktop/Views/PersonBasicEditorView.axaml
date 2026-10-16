@@ -142,7 +142,7 @@
         <TabItem Header="基本">
           <ScrollViewer>
         <StackPanel Margin="16" Spacing="13">
-          <TextBlock Text="选择左侧人物，编辑基本属性。修改会进入撤销记录，使用主窗口的保存按钮写入档案。"
+          <TextBlock Text="选择左侧人物，编辑基本属性。修改会进入撤销记录，使用主窗口的保存按钮写入文件。"
                      TextWrapping="Wrap" Opacity="0.6" FontSize="12" />
           <TextBlock Text="当前没有人物记录。" IsVisible="{Binding !HasSelection}" />
           <Grid ColumnDefinitions="Auto,*" ColumnSpacing="13" IsVisible="{Binding HasSelection}">
