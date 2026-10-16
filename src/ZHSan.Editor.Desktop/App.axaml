@@ -21,6 +21,12 @@
     <DataTemplate DataType="editors:DiplomacyEditorViewModel">
       <views:DiplomacyEditorView />
     </DataTemplate>
+    <DataTemplate DataType="editors:RegionEditorViewModel">
+      <views:RegionEditorView />
+    </DataTemplate>
+    <DataTemplate DataType="editors:StateEditorViewModel">
+      <views:StateEditorView />
+    </DataTemplate>
     <DataTemplate DataType="editors:FacilityKindLevelEditorViewModel">
       <views:FacilityKindLevelEditorView />
     </DataTemplate>

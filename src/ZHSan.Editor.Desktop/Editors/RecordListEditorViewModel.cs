@@ -103,7 +103,7 @@ public abstract class RecordListEditorViewModel<TConfig> : ObservableObject, IId
         ? typeof(TConfig).GetProperty(propertyName)!.GetValue(config)
         : null;
 
-    public void SetValue(string propertyName, object value, string description)
+    public virtual void SetValue(string propertyName, object value, string description)
     {
         if (SelectedRecord is not { } selected) return;
         Context.SetPropertyValue(selected.Record, propertyName, value, description);
