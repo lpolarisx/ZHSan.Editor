@@ -64,6 +64,8 @@ public static class IntegerInput
         if (e.Key == Key.Enter && sender is NumericUpDown box)
         {
             Revert(box);
+            // Boxes bound with UpdateSourceTrigger=LostFocus also commit on Enter.
+            BindingOperations.GetBindingExpressionBase(box, NumericUpDown.ValueProperty)?.UpdateSource();
         }
     }
 

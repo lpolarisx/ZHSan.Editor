@@ -1,0 +1,103 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:editors="using:ZHSan.Editor.Desktop.Editors"
+             xmlns:views="using:ZHSan.Editor.Desktop.Views"
+             x:Class="ZHSan.Editor.Desktop.Views.DiplomacyEditorView"
+             x:DataType="editors:DiplomacyEditorViewModel">
+  <UserControl.Styles>
+    <Style Selector="NumericUpDown.compact">
+      <Setter Property="ShowButtonSpinner" Value="False" />
+      <Setter Property="Increment" Value="1" />
+      <Setter Property="HorizontalContentAlignment" Value="Right" />
+      <Setter Property="views:IntegerInput.IsEnabled" Value="True" />
+    </Style>
+    <Style Selector="NumericUpDown.invalid-input">
+      <Setter Property="BorderBrush" Value="#E5534B" />
+      <Setter Property="ToolTip.Tip" Value="只能输入整数，离开输入框后会恢复原值" />
+    </Style>
+    <Style Selector="TextBlock.column-header">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Opacity" Value="0.65" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.state">
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="8,2" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Background" Value="#30343D" />
+    </Style>
+    <Style Selector="Border.state.alliance">
+      <Setter Property="Background" Value="#1769AA" />
+    </Style>
+    <Style Selector="Border.state.hostile">
+      <Setter Property="Background" Value="#9E2F2A" />
+    </Style>
+    <Style Selector="Border.state.missing">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Opacity" Value="0.55" />
+    </Style>
+    <Style Selector="Border.state.duplicated">
+      <Setter Property="Background" Value="#8A6D1F" />
+    </Style>
+  </UserControl.Styles>
+  <Grid ColumnDefinitions="220,1,*" Background="#08000000">
+    <Grid RowDefinitions="Auto,Auto,*" Margin="10">
+      <TextBlock Text="势力" FontSize="18" FontWeight="SemiBold" Margin="5,4,0,8" />
+      <TextBox Grid.Row="1" Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+               PlaceholderText="搜索名称或 ID" Margin="0,0,0,6" />
+      <ListBox Grid.Row="2" ItemsSource="{Binding FilteredFactions}"
+               SelectedItem="{Binding SelectedFaction, Mode=TwoWay}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="editors:DiplomacyFactionViewModel">
+            <TextBlock Text="{Binding Label}" Margin="5,4" TextTrimming="CharacterEllipsis" />
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Grid>
+    <Border Grid.Column="1" Background="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    <Grid Grid.Column="2" RowDefinitions="Auto,Auto,Auto,*">
+      <Border Padding="17,11" BorderThickness="0,0,0,1"
+              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="{Binding SelectedTitle}" FontSize="20" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding SelectedId}" Opacity="0.58" VerticalAlignment="Center" />
+          </StackPanel>
+          <TextBlock Grid.Column="1" Text="{Binding CountText}" Opacity="0.58" VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+      <StackPanel Grid.Row="1" Margin="16,12,16,6" Spacing="8">
+        <TextBlock Text="{Binding Hint}" TextWrapping="Wrap" Opacity="0.6" FontSize="12" />
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="{Binding RowStatus}" FontSize="12" Opacity="0.75" VerticalAlignment="Center" />
+          <CheckBox Grid.Column="1" Content="隐藏中立势力" IsChecked="{Binding HideNeutral, Mode=TwoWay}" />
+        </Grid>
+      </StackPanel>
+      <Grid Grid.Row="2" ColumnDefinitions="220,120,100,120" ColumnSpacing="12" Margin="28,4,16,4"
+            IsVisible="{Binding HasSelection}">
+        <TextBlock Text="对方势力" Classes="column-header" />
+        <TextBlock Grid.Column="1" Text="关系值" Classes="column-header" />
+        <TextBlock Grid.Column="2" Text="状态" Classes="column-header" />
+        <TextBlock Grid.Column="3" Text="停战天数" Classes="column-header" />
+      </Grid>
+      <ListBox Grid.Row="3" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+               Margin="16,0,16,16" Background="Transparent" IsEnabled="{Binding CanEdit}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="editors:DiplomacyRelationRowViewModel">
+            <Grid ColumnDefinitions="220,120,100,120" ColumnSpacing="12">
+              <TextBlock Text="{Binding OtherLabel}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+              <NumericUpDown Grid.Column="1" Value="{Binding RelationValue, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="compact" />
+              <Border Grid.Column="2" Classes="state" Classes.alliance="{Binding IsAlliance}"
+                      Classes.hostile="{Binding IsHostile}" Classes.missing="{Binding !HasRecord}"
+                      Classes.duplicated="{Binding IsDuplicated}">
+                <TextBlock Text="{Binding State}" FontSize="12" />
+              </Border>
+              <NumericUpDown Grid.Column="3" Value="{Binding TruceValue, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="compact" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Grid>
+  </Grid>
+</UserControl>

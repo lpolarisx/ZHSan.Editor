@@ -33,6 +33,18 @@ internal static class GameDataStructuredStringMetadata
                 new(ConfigStructuredStringKind.ReferenceIds, "states", ConfigScope.Scenario),
             [(typeof(StateConfig), nameof(StateConfig.ContactStatesString))] =
                 new(ConfigStructuredStringKind.ReferenceIds, "states", ConfigScope.Scenario),
+            [(typeof(FactionConfig), nameof(FactionConfig.ArchitecturesString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "architectures", ConfigScope.Scenario),
+            [(typeof(FactionConfig), nameof(FactionConfig.SectionsString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "sections", ConfigScope.Scenario),
+            [(typeof(FactionConfig), nameof(FactionConfig.MilitariesString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "militaries", ConfigScope.Scenario),
+            [(typeof(FactionConfig), nameof(FactionConfig.TroopListString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "troops", ConfigScope.Scenario),
+            [(typeof(FactionConfig), nameof(FactionConfig.BaseMilitaryKindsString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "military-kinds"),
+            [(typeof(FactionConfig), nameof(FactionConfig.AvailableTechniquesString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "techniques"),
             [(typeof(PersonFamilyConfig), nameof(PersonFamilyConfig.BrotherIdsString))] =
                 new(ConfigStructuredStringKind.ReferenceIds, "persons", ConfigScope.Scenario),
             [(typeof(PersonFamilyConfig), nameof(PersonFamilyConfig.CloseIdsString))] =

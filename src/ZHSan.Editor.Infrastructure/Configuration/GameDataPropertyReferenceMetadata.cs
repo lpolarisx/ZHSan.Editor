@@ -68,6 +68,12 @@ internal static class GameDataPropertyReferenceMetadata
                 new("techniques", emptyValue: -1),
             [(typeof(FactionConfig), nameof(FactionConfig.ColorIndex))] =
                 new("colors"),
+            [(typeof(FactionConfig), nameof(FactionConfig.PrinceID))] =
+                new("persons", emptyValue: -1, targetScope: ConfigScope.Scenario),
+            [(typeof(FactionConfig), nameof(FactionConfig.PlanTechniqueString))] =
+                new("techniques", emptyValue: -1),
+            [(typeof(FactionConfig), nameof(FactionConfig.OfficialRank))] =
+                new("official-title-kinds"),
             [(typeof(MilitaryConfig), nameof(MilitaryConfig.KindId))] =
                 new("military-kinds"),
             [(typeof(MilitaryConfig), nameof(MilitaryConfig.LeaderID))] =

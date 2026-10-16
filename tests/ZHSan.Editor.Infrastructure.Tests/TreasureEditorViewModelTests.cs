@@ -41,8 +41,8 @@ public sealed class TreasureEditorViewModelTests
         Assert.Equal(30, worth.NumericValue);
 
         editor.SearchText = "铜";
-        Assert.Single(editor.FilteredTreasures);
-        editor.SelectedTreasure = editor.FilteredTreasures[0];
+        Assert.Single(editor.FilteredRecords);
+        editor.SelectedRecord = editor.FilteredRecords[0];
         Assert.Same(document.Records[1], document.SelectedRecord);
         Assert.Equal(60, worth.NumericValue);
     }

@@ -90,10 +90,10 @@
       <TextBlock Text="宝物" FontSize="18" FontWeight="SemiBold" Margin="5,4,0,8" />
       <TextBox Grid.Row="1" Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                PlaceholderText="搜索名称或 ID" Margin="0,0,0,6" />
-      <ListBox Grid.Row="2" ItemsSource="{Binding FilteredTreasures}"
-               SelectedItem="{Binding SelectedTreasure, Mode=TwoWay}">
+      <ListBox Grid.Row="2" ItemsSource="{Binding FilteredRecords}"
+               SelectedItem="{Binding SelectedRecord, Mode=TwoWay}">
         <ListBox.ItemTemplate>
-          <DataTemplate x:DataType="editors:TreasureOptionViewModel">
+          <DataTemplate x:DataType="editors:RecordOptionViewModel">
             <TextBlock Text="{Binding Label}" Margin="5,4" TextTrimming="CharacterEllipsis" />
           </DataTemplate>
         </ListBox.ItemTemplate>

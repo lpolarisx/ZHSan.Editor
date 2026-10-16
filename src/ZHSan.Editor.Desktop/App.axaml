@@ -15,6 +15,12 @@
     <DataTemplate DataType="editors:TreasureEditorViewModel">
       <views:TreasureEditorView />
     </DataTemplate>
+    <DataTemplate DataType="editors:FactionEditorViewModel">
+      <views:FactionEditorView />
+    </DataTemplate>
+    <DataTemplate DataType="editors:DiplomacyEditorViewModel">
+      <views:DiplomacyEditorView />
+    </DataTemplate>
     <DataTemplate DataType="editors:FacilityKindLevelEditorViewModel">
       <views:FacilityKindLevelEditorView />
     </DataTemplate>
