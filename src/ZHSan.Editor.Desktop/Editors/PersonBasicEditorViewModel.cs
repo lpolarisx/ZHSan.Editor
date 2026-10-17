@@ -1061,11 +1061,12 @@ public sealed class PersonTitleSlotViewModel(
     }
 }
 
-public sealed class PersonIdChipViewModel(int id, string label, ICommand removeCommand)
+public sealed class PersonIdChipViewModel(int id, string label, ICommand removeCommand, bool canRemove = true)
 {
     public int Id { get; } = id;
     public string Label { get; } = label;
     public ICommand RemoveCommand { get; } = removeCommand;
+    public bool CanRemove { get; } = canRemove;
 }
 
 /// <summary>The editor whose selected record holds the ID lists edited by <see cref="PersonIdChipListViewModel"/>.</summary>
@@ -1100,6 +1101,8 @@ public sealed class PersonIdChipListViewModel : ObservableObject
     // What the list means in the game, shown under the list by editors that explain their lists.
     public string? Hint { get; init; }
     public bool HasHint => !string.IsNullOrEmpty(Hint);
+    // Listed only: no add box and no remove buttons.
+    public bool IsReadOnly { get; init; }
     public string Placeholder => $"搜索要添加的{Label}（名称或 ID）";
 
     // Text typed into a searchable candidate box; cleared once the candidate is added.
@@ -1116,7 +1119,7 @@ public sealed class PersonIdChipListViewModel : ObservableObject
     public string Status => ParseCurrent() is { IsValid: false } parsed
         ? $"ID 列表格式有误：{string.Join("；", parsed.Errors)} 请先在通用编辑器中修正。"
         : "";
-    private bool CanAdd => CanEdit && Candidate is not null && !ParseCurrent()!.Items.Contains(Candidate.Id);
+    private bool CanAdd => !IsReadOnly && CanEdit && Candidate is not null && !ParseCurrent()!.Items.Contains(Candidate.Id);
 
     public PersonChoiceOption? Candidate
     {
@@ -1139,7 +1142,7 @@ public sealed class PersonIdChipListViewModel : ObservableObject
 
     private void Remove(int id)
     {
-        if (!CanEdit) return;
+        if (IsReadOnly || !CanEdit) return;
         _owner.SetValue(_propertyName,
             ConfigStructuredStringCodec.FormatIds(ParseCurrent()!.Items.Where(value => value != id)), $"移除{Label}");
     }
@@ -1154,7 +1157,7 @@ public sealed class PersonIdChipListViewModel : ObservableObject
         if (ParseCurrent() is { IsValid: true } parsed)
             foreach (var id in parsed.Items)
                 Items.Add(new PersonIdChipViewModel(id, _owner.GetChipLabel(_targetKey, id),
-                    new RelayCommand(() => Remove(id), () => CanEdit)));
+                    new RelayCommand(() => Remove(id), () => !IsReadOnly && CanEdit), !IsReadOnly));
         OnPropertyChanged(nameof(IsEmpty));
         if (candidatesChanged) OnPropertyChanged(nameof(Candidates));
         OnPropertyChanged(nameof(CanEdit));

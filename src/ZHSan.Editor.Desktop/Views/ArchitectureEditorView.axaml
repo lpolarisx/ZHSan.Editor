@@ -107,14 +107,15 @@
                 <Border Classes="chip" Margin="0,0,6,6">
                   <StackPanel Orientation="Horizontal" Spacing="4">
                     <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
-                    <Button Classes="chip-remove" Content="×" Command="{Binding RemoveCommand}" ToolTip.Tip="移除" />
+                    <Button Classes="chip-remove" Content="×" Command="{Binding RemoveCommand}" ToolTip.Tip="移除"
+                            IsVisible="{Binding CanRemove}" />
                   </StackPanel>
                 </Border>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
           <TextBlock Text="（空）" Opacity="0.5" FontSize="12" IsVisible="{Binding IsEmpty}" />
-          <StackPanel Orientation="Horizontal" Spacing="6">
+          <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding !IsReadOnly}">
             <AutoCompleteBox ItemsSource="{Binding Candidates}" SelectedItem="{Binding Candidate, Mode=TwoWay}"
                              Text="{Binding CandidateText, Mode=TwoWay}" FilterMode="Contains" MinimumPrefixLength="1" MaxDropDownHeight="320"
                              Watermark="{Binding Placeholder}" IsEnabled="{Binding CanEdit}" Width="320" />

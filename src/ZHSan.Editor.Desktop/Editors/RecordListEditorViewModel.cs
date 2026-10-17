@@ -77,8 +77,8 @@ public abstract class RecordListEditorViewModel<TConfig> : ObservableObject, IId
     protected virtual Func<IReadOnlyList<PersonChoiceOption>>? GetChoiceProvider(string propertyName) => null;
 
     protected PersonIdChipListViewModel ChipList(string label, string propertyName, string targetKey,
-        string? hint = null) =>
-        new(label, propertyName, targetKey, this) { Hint = hint };
+        string? hint = null, bool readOnly = false) =>
+        new(label, propertyName, targetKey, this) { Hint = hint, IsReadOnly = readOnly };
 
     // Scenario tables (architectures, persons, …) are looked up in the scenario first, then in CommonData.
     protected IReadOnlyList<ConfigReferenceTarget> Targets(string key)

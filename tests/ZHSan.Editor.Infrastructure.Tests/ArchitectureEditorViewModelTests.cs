@@ -75,6 +75,7 @@ public sealed class ArchitectureEditorViewModelTests
         Assert.Equal(["名称", "类型", "所属州", "太守", "名牌图", "原势力名", "战略要地", "皇帝所在"],
             editor.BasicGroup.Fields.Select(field => field.Label));
         Assert.Equal("0 司隶", editor.BasicGroup.Fields.Single(field => field.Label == "所属州").SelectedChoice?.Label);
+        Assert.Equal([false, false, true, true], editor.FeatureLists.Select(list => list.IsReadOnly));
         Assert.Equal("1 曹操", editor.FactionText);
         Assert.Equal("0 中原", editor.RegionText);
         Assert.True(editor.BasicGroup.IsWarning);
