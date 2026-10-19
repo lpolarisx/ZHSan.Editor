@@ -68,7 +68,13 @@ public sealed class GameDataConfigRegistry : IConfigRegistry
         Add<EventConfig>(definitions, "events", "事件", "事件与情报", "Events.json", ConfigScope.Scenario);
         Add<FacilityConfig>(definitions, "facilities", "设施", "世界与地图", "Facilities.json", ConfigScope.Scenario);
         Add<FactionConfig>(definitions, "factions", "势力", "势力与组织", "Factions.json", ConfigScope.Scenario);
-        Add<LegionConfig>(definitions, "legions", "军团", "势力与组织", "Legions.json", ConfigScope.Scenario);
+        // The game's 军团 (Legion) groups troops on a campaign and is built and disbanded at run time, so it is kept
+        // as loaded but not listed. The game's 军势 (Section) is what players call 军团 and is listed as such.
+        definitions.Add(new ConfigDefinition("legions", "出征部队组", "势力与组织", "Legions.json",
+            typeof(LegionConfig), ConfigScope.Scenario)
+        {
+            ShowInNavigation = false
+        });
         Add<MilitaryConfig>(definitions, "militaries", "军事单位", "军事", "Militaries.json", ConfigScope.Scenario);
         Add<PersonRelationConfig>(definitions, "person-relations", "人物关系", "人物", "PersonRelations.json", ConfigScope.Scenario);
         Add<PersonConfig>(definitions, "persons", "人物", "人物", "Persons.json", ConfigScope.Scenario);
@@ -79,7 +85,7 @@ public sealed class GameDataConfigRegistry : IConfigRegistry
             ShowInNavigation = false,
             NavigationTargetKey = "persons"
         });
-        Add<SectionConfig>(definitions, "sections", "军势", "势力与组织", "Sections.json", ConfigScope.Scenario);
+        Add<SectionConfig>(definitions, "sections", "军团", "势力与组织", "Sections.json", ConfigScope.Scenario);
         Add<TreasureConfig>(definitions, "treasures", "宝物", "宝物", "Treasures.json", ConfigScope.Scenario);
         Add<TroopEventConfig>(definitions, "troop-events", "部队事件", "事件与情报", "TroopEvents.json", ConfigScope.Scenario);
         Add<TroopConfig>(definitions, "troops", "部队", "军事", "Troops.json", ConfigScope.Scenario);

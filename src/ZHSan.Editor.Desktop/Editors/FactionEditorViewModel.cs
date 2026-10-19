@@ -35,7 +35,7 @@ public sealed class FactionEditorViewModel : RecordListEditorViewModel<FactionCo
         ChipLists =
         [
             ChipList("领有建筑", nameof(FactionConfig.ArchitecturesString), "architectures"),
-            ChipList("军势", nameof(FactionConfig.SectionsString), "sections"),
+            ChipList("军团", nameof(FactionConfig.SectionsString), "sections"),
             ChipList("编队", nameof(FactionConfig.MilitariesString), "militaries"),
             ChipList("基本兵种", nameof(FactionConfig.BaseMilitaryKindsString), "military-kinds")
         ];

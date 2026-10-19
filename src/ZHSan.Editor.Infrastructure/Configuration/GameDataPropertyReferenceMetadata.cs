@@ -94,6 +94,8 @@ internal static class GameDataPropertyReferenceMetadata
                 new("architectures", emptyValue: -1, targetScope: ConfigScope.Scenario),
             [(typeof(StateConfig), nameof(StateConfig.StateAdminID))] =
                 new("architectures", emptyValue: -1, targetScope: ConfigScope.Scenario),
+            [(typeof(SectionConfig), nameof(SectionConfig.AIDetailIDString))] =
+                new("section-ai-details"),
             [(typeof(SectionConfig), nameof(SectionConfig.OrientationFactionID))] =
                 new("factions", emptyValue: -1, targetScope: ConfigScope.Scenario),
             [(typeof(SectionConfig), nameof(SectionConfig.OrientationSectionID))] =

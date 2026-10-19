@@ -71,6 +71,7 @@ public sealed partial class App : Avalonia.Application
             services.AddSingleton<IConfigEditorProvider, RegionEditorProvider>();
             services.AddSingleton<IConfigEditorProvider, StateEditorProvider>();
             services.AddSingleton<IConfigEditorProvider, ArchitectureEditorProvider>();
+            services.AddSingleton<IConfigEditorProvider, SectionEditorProvider>();
             services.AddSingleton<IConfigEditorProvider, EventEditorProvider>();
             services.AddSingleton<IConfigEditorProvider, TroopEventEditorProvider>();
             services.AddSingleton<ConfigEditorProviderRegistry>();
