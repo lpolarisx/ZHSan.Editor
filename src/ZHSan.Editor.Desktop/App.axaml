@@ -30,6 +30,12 @@
     <DataTemplate DataType="editors:ArchitectureEditorViewModel">
       <views:ArchitectureEditorView />
     </DataTemplate>
+    <DataTemplate DataType="editors:EventEditorViewModel">
+      <views:EventEditorView />
+    </DataTemplate>
+    <DataTemplate DataType="editors:TroopEventEditorViewModel">
+      <views:TroopEventEditorView />
+    </DataTemplate>
     <DataTemplate DataType="editors:FacilityKindLevelEditorViewModel">
       <views:FacilityKindLevelEditorView />
     </DataTemplate>

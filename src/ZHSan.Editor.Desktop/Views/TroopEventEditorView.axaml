@@ -1,0 +1,290 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:editors="using:ZHSan.Editor.Desktop.Editors"
+             xmlns:views="using:ZHSan.Editor.Desktop.Views"
+             x:Class="ZHSan.Editor.Desktop.Views.TroopEventEditorView"
+             x:DataType="editors:TroopEventEditorViewModel">
+  <UserControl.Styles>
+    <Style Selector="NumericUpDown.compact">
+      <Setter Property="ShowButtonSpinner" Value="False" />
+      <Setter Property="Increment" Value="1" />
+      <Setter Property="HorizontalContentAlignment" Value="Right" />
+      <Setter Property="views:IntegerInput.IsEnabled" Value="True" />
+    </Style>
+    <Style Selector="NumericUpDown.invalid-input">
+      <Setter Property="BorderBrush" Value="#E5534B" />
+      <Setter Property="ToolTip.Tip" Value="只能输入整数，离开输入框后会恢复原值" />
+    </Style>
+    <!-- Same grid as the person editor: 268px cells, 64px right-aligned label, 8px gap, 180px input. -->
+    <Style Selector="TextBlock.field-label">
+      <Setter Property="Width" Value="64" />
+      <Setter Property="TextAlignment" Value="Right" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Opacity" Value="0.75" />
+    </Style>
+    <Style Selector="TextBlock.warning">
+      <Setter Property="Foreground" Value="#E5534B" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Border.card">
+      <Setter Property="Padding" Value="14" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    </Style>
+    <Style Selector="Border.chip">
+      <Setter Property="Background" Value="#30343D" />
+      <Setter Property="BorderBrush" Value="#59606C" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="8,2,2,2" />
+    </Style>
+    <Style Selector="Button.chip-remove">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="6,0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Height" Value="24" />
+    </Style>
+  </UserControl.Styles>
+  <UserControl.DataTemplates>
+    <DataTemplate x:DataType="editors:PersonFieldGroupViewModel">
+      <Border Classes="card">
+        <StackPanel Spacing="10">
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding Note}" IsVisible="{Binding HasNote}" FontSize="12" Opacity="0.65"
+                       VerticalAlignment="Center" Classes.warning="{Binding IsWarning}" TextWrapping="Wrap" />
+          </StackPanel>
+          <ItemsControl ItemsSource="{Binding Fields}" Margin="0,0,0,-10">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel ItemWidth="268" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="editors:PersonBasicFieldViewModel">
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,10" Spacing="8">
+                  <TextBlock Text="{Binding Label}" Classes="field-label" />
+                  <Panel Width="{Binding InputWidth}">
+                    <TextBox Text="{Binding TextValue, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             IsVisible="{Binding IsText}" />
+                    <NumericUpDown Value="{Binding NumericValue, Mode=TwoWay}"
+                                   Classes="compact" IsVisible="{Binding IsNumber}" />
+                    <ComboBox ItemsSource="{Binding ChoiceOptions}"
+                              SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
+                              IsVisible="{Binding IsChoice}" HorizontalAlignment="Stretch">
+                      <ComboBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <VirtualizingStackPanel />
+                        </ItemsPanelTemplate>
+                      </ComboBox.ItemsPanel>
+                    </ComboBox>
+                    <CheckBox IsChecked="{Binding BooleanValue, Mode=TwoWay}"
+                              IsVisible="{Binding IsBoolean}" />
+                  </Panel>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+    <DataTemplate x:DataType="editors:PersonIdChipListViewModel">
+      <Grid ColumnDefinitions="64,*" ColumnSpacing="8">
+        <TextBlock Text="{Binding Label}" Classes="field-label" VerticalAlignment="Top" Margin="0,6,0,0" />
+        <StackPanel Grid.Column="1" Spacing="6">
+          <TextBlock Text="{Binding Hint}" IsVisible="{Binding HasHint}" TextWrapping="Wrap"
+                     FontSize="12" Opacity="0.6" Margin="0,6,0,0" />
+          <ItemsControl ItemsSource="{Binding Items}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="editors:PersonIdChipViewModel">
+                <Border Classes="chip" Margin="0,0,6,6">
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                    <Button Classes="chip-remove" Content="×" Command="{Binding RemoveCommand}" ToolTip.Tip="移除"
+                            IsVisible="{Binding CanRemove}" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Text="（空）" Opacity="0.5" FontSize="12" IsVisible="{Binding IsEmpty}" />
+          <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding !IsReadOnly}">
+            <AutoCompleteBox ItemsSource="{Binding Candidates}" SelectedItem="{Binding Candidate, Mode=TwoWay}"
+                             Text="{Binding CandidateText, Mode=TwoWay}" FilterMode="Contains" MinimumPrefixLength="1" MaxDropDownHeight="320"
+                             PlaceholderText="{Binding Placeholder}" IsEnabled="{Binding CanEdit}" Width="320" />
+            <Button Content="添加" Command="{Binding AddCommand}" />
+          </StackPanel>
+          <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontSize="12" Foreground="#D9534F"
+                     IsVisible="{Binding !CanEdit}" />
+        </StackPanel>
+      </Grid>
+    </DataTemplate>
+    <DataTemplate x:DataType="editors:EventDialogListViewModel">
+      <StackPanel Spacing="8">
+        <TextBlock Text="{Binding Label}" FontSize="16" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding Hint}" TextWrapping="Wrap" FontSize="12" Opacity="0.6" />
+        <TextBlock Text="（无）" Opacity="0.5" FontSize="12" IsVisible="{Binding IsEmpty}" />
+        <ItemsControl ItemsSource="{Binding Lines}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="editors:EventDialogLineViewModel">
+              <Grid ColumnDefinitions="28,220,*,Auto" ColumnSpacing="6" Margin="0,0,0,6">
+                <TextBlock Text="{Binding Number}" VerticalAlignment="Center" Opacity="0.6" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding SpeakerOptions}"
+                          SelectedItem="{Binding Speaker, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                  <ComboBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                  </ComboBox.ItemsPanel>
+                </ComboBox>
+                <TextBox Grid.Column="2" Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                         TextWrapping="Wrap" />
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2">
+                  <Button Content="↑" Command="{Binding MoveUpCommand}" ToolTip.Tip="上移" />
+                  <Button Content="↓" Command="{Binding MoveDownCommand}" ToolTip.Tip="下移" />
+                  <Button Content="×" Command="{Binding RemoveCommand}" ToolTip.Tip="删除这句" />
+                </StackPanel>
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Grid ColumnDefinitions="28,220,*,Auto" ColumnSpacing="6" IsVisible="{Binding CanEdit}">
+          <TextBlock Text="新增" VerticalAlignment="Center" FontSize="12" Opacity="0.6" />
+          <ComboBox Grid.Column="1" ItemsSource="{Binding SpeakerOptions}" SelectedItem="{Binding NewSpeaker, Mode=TwoWay}"
+                    PlaceholderText="选择说话人" HorizontalAlignment="Stretch">
+            <ComboBox.ItemsPanel>
+              <ItemsPanelTemplate>
+                <VirtualizingStackPanel />
+              </ItemsPanelTemplate>
+            </ComboBox.ItemsPanel>
+          </ComboBox>
+          <TextBox Grid.Column="2" Text="{Binding NewText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                   PlaceholderText="输入台词" TextWrapping="Wrap" />
+          <Button Grid.Column="3" Content="添加" Command="{Binding AddCommand}" />
+        </Grid>
+        <TextBlock Text="{Binding Notice}" IsVisible="{Binding HasNotice}" TextWrapping="Wrap" FontSize="12"
+                   Foreground="#D99A2B" />
+        <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontSize="12" Foreground="#D9534F"
+                   IsVisible="{Binding !CanEdit}" />
+      </StackPanel>
+    </DataTemplate>
+    <DataTemplate x:DataType="editors:EventPairListViewModel">
+      <Grid ColumnDefinitions="64,*" ColumnSpacing="8">
+        <TextBlock Text="{Binding Label}" Classes="field-label" VerticalAlignment="Top" Margin="0,6,0,0"
+                   TextWrapping="Wrap" />
+        <StackPanel Grid.Column="1" Spacing="6">
+          <TextBlock Text="{Binding Hint}" TextWrapping="Wrap" FontSize="12" Opacity="0.6" Margin="0,6,0,0" />
+          <ItemsControl ItemsSource="{Binding Rows}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="editors:EventPairRowViewModel">
+                <Border Classes="chip" Margin="0,0,6,6">
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="{Binding First}" VerticalAlignment="Center" />
+                    <TextBlock Text="→" VerticalAlignment="Center" Opacity="0.6" />
+                    <TextBlock Text="{Binding Second}" VerticalAlignment="Center" />
+                    <Button Classes="chip-remove" Content="×" Command="{Binding RemoveCommand}" ToolTip.Tip="移除" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Text="（空）" Opacity="0.5" FontSize="12" IsVisible="{Binding IsEmpty}" />
+          <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding CanEdit}">
+            <ComboBox ItemsSource="{Binding FirstOptions}" SelectedItem="{Binding FirstCandidate, Mode=TwoWay}"
+                      PlaceholderText="{Binding FirstPlaceholder}" Width="200" IsVisible="{Binding !FirstSearchable}" />
+            <AutoCompleteBox ItemsSource="{Binding FirstOptions}" SelectedItem="{Binding FirstCandidate, Mode=TwoWay}"
+                             Text="{Binding FirstText, Mode=TwoWay}" FilterMode="Contains" MinimumPrefixLength="1"
+                             MaxDropDownHeight="320" PlaceholderText="{Binding FirstPlaceholder}" Width="240"
+                             IsVisible="{Binding FirstSearchable}" />
+            <TextBlock Text="→" VerticalAlignment="Center" Opacity="0.6" />
+            <ComboBox ItemsSource="{Binding SecondOptions}" SelectedItem="{Binding SecondCandidate, Mode=TwoWay}"
+                      PlaceholderText="{Binding SecondPlaceholder}" Width="200" IsVisible="{Binding !SecondSearchable}" />
+            <AutoCompleteBox ItemsSource="{Binding SecondOptions}" SelectedItem="{Binding SecondCandidate, Mode=TwoWay}"
+                             Text="{Binding SecondText, Mode=TwoWay}" FilterMode="Contains" MinimumPrefixLength="1"
+                             MaxDropDownHeight="320" PlaceholderText="{Binding SecondPlaceholder}" Width="240"
+                             IsVisible="{Binding SecondSearchable}" />
+            <Button Content="添加" Command="{Binding AddCommand}" />
+          </StackPanel>
+          <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontSize="12" Foreground="#D9534F"
+                     IsVisible="{Binding !CanEdit}" />
+        </StackPanel>
+      </Grid>
+    </DataTemplate>
+  </UserControl.DataTemplates>
+  <Grid ColumnDefinitions="220,1,*" Background="#08000000">
+    <Grid RowDefinitions="Auto,Auto,*" Margin="10">
+      <TextBlock Text="部队事件" FontSize="18" FontWeight="SemiBold" Margin="5,4,0,8" />
+      <TextBox Grid.Row="1" Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+               PlaceholderText="搜索名称或 ID" Margin="0,0,0,6" />
+      <ListBox Grid.Row="2" ItemsSource="{Binding FilteredRecords}"
+               SelectedItem="{Binding SelectedRecord, Mode=TwoWay}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="editors:RecordOptionViewModel">
+            <TextBlock Text="{Binding Label}" Margin="5,4" TextTrimming="CharacterEllipsis" />
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Grid>
+    <Border Grid.Column="1" Background="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    <Grid Grid.Column="2" RowDefinitions="Auto,*">
+      <Border Padding="17,11" BorderThickness="0,0,0,1"
+              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="{Binding SelectedTitle}" FontSize="20" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding SelectedId}" Opacity="0.58" VerticalAlignment="Center" />
+          </StackPanel>
+          <TextBlock Grid.Column="1" Text="{Binding CountText}" Opacity="0.58" VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+      <ScrollViewer Grid.Row="1">
+        <StackPanel Margin="16" Spacing="13">
+          <TextBlock Text="选择左侧部队事件，编辑部队在战斗中触发的事件。修改会进入撤销记录，使用主窗口的保存按钮写入文件。" TextWrapping="Wrap" Opacity="0.6" FontSize="12" />
+          <TextBlock Text="当前没有记录。" IsVisible="{Binding !HasSelection}" />
+          <ContentControl Content="{Binding BasicGroup}" IsVisible="{Binding HasSelection}" />
+          <Border Classes="card" IsVisible="{Binding HasSelection}">
+            <StackPanel Spacing="10">
+              <TextBlock Text="发动条件与自身效果" FontSize="16" FontWeight="SemiBold" />
+              <ContentControl Content="{Binding Conditions}" />
+              <ContentControl Content="{Binding SelfEffects}" />
+            </StackPanel>
+          </Border>
+          <Border Classes="card" IsVisible="{Binding HasSelection}">
+            <StackPanel Spacing="10">
+              <TextBlock Text="目标人物" FontSize="16" FontWeight="SemiBold" />
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="搜索范围" Classes="field-label" />
+                <ComboBox ItemsSource="{Binding CheckAreaOptions}" SelectedItem="{Binding SelectedCheckArea, Mode=TwoWay}"
+                          Width="180" />
+              </StackPanel>
+              <ContentControl Content="{Binding TargetPersons}" />
+            </StackPanel>
+          </Border>
+          <Border Classes="card" IsVisible="{Binding HasSelection}">
+            <StackPanel Spacing="10">
+              <TextBlock Text="其他效果" FontSize="16" FontWeight="SemiBold" />
+              <ContentControl Content="{Binding EffectPersons}" />
+              <ContentControl Content="{Binding EffectAreas}" />
+            </StackPanel>
+          </Border>
+          <Border Classes="card" IsVisible="{Binding HasSelection}">
+            <ContentControl Content="{Binding Dialog}" />
+          </Border>
+          <ContentControl Content="{Binding MediaGroup}" IsVisible="{Binding HasSelection}" />
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+  </Grid>
+</UserControl>

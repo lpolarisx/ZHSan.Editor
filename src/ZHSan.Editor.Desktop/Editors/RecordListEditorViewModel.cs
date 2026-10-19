@@ -115,7 +115,7 @@ public abstract class RecordListEditorViewModel<TConfig> : ObservableObject, IId
         [..Targets(targetKey).GroupBy(target => target.Id).Select(group => group.First()).OrderBy(target => target.Id)
             .Select(target => new PersonChoiceOption(target.Id, ChipLabel(targetKey, target)))];
 
-    public string GetChipLabel(string targetKey, int id) =>
+    public virtual string GetChipLabel(string targetKey, int id) =>
         Targets(targetKey).FirstOrDefault(target => target.Id == id) is { } target
             ? ChipLabel(targetKey, target)
             : $"{id} （未收录）";

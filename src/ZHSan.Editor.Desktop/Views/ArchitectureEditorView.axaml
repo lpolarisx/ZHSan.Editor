@@ -118,7 +118,7 @@
           <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding !IsReadOnly}">
             <AutoCompleteBox ItemsSource="{Binding Candidates}" SelectedItem="{Binding Candidate, Mode=TwoWay}"
                              Text="{Binding CandidateText, Mode=TwoWay}" FilterMode="Contains" MinimumPrefixLength="1" MaxDropDownHeight="320"
-                             Watermark="{Binding Placeholder}" IsEnabled="{Binding CanEdit}" Width="320" />
+                             PlaceholderText="{Binding Placeholder}" IsEnabled="{Binding CanEdit}" Width="320" />
             <Button Content="添加" Command="{Binding AddCommand}" />
           </StackPanel>
           <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontSize="12" Foreground="#D9534F"
