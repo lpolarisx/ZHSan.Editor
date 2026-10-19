@@ -42,11 +42,11 @@ public sealed class ConfigEditorProviderRegistry
     {
         ArgumentNullException.ThrowIfNull(document);
         var provider = Resolve(document.Document.Definition);
-        if (provider is null)
-        {
-            return null;
-        }
+        return provider is null ? null : CreateEditor(provider, document);
+    }
 
+    public static ConfigEditorHostViewModel CreateEditor(IConfigEditorProvider provider, ConfigDocumentViewModel document)
+    {
         var content = provider.CreateViewModel(new ConfigEditorContext(document))
             ?? throw new InvalidOperationException($"专用配置编辑器 {provider.Id} 返回了空视图模型。");
         return new ConfigEditorHostViewModel(provider.Id, provider.DisplayName, content);

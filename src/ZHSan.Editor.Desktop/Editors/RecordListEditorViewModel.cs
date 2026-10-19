@@ -163,16 +163,7 @@ public abstract class RecordListEditorViewModel<TConfig> : ObservableObject, IId
             option.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
             option.Id.ToString(CultureInfo.InvariantCulture).Contains(query, StringComparison.Ordinal))
             .ToArray();
-        for (var index = FilteredRecords.Count - 1; index >= 0; index--)
-            if (!matches.Contains(FilteredRecords[index])) FilteredRecords.RemoveAt(index);
-        for (var index = 0; index < matches.Length; index++)
-        {
-            if (index < FilteredRecords.Count && ReferenceEquals(FilteredRecords[index], matches[index]))
-                continue;
-            var previous = FilteredRecords.IndexOf(matches[index]);
-            if (previous >= 0) FilteredRecords.Move(previous, index);
-            else FilteredRecords.Insert(index, matches[index]);
-        }
+        FilteredList.Update(FilteredRecords, matches);
         OnPropertyChanged(nameof(CountText));
     }
 

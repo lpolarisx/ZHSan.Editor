@@ -65,6 +65,7 @@ public sealed class ConfigEditorProviderRegistryTests
         var viewModel = CreateDocumentViewModel(new ConfigEditorProviderRegistry([provider]));
         var item = Assert.IsType<TechniqueConfig>(viewModel.Records[0].Item);
         var record = viewModel.Records[0];
+        Assert.NotNull(viewModel.SpecializedEditor);
 
         provider.Context!.SetPropertyValue(record, nameof(TechniqueConfig.Name), "进阶技术", "修改科技名称");
 
@@ -80,6 +81,22 @@ public sealed class ConfigEditorProviderRegistryTests
         viewModel.RedoCommand.Execute(null);
 
         Assert.Equal("进阶技术", item.Name);
+    }
+
+    [Fact]
+    public void Document_BuildsItsEditorOnlyWhenFirstShown()
+    {
+        var provider = new CapturingProvider();
+        var viewModel = CreateDocumentViewModel(new ConfigEditorProviderRegistry([provider]));
+
+        Assert.True(viewModel.HasSpecializedEditor);
+        Assert.True(viewModel.IsSpecializedEditorActive);
+        Assert.Equal(0, provider.CreatedCount);
+
+        var editor = viewModel.SpecializedEditor;
+        Assert.Same(editor, viewModel.SpecializedEditor);
+        Assert.Equal(1, provider.CreatedCount);
+        Assert.False(CreateDocumentViewModel(new ConfigEditorProviderRegistry([])).HasSpecializedEditor);
     }
 
     [Fact]
@@ -139,9 +156,12 @@ public sealed class ConfigEditorProviderRegistryTests
 
         public bool CanEdit(ConfigDefinition definition) => true;
 
+        public int CreatedCount { get; private set; }
+
         public object CreateViewModel(ConfigEditorContext context)
         {
             Context = context;
+            CreatedCount++;
             return this;
         }
     }

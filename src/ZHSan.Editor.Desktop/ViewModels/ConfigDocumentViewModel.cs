@@ -56,6 +56,8 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     private string _rawJson = "选择一条记录以查看 JSON。";
     private string? _notificationMessage;
     private bool _isSpecializedEditorActive;
+    private readonly IConfigEditorProvider? _editorProvider;
+    private ConfigEditorHostViewModel? _specializedEditor;
     private bool _isDisposed;
 
     public ConfigDocumentViewModel(
@@ -121,11 +123,11 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         _clipboard.Changed += ClipboardChanged;
         ClearSearchCommand = new RelayCommand(() => SearchText = string.Empty, () => SearchText.Length > 0);
         ApplyFilter();
-        SpecializedEditor = editorProviderRegistry?.CreateEditor(this);
-        _isSpecializedEditorActive = SpecializedEditor is not null;
+        _editorProvider = editorProviderRegistry?.Resolve(document.Definition);
+        _isSpecializedEditorActive = _editorProvider is not null;
         ShowSpecializedEditorCommand = new RelayCommand(
             () => IsSpecializedEditorActive = true,
-            () => SpecializedEditor is not null && !IsSpecializedEditorActive);
+            () => HasSpecializedEditor && !IsSpecializedEditorActive);
         ShowGenericEditorCommand = new RelayCommand(
             () => IsSpecializedEditorActive = false,
             () => IsSpecializedEditorActive);
@@ -170,7 +172,11 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             }
         }
     }
-    public ConfigEditorHostViewModel? SpecializedEditor { get; }
+    // Built the first time the document is shown: a project has dozens of tables and most are never opened.
+    public ConfigEditorHostViewModel? SpecializedEditor =>
+        _specializedEditor ??= _editorProvider is null || _isDisposed
+            ? null
+            : ConfigEditorProviderRegistry.CreateEditor(_editorProvider, this);
     public ICommand SelectCommand { get; }
     public ICommand InitializeEntryCommand { get; }
     public ICommand AddCommand { get; }
@@ -220,7 +226,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     public string? NotificationMessage => _notificationMessage;
     public bool CanUndo => _history.CanUndo;
     public bool CanRedo => _history.CanRedo;
-    public bool HasSpecializedEditor => SpecializedEditor is not null;
+    public bool HasSpecializedEditor => _editorProvider is not null;
     public bool IsSpecializedEditorActive
     {
         get => _isSpecializedEditorActive;
@@ -412,7 +418,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         _isDisposed = true;
         _history.Changed -= HistoryChanged;
         _clipboard.Changed -= ClipboardChanged;
-        if (SpecializedEditor?.Content is IDisposable disposable)
+        if (_specializedEditor?.Content is IDisposable disposable)
         {
             disposable.Dispose();
         }

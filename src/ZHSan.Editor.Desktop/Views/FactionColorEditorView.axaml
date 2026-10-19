@@ -5,6 +5,8 @@
              x:Class="ZHSan.Editor.Desktop.Views.FactionColorEditorView"
              x:DataType="editors:FactionColorEditorViewModel">
   <UserControl.Styles>
+    <!-- The colour picker's templates are only needed here, so they are not loaded at startup. -->
+    <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
     <Style Selector="Border.card">
       <Setter Property="Padding" Value="14" />
       <Setter Property="CornerRadius" Value="7" />

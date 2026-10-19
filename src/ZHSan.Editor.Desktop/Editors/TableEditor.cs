@@ -35,13 +35,31 @@ public sealed record TableFieldSpec(
     string Label, string Property, string? Hint = null, bool Wide = false,
     IReadOnlyList<PersonChoiceOption>? Choices = null, Func<object, TableRecordLookup, string>? ChoiceName = null);
 
-/// <summary>Looks up records of other tables, so specs can name records after what they reference.</summary>
+/// <summary>
+/// Looks up records of other tables, so specs can name records after what they reference. Every record of the
+/// list is named this way (13 000 person relations name two persons each), so each table is indexed by ID once.
+/// </summary>
 public sealed class TableRecordLookup(Func<string, IReadOnlyList<ConfigReferenceTarget>> targets)
 {
-    public object? Item(string key, int id) => targets(key).FirstOrDefault(target => target.Id == id)?.Item;
+    private readonly Dictionary<string, Dictionary<int, ConfigReferenceTarget>> _byId = [];
 
-    public string Name(string key, int id) =>
-        targets(key).FirstOrDefault(target => target.Id == id)?.DisplayName ?? $"#{id}";
+    public object? Item(string key, int id) => Find(key, id)?.Item;
+
+    public string Name(string key, int id) => Find(key, id)?.DisplayName ?? $"#{id}";
+
+    // The referenced tables changed; index them again on the next lookup.
+    public void Clear() => _byId.Clear();
+
+    private ConfigReferenceTarget? Find(string key, int id)
+    {
+        if (!_byId.TryGetValue(key, out var byId))
+        {
+            byId = [];
+            foreach (var target in targets(key)) byId.TryAdd(target.Id, target);
+            _byId[key] = byId;
+        }
+        return byId.GetValueOrDefault(id);
+    }
 }
 
 public sealed class TableEditorProvider(IEnumerable<TableEditorSpec> specs) : IConfigEditorProvider
@@ -175,6 +193,7 @@ public sealed class TableEditorViewModel : RecordListEditorViewModel<object>
 
     protected override void OnReferenceOptionsChanged(object? sender, EventArgs e)
     {
+        _lookup.Clear();
         base.OnReferenceOptionsChanged(sender, e);
         foreach (var rule in _ruleFields) rule.ReloadOptions();
     }

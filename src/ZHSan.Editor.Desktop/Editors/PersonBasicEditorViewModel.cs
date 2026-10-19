@@ -644,16 +644,7 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOw
             person.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
             person.Config.Id.ToString(CultureInfo.InvariantCulture).Contains(query, StringComparison.Ordinal))
             .ToArray();
-        for (var index = FilteredPeople.Count - 1; index >= 0; index--)
-            if (!matches.Contains(FilteredPeople[index])) FilteredPeople.RemoveAt(index);
-        for (var index = 0; index < matches.Length; index++)
-        {
-            if (index < FilteredPeople.Count && ReferenceEquals(FilteredPeople[index], matches[index]))
-                continue;
-            var previous = FilteredPeople.IndexOf(matches[index]);
-            if (previous >= 0) FilteredPeople.Move(previous, index);
-            else FilteredPeople.Insert(index, matches[index]);
-        }
+        FilteredList.Update(FilteredPeople, matches);
         OnPropertyChanged(nameof(CountText));
     }
 
