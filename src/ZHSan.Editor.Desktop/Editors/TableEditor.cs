@@ -16,6 +16,9 @@ public sealed record TableEditorSpec(
     /// <summary>Writable properties deliberately left out of the editor, so they are kept as loaded.</summary>
     public IReadOnlyList<string> Untouched { get; init; } = [];
 
+    /// <summary>How a record is named in the list, for tables whose names are empty or not shown by the game.</summary>
+    public Func<object, TableRecordLookup, string>? RecordName { get; init; }
+
     public IEnumerable<TableFieldSpec> Fields => Sections.SelectMany(section => section.Fields);
 }
 
@@ -27,9 +30,19 @@ public sealed record TableSectionSpec(string Title, string? Hint, IReadOnlyList<
 
 /// <param name="Wide">A text field given its own full-width row, for descriptions and file names.</param>
 /// <param name="Choices">Fixed choices for a number field whose values the game defines in code.</param>
+/// <param name="ChoiceName">Names the referenced records in the choices, for tables without names of their own.</param>
 public sealed record TableFieldSpec(
     string Label, string Property, string? Hint = null, bool Wide = false,
-    IReadOnlyList<PersonChoiceOption>? Choices = null);
+    IReadOnlyList<PersonChoiceOption>? Choices = null, Func<object, TableRecordLookup, string>? ChoiceName = null);
+
+/// <summary>Looks up records of other tables, so specs can name records after what they reference.</summary>
+public sealed class TableRecordLookup(Func<string, IReadOnlyList<ConfigReferenceTarget>> targets)
+{
+    public object? Item(string key, int id) => targets(key).FirstOrDefault(target => target.Id == id)?.Item;
+
+    public string Name(string key, int id) =>
+        targets(key).FirstOrDefault(target => target.Id == id)?.DisplayName ?? $"#{id}";
+}
 
 public sealed class TableEditorProvider(IEnumerable<TableEditorSpec> specs) : IConfigEditorProvider
 {
@@ -51,11 +64,13 @@ public sealed class TableEditorProvider(IEnumerable<TableEditorSpec> specs) : IC
 public sealed class TableEditorViewModel : RecordListEditorViewModel<object>
 {
     private readonly TableEditorSpec _spec;
+    private readonly TableRecordLookup _lookup;
     private readonly List<TableRuleFieldViewModel> _ruleFields = [];
 
     public TableEditorViewModel(ConfigEditorContext context, TableEditorSpec spec) : base(context, spec.Subject, "条")
     {
         _spec = spec;
+        _lookup = new TableRecordLookup(Targets);
         Intro = spec.Intro;
         var groups = new List<PersonFieldGroupViewModel>();
         var chipLists = new List<PersonIdChipListViewModel>();
@@ -110,18 +125,25 @@ public sealed class TableEditorViewModel : RecordListEditorViewModel<object>
     protected override Type ItemType => _spec.ItemType;
 
     protected override string GetName(object config) =>
+        _spec.RecordName is { } recordName ? recordName(config, _lookup) :
         ItemType.GetProperty("Name")?.GetValue(config) as string is { Length: > 0 } name
             ? name
             : $"#{ItemType.GetProperty("Id")?.GetValue(config)}";
 
     protected override Func<IReadOnlyList<PersonChoiceOption>>? GetChoiceProvider(string propertyName)
     {
-        if (_spec.Fields.First(field => field.Property == propertyName).Choices is { } choices) return () => choices;
+        var field = _spec.Fields.First(field => field.Property == propertyName);
+        if (field.Choices is { } choices) return () => choices;
         if (Property(propertyName).Reference is not { } reference) return null;
         var none = reference.EmptyValue is { } empty ? new PersonChoiceOption(empty, $"{empty} 无") : null;
         return () =>
         {
-            var options = ReferenceOptions(Targets(reference.TargetAddress)).Where(option => option.Id != none?.Id);
+            var targets = Targets(reference.TargetAddress);
+            var options = (field.ChoiceName is { } name
+                    ? targets.GroupBy(target => target.Id).Select(group => group.First()).OrderBy(target => target.Id)
+                        .Select(target => new PersonChoiceOption(target.Id, $"{target.Id} {name(target.Item, _lookup)}"))
+                    : ReferenceOptions(targets))
+                .Where(option => option.Id != none?.Id);
             return none is null ? [..options] : [none, ..options];
         };
     }

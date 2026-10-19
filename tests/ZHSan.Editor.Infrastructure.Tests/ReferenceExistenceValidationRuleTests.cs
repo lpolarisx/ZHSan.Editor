@@ -86,7 +86,12 @@ public sealed class ReferenceExistenceValidationRuleTests
                 "militaries",
                 typeof(MilitaryConfig),
                 ConfigScope.Scenario,
-                new MilitaryConfig { Id = 1, KindId = 404, LeaderID = 7 }));
+                // Unset links are -1, as in the game's scenarios.
+                new MilitaryConfig
+                {
+                    Id = 1, KindId = 404, LeaderID = 7, FollowedLeaderID = -1, RecruitmentPersonID = -1,
+                    StartingArchitectureID = -1, TargetArchitectureID = -1, ShelledMilitaryID = -1
+                }));
         var service = new ConfigValidationService(
             new ReflectionConfigMetadataProvider(),
             crossTableRules: [new ReferenceExistenceValidationRule()]);

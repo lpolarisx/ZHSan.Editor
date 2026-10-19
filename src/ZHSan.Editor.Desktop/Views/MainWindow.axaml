@@ -75,7 +75,7 @@
         <MenuItem Header="配置导航侧栏"
                   ToggleType="CheckBox"
                   IsChecked="{Binding IsNavigationPaneVisible, Mode=TwoWay}" />
-        <MenuItem Header="属性详情侧栏"
+        <MenuItem Header="详情侧栏"
                   ToggleType="CheckBox"
                   IsChecked="{Binding IsDetailsPaneVisible, Mode=TwoWay}" />
       </MenuItem>
@@ -207,12 +207,14 @@
               </StackPanel>
               <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center"
                           IsVisible="{Binding SelectedDocument.HasSpecializedEditor}">
-                <Button Content="专用编辑"
+                <Button Content="编辑"
                         Command="{Binding SelectedDocument.ShowSpecializedEditorCommand}"
-                        IsEnabled="{Binding SelectedDocument.IsGenericEditorActive}" />
-                <Button Content="表格编辑"
+                        IsEnabled="{Binding SelectedDocument.IsGenericEditorActive}"
+                        ToolTip.Tip="在专用编辑器中编辑记录" />
+                <Button Content="表格查看"
                         Command="{Binding SelectedDocument.ShowGenericEditorCommand}"
-                        IsEnabled="{Binding SelectedDocument.IsSpecializedEditorActive}" />
+                        IsEnabled="{Binding SelectedDocument.IsSpecializedEditorActive}"
+                        ToolTip.Tip="以只读表格查看全部记录；双击一行可打开编辑" />
               </StackPanel>
               <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"
                           IsVisible="{Binding HasSelectedDocument}">
@@ -260,6 +262,7 @@
                       GridLinesVisibility="Horizontal"
                       SelectionMode="Extended"
                       SelectionChanged="RecordsGrid_OnSelectionChanged"
+                      DoubleTapped="RecordsGrid_OnDoubleTapped"
                       IsVisible="{Binding SelectedDocument.IsGenericEditorActive}" />
 
             <ContentControl Content="{Binding SelectedDocument.SpecializedEditor.Content}"
@@ -316,7 +319,7 @@
                       IsVisible="{Binding IsDetailsPaneVisible}"
                       Background="{DynamicResource SystemControlForegroundBaseLowBrush}"
                       Cursor="SizeWestEast"
-                      ToolTip.Tip="拖动调整属性详情宽度" />
+                      ToolTip.Tip="拖动调整详情侧栏宽度" />
 
         <Border Grid.Column="4" BorderThickness="1,0,0,0"
                 IsVisible="{Binding IsDetailsPaneVisible}"
@@ -324,98 +327,6 @@
           <TabControl x:Name="DetailsTabs"
                       SelectedIndex="{Binding SelectedDetailsTabIndex, Mode=TwoWay}"
                       IsVisible="{Binding HasSelectedDocument}">
-            <TabItem Header="属性">
-              <!-- Virtualized: a person has about 120 properties and each card holds every editor control,
-                   so only the cards in view are created. -->
-              <ListBox ItemsSource="{Binding SelectedDocument.PropertyEditors}" Classes="property-cards"
-                       Background="Transparent" Padding="12,12,12,4"
-                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                <ListBox.Styles>
-                  <!-- A plain list: no selection or hover highlight, cards keep their own look. -->
-                  <Style Selector="ListBox.property-cards ListBoxItem">
-                    <Setter Property="Padding" Value="0" />
-                    <Setter Property="Focusable" Value="False" />
-                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                  </Style>
-                  <Style Selector="ListBox.property-cards ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
-                    <Setter Property="Background" Value="Transparent" />
-                  </Style>
-                </ListBox.Styles>
-                  <ListBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:PropertyEditorViewModel">
-                      <Border Padding="10" Margin="0,0,0,8" CornerRadius="5" Background="#0DFFFFFF">
-                        <StackPanel Spacing="6">
-                          <Grid ColumnDefinitions="*,Auto,Auto">
-                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                            <TextBlock Grid.Column="1" Text="校验定位" FontSize="11"
-                                       Foreground="#E5484D" FontWeight="SemiBold"
-                                       IsVisible="{Binding IsValidationTarget}" Margin="0,0,8,0" />
-                            <TextBlock Grid.Column="2" Text="{Binding TypeName}" FontSize="11" Opacity="0.55" />
-                          </Grid>
-
-                          <Grid ColumnDefinitions="*,Auto,Auto" IsVisible="{Binding SupportsNullEditing}">
-                            <TextBlock Text="{Binding NullStateText}" Opacity="0.68"
-                                       IsVisible="{Binding HasValueStateText}"
-                                       VerticalAlignment="Center" />
-                            <Button Grid.Column="1" Content="初始化"
-                                    Command="{Binding InitializeNullCommand}"
-                                    IsVisible="{Binding ShowInitializeNull}" />
-                            <Button Grid.Column="2" Content="设为 null"
-                                    Command="{Binding SetNullCommand}"
-                                    IsVisible="{Binding ShowSetNull}" />
-                          </Grid>
-
-                          <TextBox Text="{Binding ValueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                   IsVisible="{Binding ShowString}" />
-                          <TextBox Text="{Binding ValueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                   IsVisible="{Binding ShowMultilineString}"
-                                   AcceptsReturn="True"
-                                   TextWrapping="Wrap"
-                                   VerticalContentAlignment="Top"
-                                   MinHeight="96"
-                                   MaxHeight="280" />
-                          <ContentControl Content="{Binding StructuredStringEditor}"
-                                          IsVisible="{Binding ShowStructuredString}" />
-                          <NumericUpDown Value="{Binding NumericValue, Mode=TwoWay}"
-                                         Increment="1" IsVisible="{Binding ShowNumber}" />
-                          <ContentControl Content="{Binding ReferencePicker}"
-                                          IsVisible="{Binding ShowReference}" />
-                          <CheckBox IsChecked="{Binding BooleanValue, Mode=TwoWay}"
-                                    Content="启用" IsVisible="{Binding ShowBoolean}" />
-                          <ComboBox ItemsSource="{Binding SexOptions}"
-                                    SelectedItem="{Binding SelectedSex, Mode=TwoWay}"
-                                    IsVisible="{Binding ShowSex}" />
-                          <ComboBox ItemsSource="{Binding Options}"
-                                    SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
-                                    IsVisible="{Binding ShowEnum}" />
-
-                          <StackPanel IsVisible="{Binding ShowCollection}" Spacing="5">
-                            <ItemsControl ItemsSource="{Binding CollectionItems}">
-                              <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:CollectionItemViewModel">
-                                  <Grid ColumnDefinitions="*,Auto" Margin="0,2">
-                                    <TextBox Text="{Binding ValueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                             IsVisible="{Binding ShowText}" />
-                                    <ContentControl Content="{Binding ReferencePicker}"
-                                                    IsVisible="{Binding ShowReference}" />
-                                    <Button Grid.Column="1" Content="移除" Command="{Binding RemoveCommand}" Margin="5,0,0,0" />
-                                  </Grid>
-                                </DataTemplate>
-                              </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <Button Content="添加一项" Command="{Binding AddCollectionItemCommand}"
-                                    HorizontalAlignment="Left" />
-                          </StackPanel>
-
-                          <TextBox Text="{Binding ReadOnlyValue}" IsReadOnly="True"
-                                   IsVisible="{Binding IsReadOnly}" />
-                        </StackPanel>
-                      </Border>
-                    </DataTemplate>
-                  </ListBox.ItemTemplate>
-              </ListBox>
-            </TabItem>
-
             <TabItem Header="{Binding ValidationTabHeader}">
               <Grid RowDefinitions="Auto,Auto,*" Margin="12">
                 <Grid ColumnDefinitions="150,8,*">

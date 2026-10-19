@@ -578,6 +578,7 @@ public sealed class ConfigDocumentViewModelTests
             viewModel.BatchEditFields,
             field => field.Property.Name == "Name");
         viewModel.BatchValueText = "统一名称";
+        Assert.DoesNotContain(viewModel.BatchEditFields, field => field.Property.Name == "Id");
 
         viewModel.ApplyBatchEditCommand.Execute(null);
 

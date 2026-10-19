@@ -75,7 +75,7 @@ public sealed class GameDataConfigRegistryTests
             definition.EntryName.Equals("GameScenarios.json", StringComparison.OrdinalIgnoreCase));
         Assert.Equal("person-families", families.Key);
         Assert.False(families.ShowInNavigation);
-        Assert.Equal(["legions", "person-families"], definitions.Where(definition => !definition.ShowInNavigation)
+        Assert.Equal(["biographies", "legions", "person-families"], definitions.Where(definition => !definition.ShowInNavigation)
             .Select(definition => definition.Key).Order());
         Assert.Equal(41, registry.Definitions.Count);
     }

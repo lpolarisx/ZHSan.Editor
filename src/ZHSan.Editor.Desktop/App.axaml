@@ -30,6 +30,9 @@
     <DataTemplate DataType="editors:ArchitectureEditorViewModel">
       <views:ArchitectureEditorView />
     </DataTemplate>
+    <DataTemplate DataType="editors:FactionColorEditorViewModel">
+      <views:FactionColorEditorView />
+    </DataTemplate>
     <DataTemplate DataType="editors:TableEditorViewModel">
       <views:TableEditorView />
     </DataTemplate>
@@ -55,5 +58,6 @@
   <Application.Styles>
     <FluentTheme />
     <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+    <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
   </Application.Styles>
 </Application>

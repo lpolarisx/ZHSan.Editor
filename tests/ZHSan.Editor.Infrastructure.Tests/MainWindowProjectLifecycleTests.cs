@@ -167,7 +167,7 @@ public sealed class MainWindowProjectLifecycleTests
     }
 
     [Fact]
-    public void ValidateProject_FiltersIssuesAndNavigatesToField()
+    public void ValidateProject_FiltersIssuesAndNavigatesToRecord()
     {
         using var context = new TestContext();
         var viewModel = context.CreateViewModel();
@@ -180,7 +180,7 @@ public sealed class MainWindowProjectLifecycleTests
         var issue = Assert.Single(viewModel.ValidationIssues);
         Assert.Equal("错误", issue.SeverityText);
         Assert.Contains("必填", issue.Message);
-        Assert.Equal(1, viewModel.SelectedDetailsTabIndex);
+        Assert.Equal(MainWindowViewModel.ValidationTab, viewModel.SelectedDetailsTabIndex);
 
         viewModel.SelectedValidationSeverityFilter = Assert.Single(
             viewModel.ValidationSeverityFilters,
@@ -190,12 +190,12 @@ public sealed class MainWindowProjectLifecycleTests
         viewModel.SelectedValidationSeverityFilter = viewModel.ValidationSeverityFilters[0];
         viewModel.ValidationSearchText = "必填";
         issue = Assert.Single(viewModel.ValidationIssues);
+        viewModel.SelectedDocument.SelectedRecord = null;
         issue.NavigateCommand.Execute(null);
 
-        Assert.Equal(0, viewModel.SelectedDetailsTabIndex);
-        Assert.True(Assert.Single(
-            viewModel.SelectedDocument.PropertyEditors,
-            editor => editor.Definition.Name == nameof(TechniqueConfig.Name)).IsValidationTarget);
+        Assert.Same(technique, viewModel.SelectedDocument.SelectedRecord?.Item);
+        Assert.Equal(MainWindowViewModel.ValidationTab, viewModel.SelectedDetailsTabIndex);
+        Assert.Empty(viewModel.SelectedDocument.PropertyEditors);
     }
 
     [Fact]
@@ -277,7 +277,8 @@ public sealed class MainWindowProjectLifecycleTests
         viewModel.OpenScenarioArchiveCommand.Execute(null);
         var militaryDocument = Assert.Single(viewModel.Documents, document => document.Key == "militaries");
         militaryDocument.SelectCommand.Execute(null);
-        viewModel.SelectedDetailsTabIndex = 0;
+        // The window no longer shows property cards; build them here to reach a reference picker.
+        militaryDocument.ArePropertyEditorsNeeded = true;
         militaryDocument.SelectedRecord = Assert.Single(militaryDocument.Records);
         var kindEditor = Assert.Single(
             militaryDocument.PropertyEditors,
@@ -461,7 +462,7 @@ public sealed class MainWindowProjectLifecycleTests
         Assert.Equal(context.ArchivePath, recent.CommonArchivePath);
         var military = Assert.Single(viewModel.Documents, document => document.Key == "militaries");
         military.SelectCommand.Execute(null);
-        viewModel.SelectedDetailsTabIndex = 0;
+        military.ArePropertyEditorsNeeded = true;
         military.SelectedRecord = Assert.Single(military.Records);
         var kind = Assert.Single(military.PropertyEditors,
             editor => editor.Definition.Name == nameof(MilitaryConfig.KindId));

@@ -247,6 +247,16 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    // The table only shows records; double-clicking one opens it in the specialized editor.
+    private void RecordsGrid_OnDoubleTapped(object? sender, TappedEventArgs eventArgs)
+    {
+        if (_viewModel?.SelectedDocument is { SelectedRecord: not null } document &&
+            document.ShowSpecializedEditorCommand.CanExecute(null))
+        {
+            document.ShowSpecializedEditorCommand.Execute(null);
+        }
+    }
+
     private void ValidationIssues_OnDoubleTapped(object? sender, TappedEventArgs eventArgs)
     {
         if (sender is ListBox { SelectedItem: ValidationIssueViewModel issue } &&
@@ -267,7 +277,7 @@ public sealed partial class MainWindow : Window
 
         if (eventArgs.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {
-            DetailsTabs.SelectedIndex = 2;
+            DetailsTabs.SelectedIndex = MainWindowViewModel.GlobalSearchTab;
             GlobalSearchBox.Focus();
             GlobalSearchBox.SelectAll();
         }

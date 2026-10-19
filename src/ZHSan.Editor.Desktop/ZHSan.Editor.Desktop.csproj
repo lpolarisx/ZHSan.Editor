@@ -8,6 +8,7 @@
     <AvaloniaResource Include="Assets\editor-icon.png" />
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Controls.DataGrid" />
+    <PackageReference Include="Avalonia.Controls.ColorPicker" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <ProjectReference Include="..\ZHSan.Editor.Application\ZHSan.Editor.Application.csproj" />

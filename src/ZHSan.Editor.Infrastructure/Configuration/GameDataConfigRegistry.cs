@@ -62,7 +62,13 @@ public sealed class GameDataConfigRegistry : IConfigRegistry
         Add<ArchitectureConfig>(definitions, "architectures", "建筑", "世界与地图", "Architectures.json", ConfigScope.Scenario);
         Add<RegionConfig>(definitions, "regions", "地区", "世界与地图", "Regions.json", ConfigScope.Scenario);
         Add<StateConfig>(definitions, "states", "州域", "世界与地图", "States.json", ConfigScope.Scenario);
-        Add<BiographyConfig>(definitions, "biographies", "列传", "人物", "Biographies.json", ConfigScope.Scenario);
+        // Edited in the person editor's 列传信息 card, so it is not listed separately.
+        definitions.Add(new ConfigDefinition("biographies", "列传", "人物", "Biographies.json",
+            typeof(BiographyConfig), ConfigScope.Scenario)
+        {
+            ShowInNavigation = false,
+            NavigationTargetKey = "persons"
+        });
         Add<CaptiveConfig>(definitions, "captives", "俘虏", "人物", "Captives.json", ConfigScope.Scenario);
         Add<DiplomaticRelationConfig>(definitions, "diplomatic-relations", "外交关系", "势力与组织", "DiplomaticRelations.json", ConfigScope.Scenario);
         Add<EventConfig>(definitions, "events", "事件", "事件与情报", "Events.json", ConfigScope.Scenario);

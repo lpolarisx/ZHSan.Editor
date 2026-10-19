@@ -110,6 +110,47 @@
         </StackPanel>
       </Border>
     </DataTemplate>
+    <DataTemplate x:DataType="editors:PersonIdChipListViewModel">
+      <Grid ColumnDefinitions="64,*" ColumnSpacing="8">
+        <TextBlock Text="{Binding Label}" Classes="field-label"
+                   VerticalAlignment="Top" Margin="0,6,0,0" />
+        <StackPanel Grid.Column="1" Spacing="6">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <ComboBox ItemsSource="{Binding Candidates}"
+                      SelectedItem="{Binding Candidate, Mode=TwoWay}"
+                      PlaceholderText="选择要添加的项" IsEnabled="{Binding CanEdit}" Width="240">
+              <ComboBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <VirtualizingStackPanel />
+                </ItemsPanelTemplate>
+              </ComboBox.ItemsPanel>
+            </ComboBox>
+            <Button Content="添加" Command="{Binding AddCommand}" />
+          </StackPanel>
+          <TextBlock Text="无" Opacity="0.5" FontSize="12" IsVisible="{Binding IsEmpty}" />
+          <ItemsControl ItemsSource="{Binding Items}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="editors:PersonIdChipViewModel">
+                <Border Classes="chip" Margin="0,0,6,6">
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                    <Button Classes="chip-remove" Content="×" Command="{Binding RemoveCommand}"
+                            ToolTip.Tip="移除" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontSize="12" Foreground="#D9534F"
+                     IsVisible="{Binding !CanEdit}" />
+        </StackPanel>
+      </Grid>
+    </DataTemplate>
   </UserControl.DataTemplates>
   <Grid ColumnDefinitions="220,1,*" Background="#08000000">
     <Grid RowDefinitions="Auto,Auto,*" Margin="10">
@@ -313,6 +354,7 @@
                   </ComboBox.ItemTemplate>
                 </ComboBox>
               </StackPanel>
+              <ContentControl Content="{Binding BiographyMilitaryKinds}" IsVisible="{Binding HasBiography}" />
               <ItemsControl ItemsSource="{Binding BiographyFields}" Margin="0,0,0,-10"
                             IsVisible="{Binding HasBiography}">
                 <ItemsControl.ItemTemplate>
@@ -416,49 +458,6 @@
                         <StackPanel Spacing="12" />
                       </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                      <DataTemplate x:DataType="editors:PersonIdChipListViewModel">
-                        <Grid ColumnDefinitions="64,*" ColumnSpacing="8">
-                          <TextBlock Text="{Binding Label}" Classes="field-label"
-                                     VerticalAlignment="Top" Margin="0,6,0,0" />
-                          <StackPanel Grid.Column="1" Spacing="6">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                              <ComboBox ItemsSource="{Binding Candidates}"
-                                        SelectedItem="{Binding Candidate, Mode=TwoWay}"
-                                        PlaceholderText="选择要添加的项" IsEnabled="{Binding CanEdit}" Width="240">
-                                <ComboBox.ItemsPanel>
-                                  <ItemsPanelTemplate>
-                                    <VirtualizingStackPanel />
-                                  </ItemsPanelTemplate>
-                                </ComboBox.ItemsPanel>
-                              </ComboBox>
-                              <Button Content="添加" Command="{Binding AddCommand}" />
-                            </StackPanel>
-                            <TextBlock Text="无" Opacity="0.5" FontSize="12" IsVisible="{Binding IsEmpty}" />
-                            <ItemsControl ItemsSource="{Binding Items}">
-                              <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                  <WrapPanel />
-                                </ItemsPanelTemplate>
-                              </ItemsControl.ItemsPanel>
-                              <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="editors:PersonIdChipViewModel">
-                                  <Border Classes="chip" Margin="0,0,6,6">
-                                    <StackPanel Orientation="Horizontal" Spacing="4">
-                                      <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
-                                      <Button Classes="chip-remove" Content="×" Command="{Binding RemoveCommand}"
-                                              ToolTip.Tip="移除" />
-                                    </StackPanel>
-                                  </Border>
-                                </DataTemplate>
-                              </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontSize="12" Foreground="#D9534F"
-                                       IsVisible="{Binding !CanEdit}" />
-                          </StackPanel>
-                        </Grid>
-                      </DataTemplate>
-                    </ItemsControl.ItemTemplate>
                   </ItemsControl>
                 </StackPanel>
               </Border>

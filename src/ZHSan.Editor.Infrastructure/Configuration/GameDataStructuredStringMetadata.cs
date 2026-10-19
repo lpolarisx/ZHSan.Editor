@@ -24,6 +24,8 @@ internal static class GameDataStructuredStringMetadata
                 new(ConfigStructuredStringKind.ReferenceIds, "titles"),
             [(typeof(PersonConfig), nameof(PersonConfig.UniqueTitlesString))] =
                 new(ConfigStructuredStringKind.ReferenceIds, "titles"),
+            [(typeof(BiographyConfig), nameof(BiographyConfig.MilitaryKindsString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "military-kinds"),
             [(typeof(PersonConfig), nameof(PersonConfig.UniqueMilitaryKindsString))] =
                 new(ConfigStructuredStringKind.ReferenceIds, "military-kinds"),
 

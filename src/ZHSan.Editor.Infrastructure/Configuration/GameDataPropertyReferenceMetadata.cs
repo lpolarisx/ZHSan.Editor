@@ -90,6 +90,24 @@ internal static class GameDataPropertyReferenceMetadata
                 new("persons", emptyValue: -1, targetScope: ConfigScope.Scenario),
             [(typeof(MilitaryConfig), nameof(MilitaryConfig.BelongedArchitectureID))] =
                 new("architectures", emptyValue: 0, targetScope: ConfigScope.Scenario),
+            [(typeof(MilitaryConfig), nameof(MilitaryConfig.FollowedLeaderID))] =
+                new("persons", emptyValue: -1, targetScope: ConfigScope.Scenario),
+            [(typeof(MilitaryConfig), nameof(MilitaryConfig.RecruitmentPersonID))] =
+                new("persons", emptyValue: -1, targetScope: ConfigScope.Scenario),
+            [(typeof(MilitaryConfig), nameof(MilitaryConfig.StartingArchitectureID))] =
+                new("architectures", emptyValue: -1, targetScope: ConfigScope.Scenario),
+            [(typeof(MilitaryConfig), nameof(MilitaryConfig.TargetArchitectureID))] =
+                new("architectures", emptyValue: -1, targetScope: ConfigScope.Scenario),
+            [(typeof(MilitaryConfig), nameof(MilitaryConfig.ShelledMilitaryID))] =
+                new("militaries", emptyValue: -1, targetScope: ConfigScope.Scenario),
+            [(typeof(CaptiveConfig), nameof(CaptiveConfig.CaptivePersonId))] =
+                new("persons", targetScope: ConfigScope.Scenario),
+            [(typeof(CaptiveConfig), nameof(CaptiveConfig.CaptiveFactionId))] =
+                new("factions", emptyValue: -1, targetScope: ConfigScope.Scenario),
+            [(typeof(CaptiveConfig), nameof(CaptiveConfig.RansomArchitectureId))] =
+                new("architectures", emptyValue: -1, targetScope: ConfigScope.Scenario),
+            [(typeof(FacilityConfig), nameof(FacilityConfig.LevelId))] =
+                new("facility-kind-levels"),
             [(typeof(PersonRelationConfig), nameof(PersonRelationConfig.PersonID1))] =
                 new("persons", targetScope: ConfigScope.Scenario),
             [(typeof(PersonRelationConfig), nameof(PersonRelationConfig.PersonID2))] =

@@ -637,7 +637,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             property.SetValue(item, CloneValue(value));
         }
 
-        if (HasSequentialIds && !initialValues.ContainsKey("Id"))
+        if (AssignsNextId && !initialValues.ContainsKey("Id"))
         {
             SetSequentialId(item, AllocateSequentialIds(1)[0]);
         }
@@ -700,7 +700,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             foreach (var source in sourceRecords)
             {
                 var copy = CloneRecord(source.Item);
-                if (HasSequentialIds) SetSequentialId(copy, newIds.Dequeue());
+                if (AssignsNextId) SetSequentialId(copy, newIds.Dequeue());
                 Document.Items.Add(copy);
                 var copyRecord = CreateRecordViewModel(copy);
                 Records.Add(copyRecord);
@@ -868,7 +868,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         {
             var clones = _clipboard.Items.Select(CloneRecord).ToArray();
             var newIds = new Queue<int>(AllocateSequentialIds(clones.Length));
-            if (HasSequentialIds)
+            if (AssignsNextId)
             {
                 foreach (var clone in clones) SetSequentialId(clone, newIds.Dequeue());
             }
@@ -985,13 +985,19 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
     private bool HasSequentialIds => SequentialIdTypes.Contains(Document.Definition.ItemType);
 
+    // New, copied and pasted records continue after the highest ID: in the sequential tables above, and in every
+    // CommonData table keyed by its own ID (kinds, influences, titles, colours by position, …).
+    private bool AssignsNextId => HasSequentialIds ||
+        (Document.Definition.Scope == ConfigScope.Common &&
+         Document.Definition.ItemType.GetProperty("Id") is { PropertyType: var type, CanWrite: true } && type == typeof(int));
+
     private static int GetSequentialId(object item) => (int)item.GetType().GetProperty("Id")!.GetValue(item)!;
 
     private static void SetSequentialId(object item, int id) => item.GetType().GetProperty("Id")!.SetValue(item, id);
 
     private int[] AllocateSequentialIds(int count)
     {
-        if (!HasSequentialIds)
+        if (!AssignsNextId)
         {
             return [];
         }
@@ -1643,7 +1649,8 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
     private static bool IsBatchEditable(ConfigPropertyDefinition definition)
     {
-        if (!definition.CanWrite)
+        // IDs are assigned when records are added and are never edited.
+        if (!definition.CanWrite || definition.Name == "Id")
         {
             return false;
         }

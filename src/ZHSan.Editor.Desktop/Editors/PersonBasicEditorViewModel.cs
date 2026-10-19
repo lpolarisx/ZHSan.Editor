@@ -50,6 +50,8 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOw
             new BiographyTextFieldViewModel("游戏列传", nameof(BiographyConfig.InGame), () => _biographyRecord, _biographyDocument)
         ];
         AddBiographyCommand = new RelayCommand(AddBiography, () => CanAddBiography);
+        BiographyMilitaryKinds = new PersonIdChipListViewModel("自立兵种", nameof(BiographyConfig.MilitaryKindsString),
+            "military-kinds", new BiographyChipListOwner(this, () => _biographyRecord, _biographyDocument));
         Groups =
         [
             Group("身份", ("姓", nameof(PersonConfig.SurName)), ("名", nameof(PersonConfig.GivenName)),
@@ -158,6 +160,7 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOw
     public ObservableCollection<PersonSkillButtonViewModel> SkillButtons { get; } = [];
     public string SkillStatus => GetSkillStatus();
     public IReadOnlyList<BiographyTextFieldViewModel> BiographyFields { get; }
+    public PersonIdChipListViewModel BiographyMilitaryKinds { get; }
     public PersonMessagesViewModel Messages { get; }
     public ICommand AddBiographyCommand { get; }
     public bool HasBiography => _biographyRecord is not null;
@@ -682,6 +685,7 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOw
         RefreshFactionColor();
         ((RelayCommand)AddBiographyCommand).RaiseCanExecuteChanged();
         foreach (var field in BiographyFields) field.Refresh();
+        BiographyMilitaryKinds.Refresh();
     }
 
     private string GetBiographyStatus()
@@ -1315,6 +1319,25 @@ public sealed class PersonIdListFieldViewModel : ObservableObject
         ((RelayCommand)AddCommand).RaiseCanExecuteChanged();
         ((RelayCommand)RemoveCommand).RaiseCanExecuteChanged();
     }
+}
+
+/// <summary>Lets an ID chip list edit the selected person's biography record instead of the person.</summary>
+internal sealed class BiographyChipListOwner(
+    IIdChipListOwner editor, Func<ConfigRecordViewModel?> record, ConfigDocumentViewModel? document) : IIdChipListOwner
+{
+    public bool HasSelection => record() is not null && document is not null;
+
+    public object? GetValue(string propertyName) =>
+        record()?.Item is BiographyConfig biography ? typeof(BiographyConfig).GetProperty(propertyName)!.GetValue(biography) : null;
+
+    public void SetValue(string propertyName, object value, string description)
+    {
+        if (record() is { } biography && document is not null)
+            document.SetPropertyValue(biography, propertyName, value, $"{description}（列传）");
+    }
+
+    public IReadOnlyList<PersonChoiceOption> GetChipCandidates(string targetKey) => editor.GetChipCandidates(targetKey);
+    public string GetChipLabel(string targetKey, int id) => editor.GetChipLabel(targetKey, id);
 }
 
 public sealed class BiographyTextFieldViewModel : ObservableObject

@@ -1,5 +1,4 @@
 using GameDatas;
-using ZHSan.Editor.Infrastructure.Configuration;
 
 namespace ZHSan.Editor.Desktop.Editors;
 
@@ -67,10 +66,17 @@ public static class TableEditorSpecs
                 F("智力比率", nameof(CharacterKindConfig.IntelligenceRate))),
             Section("生成", "随机生成人物时选中这种性格的机率，共 10 个数，以空格分隔。",
                 F("生成机率", nameof(CharacterKindConfig.GenerationChance)))),
+        // The game shows an information kind by its level and range, never by its name.
         Spec<InformationKindConfig>("information-kinds", "情报类型", "建筑可执行的情报行动。",
-            Section("基本", F("名称", "Name"), F("等级", nameof(InformationKindConfig.Level)),
+            Section("基本", F("等级", nameof(InformationKindConfig.Level)),
                 F("消耗资金", nameof(InformationKindConfig.CostFund)), F("半径范围", nameof(InformationKindConfig.Radius)),
-                F("斜向", nameof(InformationKindConfig.Oblique)))),
+                F("斜向", nameof(InformationKindConfig.Oblique)))) with
+        {
+            Untouched = ["Name"],
+            RecordName = (item, _) => item is InformationKindConfig kind
+                ? $"{EnumLabels.Label(kind.Level)} · 半径 {kind.Radius}{(kind.Oblique ? " 斜向" : "")} · {kind.CostFund} 资金"
+                : ""
+        },
         Spec<StatusEffectConfig>("status-effects", "状态效果", "人物身上持续若干天的状态，例如喝酒。",
             Section("基本", F("名称", "Name"),
                 F("状态类型", nameof(StatusEffectConfig.StatusType), choices: [new(0, "0 无"), new(1, "1 喝酒")]),
@@ -106,9 +112,6 @@ public static class TableEditorSpecs
                 F("兴建条件权重", nameof(FacilityKindConfig.AIBuildConditionWeightString)))),
         Animation("tile-animations", "地块动画"),
         Animation("troop-animations", "部队动画"),
-        Spec<FactionColorConfig>("colors", "势力颜色", "势力和列传按位置引用颜色，ID 即位置。",
-            Section("颜色", F("红", nameof(FactionColorConfig.R)), F("绿", nameof(FactionColorConfig.G)),
-                F("蓝", nameof(FactionColorConfig.B)), F("不透明度", nameof(FactionColorConfig.A)))),
 
         // Person abilities and battle actions.
         Spec<StuntConfig>("stunts", "特技", "部队在战斗中主动发动的特技，持续若干天。",
@@ -383,8 +386,74 @@ public static class TableEditorSpecs
                 F("新建权重", nameof(MilitaryKindConfig.AICreateArchitectureConditionWeightString)),
                 F("升级建筑权重", nameof(MilitaryKindConfig.AIUpgradeArchitectureConditionWeightString)),
                 F("升级主将权重", nameof(MilitaryKindConfig.AIUpgradeLeaderConditionWeightString)),
-                F("主将权重", nameof(MilitaryKindConfig.AILeaderConditionWeightString))))
+                F("主将权重", nameof(MilitaryKindConfig.AILeaderConditionWeightString)))),
+
+        // Scenario records placed in the world; where they are is set on the building that lists them.
+        Spec<CaptiveConfig>("captives", "俘虏",
+            "被关押的人物。关押地点由建筑的“俘虏”列表决定，关押方就是该建筑所属的势力。",
+            Section("基本", F("俘虏人物", nameof(CaptiveConfig.CaptivePersonId)),
+                F("原属势力", nameof(CaptiveConfig.CaptiveFactionId), "人物被俘前所属的势力，由它支付赎金")),
+            Section("赎金", "原属势力送出的赎金在途中：送达目标建筑（关押方首都）后由关押方决定是否放人。到达天数为 0 表示没有赎金在途。",
+                F("赎金金额", nameof(CaptiveConfig.RansomFund)),
+                F("目标建筑", nameof(CaptiveConfig.RansomArchitectureId)),
+                F("到达天数", nameof(CaptiveConfig.RansomArriveDays)))) with
+        {
+            RecordName = (item, lookup) => item is CaptiveConfig captive
+                ? captive.CaptiveFactionId == -1
+                    ? lookup.Name("persons", captive.CaptivePersonId)
+                    : $"{lookup.Name("persons", captive.CaptivePersonId)} · 原属{lookup.Name("factions", captive.CaptiveFactionId)}"
+                : ""
+        },
+        Spec<FacilityConfig>("facilities", "设施", "建筑里已建成的设施。所在建筑由建筑的“设施”列表决定。",
+            Section("基本", F("设施等级", nameof(FacilityConfig.LevelId), choiceName: FacilityLevelName),
+                F("耐久", nameof(FacilityConfig.Endurance)))) with
+        {
+            RecordName = (item, lookup) => item is FacilityConfig facility
+                ? lookup.Item("facility-kind-levels", facility.LevelId) is { } level
+                    ? FacilityLevelName(level, lookup)
+                    : $"设施等级 {facility.LevelId}（未收录）"
+                : ""
+        },
+        Spec<MilitaryConfig>("militaries", "编队", "建筑中的编队。驻扎在哪座建筑由建筑的“编队”列表决定。",
+            Section("基本", F("名称", "Name"), F("兵种", nameof(MilitaryConfig.KindId)),
+                F("所属建筑", nameof(MilitaryConfig.BelongedArchitectureID)),
+                F("编成年", nameof(MilitaryConfig.YearCreated))),
+            Section("兵员", F("人数", nameof(MilitaryConfig.Quantity)), F("伤兵", nameof(MilitaryConfig.InjuryQuantity)),
+                F("士气", nameof(MilitaryConfig.Morale)), F("战意", nameof(MilitaryConfig.Combativity)),
+                F("经验", nameof(MilitaryConfig.Experience)), F("疲累度", nameof(MilitaryConfig.Tiredness))),
+            Section("将领", F("队长", nameof(MilitaryConfig.LeaderID)),
+                F("队长经验", nameof(MilitaryConfig.LeaderExperience)),
+                F("追随将领", nameof(MilitaryConfig.FollowedLeaderID)),
+                F("补充人员", nameof(MilitaryConfig.RecruitmentPersonID))),
+            Section("运输", "编队在建筑间运送途中时使用。",
+                F("出发建筑", nameof(MilitaryConfig.StartingArchitectureID)),
+                F("目标建筑", nameof(MilitaryConfig.TargetArchitectureID)),
+                F("到达时间", nameof(MilitaryConfig.ArrivingDays)),
+                F("被包裹编队", nameof(MilitaryConfig.ShelledMilitaryID))),
+            Section("战绩", F("士兵伤害", nameof(MilitaryConfig.TroopDamageDealt)),
+                F("受士兵伤害", nameof(MilitaryConfig.TroopBeDamageDealt)),
+                F("建筑伤害", nameof(MilitaryConfig.ArchitectureDamageDealt)),
+                F("击破数", nameof(MilitaryConfig.RoutCount)),
+                F("致武将战死", nameof(MilitaryConfig.OfficerKillCount)),
+                F("俘获将领", nameof(MilitaryConfig.CaptiveCount)),
+                F("计略成功", nameof(MilitaryConfig.StratagemSuccessCount)),
+                F("计略失败", nameof(MilitaryConfig.StratagemFailCount)),
+                F("中计", nameof(MilitaryConfig.StratagemBeSuccessCount)),
+                F("计略阻挡", nameof(MilitaryConfig.StratagemBeFailCount)))),
+        Spec<PersonRelationConfig>("person-relations", "人物关系", "两个人物之间的关系值，游戏运行中会不断调整。",
+            Section("基本", F("人物1", nameof(PersonRelationConfig.PersonID1)),
+                F("人物2", nameof(PersonRelationConfig.PersonID2)), F("关系值", nameof(PersonRelationConfig.Relation)))) with
+        {
+            RecordName = (item, lookup) => item is PersonRelationConfig relation
+                ? $"{lookup.Name("persons", relation.PersonID1)} ↔ {lookup.Name("persons", relation.PersonID2)}"
+                : ""
+        }
     ];
+
+    // A facility level has no name: it is its kind's name and level number.
+    private static string FacilityLevelName(object item, TableRecordLookup lookup) => item is FacilityKindLevelConfig level
+        ? $"{lookup.Name("facility-kinds", level.KindId)} Lv{level.Level}"
+        : "";
 
     private static TableSectionSpec Generation(string conditions, string chance) =>
         Section("生成", "随机生成人物时，满足生成条件的人物按生成类型的机率获得，共 10 个数，以空格分隔。",
@@ -409,5 +478,6 @@ public static class TableEditorSpecs
         new(title, hint, fields) { Columns = columns };
 
     private static TableFieldSpec F(string label, string property, string? hint = null, bool wide = false,
-        IReadOnlyList<PersonChoiceOption>? choices = null) => new(label, property, hint, wide, choices);
+        IReadOnlyList<PersonChoiceOption>? choices = null, Func<object, TableRecordLookup, string>? choiceName = null) =>
+        new(label, property, hint, wide, choices, choiceName);
 }

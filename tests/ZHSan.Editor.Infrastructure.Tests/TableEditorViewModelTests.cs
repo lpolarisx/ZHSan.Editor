@@ -25,11 +25,21 @@ public sealed class TableEditorViewModelTests
         var spec = TableEditorSpecs.All.Single(spec => spec.Key == key);
         var metadata = new ReflectionConfigMetadataProvider();
         var document = new ConfigDocument { Definition = Definition(spec), Items = [..items] };
+        // Each document goes to the archive of its own scope, as when a scenario is opened over CommonData.
+        ConfigDocument[] all = [document, ..others];
         var references = new ConfigReferenceIndex(metadata);
-        references.Rebuild([new EditorProject
-        {
-            Scope = ConfigScope.Common, ArchivePath = "common.dat", Documents = [document, ..others]
-        }]);
+        references.Rebuild([
+            new EditorProject
+            {
+                Scope = ConfigScope.Common, ArchivePath = "common.dat",
+                Documents = [..all.Where(item => item.Definition.Scope == ConfigScope.Common)]
+            },
+            new EditorProject
+            {
+                Scope = ConfigScope.Scenario, ArchivePath = "scenario.dat",
+                Documents = [..all.Where(item => item.Definition.Scope == ConfigScope.Scenario)]
+            }
+        ]);
         var viewModel = new ConfigDocumentViewModel(document, metadata, _ => { }, referenceIndex: references,
             editorProviderRegistry: new ConfigEditorProviderRegistry([new TableEditorProvider(TableEditorSpecs.All)]));
         return (viewModel, Assert.IsType<TableEditorViewModel>(viewModel.SpecializedEditor?.Content));
@@ -37,6 +47,12 @@ public sealed class TableEditorViewModelTests
 
     private static ConfigDocument Common<T>(string key, params T[] items) where T : notnull =>
         new() { Definition = Registry.Find(key)!, Items = [..items.Cast<object>()] };
+
+    private static ConfigDocument Scenario<T>(string key, params T[] items) where T : notnull =>
+        new()
+        {
+            Definition = Registry.Find(new ConfigAddress(ConfigScope.Scenario, key))!, Items = [..items.Cast<object>()]
+        };
 
     [Theory]
     [MemberData(nameof(SpecKeys))]
@@ -212,6 +228,131 @@ public sealed class TableEditorViewModelTests
         successors.Candidate = successors.Candidates.Single(option => option.Id == 3);
         successors.AddCommand.Execute(null);
         Assert.Equal("2 3", spear.SuccessorString.Trim());
+    }
+
+    [Fact]
+    public void InformationKind_IsNamedByLevelAndRangeWithoutANameField()
+    {
+        var kind = new InformationKindConfig { Id = 2, Name = "", Level = InformationLevel.High, Radius = 6, CostFund = 800 };
+        var (document, editor) = Open("information-kinds", [kind]);
+        using var _ = document;
+
+        Assert.DoesNotContain(editor.AllFields, field => field.Label == "名称");
+        Assert.Equal("高 · 半径 6 · 800 资金", editor.SelectedTitle);
+        editor.Sections[0].Group.Fields.Single(field => field.Label == "斜向").BooleanValue = true;
+        Assert.Equal("高 · 半径 6 斜向 · 800 资金", editor.SelectedTitle);
+    }
+
+    [Fact]
+    public void FactionColor_AppliesThePickedColorInOneStep()
+    {
+        var color = new FactionColorConfig { Id = 3, R = 0x10, G = 0x20, B = 0x30 };
+        var metadata = new ReflectionConfigMetadataProvider();
+        var colors = new ConfigDocument { Definition = Registry.Find("colors")!, Items = [color] };
+        using var document = new ConfigDocumentViewModel(colors, metadata, _ => { },
+            editorProviderRegistry: new ConfigEditorProviderRegistry(
+                [new FactionColorEditorProvider(), new TableEditorProvider(TableEditorSpecs.All)]));
+        var editor = Assert.IsType<FactionColorEditorViewModel>(document.SpecializedEditor?.Content);
+
+        Assert.Equal("#102030", editor.SelectedTitle);
+        Assert.False(editor.HasChanges);
+        editor.DraftColor = Avalonia.Media.Color.FromArgb(200, 0xFF, 0x80, 0x30);
+        Assert.True(editor.HasChanges);
+        Assert.Equal(0x10, color.R);
+        editor.ApplyCommand.Execute(null);
+        Assert.Equal((0xFF, 0x80, 0x30, 200), (color.R, color.G, color.B, color.A));
+        Assert.Equal("#FF8030", editor.SelectedTitle);
+        Assert.False(editor.HasChanges);
+
+        document.UndoCommand.Execute(null);
+        Assert.Equal((0x10, 0x20, 0x30, 255), (color.R, color.G, color.B, color.A));
+        Assert.Equal(Avalonia.Media.Color.FromRgb(0x10, 0x20, 0x30), editor.DraftColor);
+
+        editor.DraftColor = Avalonia.Media.Colors.Red;
+        editor.ResetCommand.Execute(null);
+        Assert.False(editor.HasChanges);
+    }
+
+    [Fact]
+    public void CommonRecords_AddedCopiedOrPastedContinueAfterTheHighestId()
+    {
+        var (document, _) = Open("condition-kinds",
+            [new ConditionKindConfig { Id = 0, Name = "统率" }, new ConditionKindConfig { Id = 5, Name = "武力" }]);
+        using var __ = document;
+        int LastId() => ((ConditionKindConfig)document.Records[^1].Item).Id;
+
+        document.AddCommand.Execute(null);
+        Assert.Equal(6, LastId());
+        document.SelectedRecord = document.Records[1];
+        document.CopyCommand.Execute(null);
+        Assert.Equal(7, LastId());
+        Assert.Equal("武力", ((ConditionKindConfig)document.Records[^1].Item).Name);
+        document.SelectedRecord = document.Records[0];
+        document.CopyToClipboardCommand.Execute(null);
+        document.PasteCommand.Execute(null);
+        Assert.Equal(8, LastId());
+        Assert.Equal([0, 5, 6, 7, 8], document.Records.Select(record => ((ConditionKindConfig)record.Item).Id));
+        document.UndoCommand.Execute(null);
+        document.AddCommand.Execute(null);
+        Assert.Equal(8, LastId());
+
+        // Colours are looked up by position, so a new one must take the next position to be saved.
+        var colors = new ConfigDocument
+        {
+            Definition = Registry.Find("colors")!,
+            Items = [new FactionColorConfig { Id = 0 }, new FactionColorConfig { Id = 1 }]
+        };
+        using var colorDocument = new ConfigDocumentViewModel(colors, new ReflectionConfigMetadataProvider(), _ => { });
+        colorDocument.AddCommand.Execute(null);
+        Assert.Equal([0, 1, 2], colors.Items.Cast<FactionColorConfig>().Select(color => color.Id));
+    }
+
+    [Fact]
+    public void ScenarioRecords_AreNamedAfterWhatTheyReference()
+    {
+        var persons = Scenario("persons", new PersonConfig { Id = 16, SurName = "刘", GivenName = "备" },
+            new PersonConfig { Id = 17, SurName = "关", GivenName = "羽" });
+        var factions = Scenario("factions", new FactionConfig { Id = 2, Name = "刘备" });
+
+        var captive = new CaptiveConfig { Id = 1, CaptivePersonId = 17, CaptiveFactionId = 2, RansomArchitectureId = -1 };
+        var (captives, captiveEditor) = Open("captives", [captive], persons, factions);
+        using (captives)
+        {
+            Assert.Equal("关羽 · 原属刘备", captiveEditor.SelectedTitle);
+            var faction = captiveEditor.Sections[0].Group.Fields.Single(field => field.Label == "原属势力");
+            faction.SelectedChoice = faction.ChoiceOptions.Single(option => option.Id == -1);
+            Assert.Equal("关羽", captiveEditor.SelectedTitle);
+            Assert.Equal("-1 无", captiveEditor.Sections[1].Group.Fields.Single(field => field.Label == "目标建筑")
+                .SelectedChoice?.Label);
+        }
+
+        var relation = new PersonRelationConfig { PersonID1 = 16, PersonID2 = 17, Relation = 80 };
+        var (relations, relationEditor) = Open("person-relations", [relation], persons);
+        using (relations) Assert.Equal("刘备 ↔ 关羽", relationEditor.SelectedTitle);
+
+        var facility = new FacilityConfig { Id = 5, LevelId = 2, Endurance = 100 };
+        var (facilities, facilityEditor) = Open("facilities", [facility],
+            Common("facility-kind-levels", new FacilityKindLevelConfig { Id = 2, KindId = 9, Level = 2 }),
+            Common("facility-kinds", new FacilityKindConfig { Id = 9, Name = "农田" }));
+        using (facilities)
+        {
+            Assert.Equal("农田 Lv2", facilityEditor.SelectedTitle);
+            Assert.Equal("2 农田 Lv2", facilityEditor.Sections[0].Group.Fields.Single(field => field.Label == "设施等级")
+                .SelectedChoice?.Label);
+        }
+
+        var military = new MilitaryConfig
+        {
+            Id = 3, Name = "青州兵", LeaderID = 16, FollowedLeaderID = -1, RecruitmentPersonID = -1,
+            StartingArchitectureID = -1, TargetArchitectureID = -1, ShelledMilitaryID = -1
+        };
+        var (militaries, militaryEditor) = Open("militaries", [military], persons);
+        using (militaries)
+        {
+            var leaders = militaryEditor.Sections.Single(section => section.Title == "将领").Group.Fields;
+            Assert.Equal("16 刘备", leaders.Single(field => field.Label == "队长").SelectedChoice?.Label);
+            Assert.Equal("-1 无", leaders.Single(field => field.Label == "追随将领").SelectedChoice?.Label);
+        }
     }
 
     [Fact]

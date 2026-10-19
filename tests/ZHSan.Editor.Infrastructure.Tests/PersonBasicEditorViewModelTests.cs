@@ -267,6 +267,17 @@ public sealed class PersonBasicEditorViewModelTests
         biographies.UndoCommand.Execute(null);
         Assert.Equal("旧简介", brief.TextValue);
 
+        // 自立兵种 is kept on the biography too.
+        biography.MilitaryKindsString = "3 4 ";
+        editor.SelectedPerson = editor.People[1];
+        editor.SelectedPerson = editor.People[0];
+        Assert.Equal(["3 （未收录）", "4 （未收录）"], editor.BiographyMilitaryKinds.Items.Select(item => item.Label));
+        editor.BiographyMilitaryKinds.Items[0].RemoveCommand.Execute(null);
+        Assert.Equal("4", biography.MilitaryKindsString.Trim());
+        Assert.False(people.IsDirty);
+        biographies.UndoCommand.Execute(null);
+        Assert.Equal(["3 （未收录）", "4 （未收录）"], editor.BiographyMilitaryKinds.Items.Select(item => item.Label));
+
         editor.SelectedPerson = editor.People[1];
         Assert.False(editor.HasBiography);
         Assert.True(editor.CanAddBiography);

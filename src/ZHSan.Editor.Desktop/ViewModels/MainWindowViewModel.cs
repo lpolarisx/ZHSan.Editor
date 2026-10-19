@@ -278,7 +278,6 @@ public sealed class MainWindowViewModel : ObservableObject
             if (SetProperty(ref _isDetailsPaneVisible, value))
             {
                 _uiState.IsDetailsPaneVisible = value;
-                UpdatePropertyEditorDemand();
             }
         }
     }
@@ -318,16 +317,16 @@ public sealed class MainWindowViewModel : ObservableObject
         ? "数据操作日志"
         : $"数据操作日志 ({ImportLogEntries.Count})";
 
+    // Tabs of the details pane, in the order MainWindow.axaml declares them.
+    public const int ValidationTab = 0;
+    public const int GlobalSearchTab = 1;
+    public const int ImportPreviewTab = 2;
+    public const int TransferLogTab = 5;
+
     public int SelectedDetailsTabIndex
     {
         get => _selectedDetailsTabIndex;
-        set
-        {
-            if (SetProperty(ref _selectedDetailsTabIndex, value))
-            {
-                UpdatePropertyEditorDemand();
-            }
-        }
+        set => SetProperty(ref _selectedDetailsTabIndex, value);
     }
 
     public string ValidationSearchText
@@ -634,7 +633,7 @@ public sealed class MainWindowViewModel : ObservableObject
             StatusText = result.ValidationReport.Issues.Count == 0
                 ? $"已导出配置：{success.DisplayName}"
                 : $"已导出配置：{success.DisplayName}；{FormatValidationCounts(result.ValidationReport)}";
-            SelectedDetailsTabIndex = 6;
+            SelectedDetailsTabIndex = TransferLogTab;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -701,7 +700,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 ErrorMessage = $"{result.WriteResult.Failures.Count} 项配置导出失败，请在导入/导出日志中查看详情。";
             }
 
-            SelectedDetailsTabIndex = 6;
+            SelectedDetailsTabIndex = TransferLogTab;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -755,7 +754,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 $"已将旧版剧本转换为 {result.EntryCount} 个条目、{result.ItemCount} 条记录",
                 "剧本转换",
                 ConfigScope.Scenario);
-            SelectedDetailsTabIndex = 6;
+            SelectedDetailsTabIndex = TransferLogTab;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -818,7 +817,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 (result.Warnings.Count > 0 ? Environment.NewLine + warningText : string.Empty),
                 "CommonData 转换",
                 ConfigScope.Common);
-            SelectedDetailsTabIndex = 6;
+            SelectedDetailsTabIndex = TransferLogTab;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -865,7 +864,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 var counts = FormatValidationCounts(result.ValidationReport);
                 StatusText = $"发布已阻止：{counts}";
                 AddTransferLog(path, "游戏配置包", "已阻止", counts, "发布");
-                SelectedDetailsTabIndex = 1;
+                SelectedDetailsTabIndex = ValidationTab;
                 return;
             }
 
@@ -876,7 +875,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 $"已发布 {result.ConfigCount} 项配置、{result.ItemCount} 条记录到 {result.DestinationPath}",
                 "发布");
             StatusText = $"发布完成：{result.ConfigCount} 项配置，共 {result.ItemCount} 条记录";
-            SelectedDetailsTabIndex = 6;
+            SelectedDetailsTabIndex = TransferLogTab;
         }
         catch (ArchiveConflictException exception)
         {
@@ -974,7 +973,7 @@ public sealed class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ImportStrategyDescription));
         ((RelayCommand)ApplyImportCommand).RaiseCanExecuteChanged();
         ((RelayCommand)CancelImportPreviewCommand).RaiseCanExecuteChanged();
-        SelectedDetailsTabIndex = 3;
+        SelectedDetailsTabIndex = ImportPreviewTab;
     }
 
     private bool CanApplyImport() =>
@@ -1010,7 +1009,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
         StatusText = $"已导入 {appliedCount} 项配置；更改尚未保存，可撤销或保存后写入文件";
         ClearImportPreview();
-        SelectedDetailsTabIndex = 6;
+        SelectedDetailsTabIndex = TransferLogTab;
     }
 
     private void ClearImportPreview()
@@ -1193,7 +1192,8 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         _slotDocuments[project.Scope] = documents;
-        UpdatePropertyEditorDemand();
+        // Records are edited in the specialized editors; the per-property cards are never shown.
+        foreach (var document in documents) document.ArePropertyEditorsNeeded = false;
         _slotCategories[project.Scope] = CreateCategories(documents);
         _slotReferenceIndexes[project.Scope] = referenceIndex;
         _archiveChangeMonitor.Watch(project);
@@ -1761,8 +1761,10 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private void NavigateToSearchResult(GlobalSearchMatch match)
     {
+        SelectedArchiveTabIndex = match.Document.Document.Definition.Scope == ConfigScope.Common ? 0 : 1;
         SelectDocument(match.Document);
         match.Document.NavigateTo(match.Record);
+        ShowRecordEditor(match.Document);
         StatusText = $"已定位到 {match.Document.DisplayName} · {match.Property.DisplayName}";
     }
 
@@ -1816,7 +1818,7 @@ public sealed class MainWindowViewModel : ObservableObject
         ApplyValidationFilter();
         if (selectValidationTab)
         {
-            SelectedDetailsTabIndex = 1;
+            SelectedDetailsTabIndex = ValidationTab;
         }
     }
 
@@ -1903,7 +1905,7 @@ public sealed class MainWindowViewModel : ObservableObject
             SelectedArchiveTabIndex = issue.Scope == ConfigScope.Common ? 0 : 1;
             SelectDocument(target);
             target.NavigateTo(issue.ItemId, null);
-            SelectedDetailsTabIndex = 0;
+            ShowRecordEditor(target);
             StatusText = $"已定位到 {target.DisplayName}" +
                 (issue.ItemId is { } targetId ? $" · ID {targetId}" : string.Empty) +
                 $"（{document.DisplayName}）";
@@ -1913,7 +1915,7 @@ public sealed class MainWindowViewModel : ObservableObject
         SelectedArchiveTabIndex = issue.Scope == ConfigScope.Common ? 0 : 1;
         SelectDocument(document);
         document.NavigateTo(issue.ItemId, issue.PropertyName);
-        SelectedDetailsTabIndex = 0;
+        ShowRecordEditor(document);
         StatusText = $"已定位到 {document.DisplayName} · " +
             (issue.ItemId is { } id ? $"ID {id}" : "整表") +
             (issue.PropertyName is null ? string.Empty : $" · {issue.PropertyName}");
@@ -1937,8 +1939,14 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
-        SelectedDetailsTabIndex = 0;
+        ShowRecordEditor(document);
         StatusText = $"已定位到 {document.DisplayName} · ID {target.Id}";
+    }
+
+    // Records are edited in a document's specialized editor; documents without one only have the table view.
+    private static void ShowRecordEditor(ConfigDocumentViewModel document)
+    {
+        if (document.ShowSpecializedEditorCommand.CanExecute(null)) document.ShowSpecializedEditorCommand.Execute(null);
     }
 
     private static string FormatValidationCounts(ValidationReport report) =>
@@ -2149,16 +2157,6 @@ public sealed class MainWindowViewModel : ObservableObject
         _slotDocuments.Where(slot => slot.Key != scope)
             .SelectMany(slot => slot.Value)
             .FirstOrDefault(document => string.Equals(document.Key, key, StringComparison.OrdinalIgnoreCase));
-
-    // The property panel is the details pane's first tab; documents skip building it while it is hidden.
-    private void UpdatePropertyEditorDemand()
-    {
-        var needed = IsDetailsPaneVisible && SelectedDetailsTabIndex == 0;
-        foreach (var document in _slotDocuments.Values.SelectMany(documents => documents))
-        {
-            document.ArePropertyEditorsNeeded = needed;
-        }
-    }
 
     private IReadOnlyList<ConfigDocumentViewModel> GetSlotDocuments(ConfigScope scope) =>
         _slotDocuments.TryGetValue(scope, out var documents) ? documents : [];
