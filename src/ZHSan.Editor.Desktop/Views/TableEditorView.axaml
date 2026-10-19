@@ -1,0 +1,210 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:editors="using:ZHSan.Editor.Desktop.Editors"
+             xmlns:views="using:ZHSan.Editor.Desktop.Views"
+             x:Class="ZHSan.Editor.Desktop.Views.TableEditorView"
+             x:DataType="editors:TableEditorViewModel">
+  <UserControl.Styles>
+    <Style Selector="NumericUpDown.compact">
+      <Setter Property="ShowButtonSpinner" Value="False" />
+      <Setter Property="HorizontalContentAlignment" Value="Right" />
+    </Style>
+    <Style Selector="NumericUpDown.integer">
+      <Setter Property="Increment" Value="1" />
+      <Setter Property="views:IntegerInput.IsEnabled" Value="True" />
+    </Style>
+    <Style Selector="NumericUpDown.invalid-input">
+      <Setter Property="BorderBrush" Value="#E5534B" />
+      <Setter Property="ToolTip.Tip" Value="只能输入整数，离开输入框后会恢复原值" />
+    </Style>
+    <!-- Like the person editor's grid, with room for five-character labels: 280px cells, 76px label, 8px gap, 100px or 180px input. -->
+    <Style Selector="TextBlock.field-label">
+      <Setter Property="Width" Value="76" />
+      <Setter Property="TextAlignment" Value="Right" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Opacity" Value="0.75" />
+    </Style>
+    <Style Selector="TextBlock.warning">
+      <Setter Property="Foreground" Value="#E5534B" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Border.card">
+      <Setter Property="Padding" Value="14" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    </Style>
+    <Style Selector="Border.chip">
+      <Setter Property="Background" Value="#30343D" />
+      <Setter Property="BorderBrush" Value="#59606C" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="8,2,2,2" />
+    </Style>
+    <Style Selector="Button.chip-remove">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="6,0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Height" Value="24" />
+    </Style>
+  </UserControl.Styles>
+  <UserControl.DataTemplates>
+    <DataTemplate x:DataType="editors:TableSectionViewModel">
+      <Border Classes="card">
+        <StackPanel Spacing="10">
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding Group.Note}" IsVisible="{Binding Group.HasNote}" FontSize="12" Opacity="0.65"
+                       VerticalAlignment="Center" Classes.warning="{Binding Group.IsWarning}" TextWrapping="Wrap" />
+          </StackPanel>
+          <TextBlock Text="{Binding Hint}" IsVisible="{Binding HasHint}" TextWrapping="Wrap" FontSize="12"
+                     Opacity="0.6" />
+          <ItemsControl ItemsSource="{Binding Group.Fields}" IsVisible="{Binding HasFields}" Margin="0,0,0,-10"
+                        MaxWidth="{Binding FieldsMaxWidth}" HorizontalAlignment="Left">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel ItemWidth="280" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+          </ItemsControl>
+          <ItemsControl ItemsSource="{Binding WideItems}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Spacing="12" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+    <DataTemplate x:DataType="editors:PersonBasicFieldViewModel">
+      <StackPanel Orientation="Horizontal" Margin="0,0,0,10" Spacing="8">
+        <TextBlock Text="{Binding Label}" Classes="field-label" />
+        <Panel Width="{Binding InputWidth}">
+          <TextBox Text="{Binding TextValue, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" IsVisible="{Binding IsText}" />
+          <NumericUpDown Value="{Binding NumericValue, Mode=TwoWay}" Classes="compact integer"
+                         IsVisible="{Binding IsNumber}" />
+          <NumericUpDown Value="{Binding NumericValue, Mode=TwoWay}" Classes="compact" Increment="0.1"
+                         FormatString="0.####" IsVisible="{Binding IsDecimal}" />
+          <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
+                    IsVisible="{Binding IsEnum}" HorizontalAlignment="Stretch" />
+          <ComboBox ItemsSource="{Binding ChoiceOptions}" SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
+                    IsVisible="{Binding IsChoice}" HorizontalAlignment="Stretch">
+            <ComboBox.ItemsPanel>
+              <ItemsPanelTemplate>
+                <VirtualizingStackPanel />
+              </ItemsPanelTemplate>
+            </ComboBox.ItemsPanel>
+          </ComboBox>
+          <TextBox Text="{Binding IdListText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                   PlaceholderText="以空格分隔" IsVisible="{Binding IsIdList}" />
+          <CheckBox IsChecked="{Binding BooleanValue, Mode=TwoWay}" IsVisible="{Binding IsBoolean}" />
+        </Panel>
+      </StackPanel>
+    </DataTemplate>
+    <DataTemplate x:DataType="editors:TableWideTextViewModel">
+      <Grid ColumnDefinitions="76,*" ColumnSpacing="8">
+        <TextBlock Text="{Binding Field.Label}" Classes="field-label" VerticalAlignment="Top" Margin="0,6,0,0" />
+        <StackPanel Grid.Column="1" Spacing="4">
+          <TextBox Text="{Binding Field.TextValue, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" TextWrapping="Wrap"
+                   AcceptsReturn="False" IsVisible="{Binding Field.IsText}" />
+          <TextBox Text="{Binding Field.TextListValue, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" TextWrapping="Wrap"
+                   AcceptsReturn="True" MinHeight="72" MaxHeight="240" PlaceholderText="每行一条"
+                   IsVisible="{Binding Field.IsTextList}" />
+          <TextBlock Text="{Binding Hint}" IsVisible="{Binding HasHint}" TextWrapping="Wrap" FontSize="12"
+                     Opacity="0.6" />
+        </StackPanel>
+      </Grid>
+    </DataTemplate>
+    <DataTemplate x:DataType="editors:PersonIdChipListViewModel">
+      <Grid ColumnDefinitions="76,*" ColumnSpacing="8">
+        <TextBlock Text="{Binding Label}" Classes="field-label" VerticalAlignment="Top" Margin="0,6,0,0" />
+        <StackPanel Grid.Column="1" Spacing="6">
+          <TextBlock Text="{Binding Hint}" IsVisible="{Binding HasHint}" TextWrapping="Wrap"
+                     FontSize="12" Opacity="0.6" Margin="0,6,0,0" />
+          <ItemsControl ItemsSource="{Binding Items}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="editors:PersonIdChipViewModel">
+                <Border Classes="chip" Margin="0,0,6,6">
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                    <Button Classes="chip-remove" Content="×" Command="{Binding RemoveCommand}" ToolTip.Tip="移除"
+                            IsVisible="{Binding CanRemove}" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Text="（空）" Opacity="0.5" FontSize="12" IsVisible="{Binding IsEmpty}" />
+          <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding !IsReadOnly}">
+            <AutoCompleteBox ItemsSource="{Binding Candidates}" SelectedItem="{Binding Candidate, Mode=TwoWay}"
+                             Text="{Binding CandidateText, Mode=TwoWay}" FilterMode="Contains" MinimumPrefixLength="1"
+                             MaxDropDownHeight="320" PlaceholderText="{Binding Placeholder}"
+                             IsEnabled="{Binding CanEdit}" Width="320" />
+            <Button Content="添加" Command="{Binding AddCommand}" />
+          </StackPanel>
+          <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontSize="12" Foreground="#D9534F"
+                     IsVisible="{Binding !CanEdit}" />
+        </StackPanel>
+      </Grid>
+    </DataTemplate>
+    <DataTemplate x:DataType="editors:TableRuleFieldViewModel">
+      <Grid ColumnDefinitions="76,*" ColumnSpacing="8">
+        <TextBlock Text="{Binding Label}" Classes="field-label" VerticalAlignment="Top" Margin="0,6,0,0" />
+        <StackPanel Grid.Column="1" Spacing="6">
+          <TextBlock Text="{Binding Hint}" IsVisible="{Binding HasHint}" TextWrapping="Wrap" FontSize="12"
+                     Opacity="0.6" Margin="0,6,0,0" />
+          <ContentControl Content="{Binding Editor}" />
+        </StackPanel>
+      </Grid>
+    </DataTemplate>
+  </UserControl.DataTemplates>
+  <Grid ColumnDefinitions="220,1,*" Background="#08000000">
+    <Grid RowDefinitions="Auto,Auto,*" Margin="10">
+      <TextBlock Text="{Binding Subject}" FontSize="18" FontWeight="SemiBold" Margin="5,4,0,8" />
+      <TextBox Grid.Row="1" Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+               PlaceholderText="搜索名称或 ID" Margin="0,0,0,6" />
+      <ListBox Grid.Row="2" ItemsSource="{Binding FilteredRecords}"
+               SelectedItem="{Binding SelectedRecord, Mode=TwoWay}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="editors:RecordOptionViewModel">
+            <TextBlock Text="{Binding Label}" Margin="5,4" TextTrimming="CharacterEllipsis" />
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Grid>
+    <Border Grid.Column="1" Background="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    <Grid Grid.Column="2" RowDefinitions="Auto,*">
+      <Border Padding="17,11" BorderThickness="0,0,0,1"
+              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="{Binding SelectedTitle}" FontSize="20" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding SelectedId}" Opacity="0.58" VerticalAlignment="Center" />
+          </StackPanel>
+          <TextBlock Grid.Column="1" Text="{Binding CountText}" Opacity="0.58" VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+      <ScrollViewer Grid.Row="1">
+        <StackPanel Margin="16" Spacing="13">
+          <TextBlock Text="{Binding Intro}" TextWrapping="Wrap" Opacity="0.6" FontSize="12" />
+          <TextBlock Text="修改会进入撤销记录，使用主窗口的保存按钮写入文件。" TextWrapping="Wrap" Opacity="0.6" FontSize="12" />
+          <TextBlock Text="当前没有记录。" IsVisible="{Binding !HasSelection}" />
+          <ItemsControl ItemsSource="{Binding Sections}" IsVisible="{Binding HasSelection}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Spacing="13" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+          </ItemsControl>
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+  </Grid>
+</UserControl>

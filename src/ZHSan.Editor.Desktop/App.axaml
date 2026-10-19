@@ -30,6 +30,9 @@
     <DataTemplate DataType="editors:ArchitectureEditorViewModel">
       <views:ArchitectureEditorView />
     </DataTemplate>
+    <DataTemplate DataType="editors:TableEditorViewModel">
+      <views:TableEditorView />
+    </DataTemplate>
     <DataTemplate DataType="editors:SectionEditorViewModel">
       <views:SectionEditorView />
     </DataTemplate>

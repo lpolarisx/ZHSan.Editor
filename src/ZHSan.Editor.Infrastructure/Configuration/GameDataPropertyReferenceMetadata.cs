@@ -11,6 +11,16 @@ internal static class GameDataPropertyReferenceMetadata
         {
             [(typeof(ArchitectureEventEffectConfig), nameof(ArchitectureEventEffectConfig.KindId))] =
                 new("architecture-effect-kinds"),
+            [(typeof(CombatMethodConfig), nameof(CombatMethodConfig.AttackDefaultString))] =
+                new("attack-default-kinds"),
+            [(typeof(CombatMethodConfig), nameof(CombatMethodConfig.AttackTargetString))] =
+                new("attack-target-kinds"),
+            [(typeof(StratagemConfig), nameof(StratagemConfig.CastDefaultString))] =
+                new("cast-default-kinds", emptyValue: -1),
+            [(typeof(StratagemConfig), nameof(StratagemConfig.CastTargetString))] =
+                new("cast-target-kinds", emptyValue: -1),
+            [(typeof(StuntConfig), nameof(StuntConfig.Animation))] =
+                new("tile-animations"),
             [(typeof(ConditionConfig), nameof(ConditionConfig.KindId))] =
                 new("condition-kinds"),
             [(typeof(FacilityKindLevelConfig), nameof(FacilityKindLevelConfig.KindId))] =

@@ -908,8 +908,11 @@ public sealed class PersonBasicFieldViewModel : ObservableObject
         _choices = _property.PropertyType == typeof(int) ? choices : null;
         IsChoice = _choices is not null;
         IsNumber = _property.PropertyType == typeof(int) && !IsChoice;
-        IsIdList = _property.PropertyType == typeof(List<int>);
-        Options = IsEnum ? Enum.GetNames(_property.PropertyType) : [];
+        IsDecimal = _property.PropertyType == typeof(float) || _property.PropertyType == typeof(double);
+        IsIdList = _property.PropertyType == typeof(List<int>) || _property.PropertyType == typeof(int[]);
+        IsTextList = _property.PropertyType == typeof(List<string>);
+        IsSupported = IsText || IsSex || IsBoolean || IsEnum || IsChoice || IsNumber || IsDecimal || IsIdList || IsTextList;
+        Options = IsEnum ? EnumLabels.Labels(_property.PropertyType) : [];
         RefreshChoiceOptions();
     }
 
@@ -922,7 +925,10 @@ public sealed class PersonBasicFieldViewModel : ObservableObject
     public bool IsNumber { get; }
     public IReadOnlyList<string> Options { get; }
     public bool IsChoice { get; }
+    public bool IsDecimal { get; }
     public bool IsIdList { get; }
+    public bool IsTextList { get; }
+    public bool IsSupported { get; }
     public double InputWidth => IsChoice || IsEnum || IsIdList ? 180 : 100;
     public IReadOnlyList<PersonChoiceOption> ChoiceOptions => _choiceOptions;
     public bool IsOutOfRange => _range is { } range && Value is int number &&
@@ -944,7 +950,7 @@ public sealed class PersonBasicFieldViewModel : ObservableObject
         {
             var parsed = ConfigStructuredStringCodec.ParseIds(value);
             if (parsed.IsValid && Value is IEnumerable<int> current && !current.SequenceEqual(parsed.Items))
-                Set(parsed.Items.ToList());
+                Set(_property.PropertyType == typeof(int[]) ? parsed.Items.ToArray() : parsed.Items.ToList());
             OnPropertyChanged();
         }
     }
@@ -954,13 +960,32 @@ public sealed class PersonBasicFieldViewModel : ObservableObject
         get => Value as string ?? "";
         set => Set(value ?? "");
     }
-    public decimal? NumericValue
+
+    // A list of texts is edited one per line; blank lines are dropped.
+    public string TextListValue
     {
-        get => Value is int number ? number : null;
+        get => Value is IEnumerable<string> texts ? string.Join(Environment.NewLine, texts) : "";
         set
         {
-            if (value is { } number && number == decimal.Truncate(number) &&
-                number >= int.MinValue && number <= int.MaxValue)
+            var texts = (value ?? "").Split('\n').Select(text => text.Trim()).Where(text => text.Length > 0).ToList();
+            if (Value is not IEnumerable<string> current || !current.SequenceEqual(texts)) Set(texts);
+        }
+    }
+    public decimal? NumericValue
+    {
+        get => Value switch
+        {
+            int number => number,
+            float number => (decimal)number,
+            double number => (decimal)number,
+            _ => null
+        };
+        set
+        {
+            if (value is not { } number) return;
+            if (_property.PropertyType == typeof(float)) Set((float)number);
+            else if (_property.PropertyType == typeof(double)) Set((double)number);
+            else if (number == decimal.Truncate(number) && number >= int.MinValue && number <= int.MaxValue)
                 Set((int)number);
         }
     }
@@ -971,8 +996,8 @@ public sealed class PersonBasicFieldViewModel : ObservableObject
     }
     public string? SelectedOption
     {
-        get => Value?.ToString();
-        set { if (value is not null) Set(Enum.Parse(_property.PropertyType, value)); }
+        get => Value is Enum value ? EnumLabels.Label(value) : null;
+        set { if (value is not null && EnumLabels.Parse(_property.PropertyType, value) is { } parsed) Set(parsed); }
     }
     public string? SelectedSex
     {
@@ -1025,6 +1050,7 @@ public sealed class PersonBasicFieldViewModel : ObservableObject
         OnPropertyChanged(nameof(RangeTip));
         OnPropertyChanged(nameof(IdListText));
         OnPropertyChanged(nameof(TextValue));
+        OnPropertyChanged(nameof(TextListValue));
         OnPropertyChanged(nameof(NumericValue));
         OnPropertyChanged(nameof(BooleanValue));
         OnPropertyChanged(nameof(SelectedOption));

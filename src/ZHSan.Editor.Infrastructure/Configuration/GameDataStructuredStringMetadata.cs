@@ -57,6 +57,8 @@ internal static class GameDataStructuredStringMetadata
                 new(ConfigStructuredStringKind.ReferenceIds, "states", ConfigScope.Scenario),
             [(typeof(FactionConfig), nameof(FactionConfig.ArchitecturesString))] =
                 new(ConfigStructuredStringKind.ReferenceIds, "architectures", ConfigScope.Scenario),
+            [(typeof(MilitaryKindConfig), nameof(MilitaryKindConfig.SuccessorString))] =
+                new(ConfigStructuredStringKind.ReferenceIds, "military-kinds"),
             [(typeof(SectionConfig), nameof(SectionConfig.ArchitecturesString))] =
                 new(ConfigStructuredStringKind.ReferenceIds, "architectures", ConfigScope.Scenario),
             [(typeof(FactionConfig), nameof(FactionConfig.SectionsString))] =

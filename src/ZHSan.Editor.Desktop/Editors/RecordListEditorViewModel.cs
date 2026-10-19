@@ -40,6 +40,9 @@ public abstract class RecordListEditorViewModel<TConfig> : ObservableObject, IId
     public string CountText => $"{FilteredRecords.Count} / {Records.Count} {_unit}";
     protected TConfig? SelectedConfig => SelectedRecord?.Record.Item as TConfig;
 
+    // The edited record type; editors over several record types (TConfig = object) override it.
+    protected virtual Type ItemType => typeof(TConfig);
+
     public string SearchText
     {
         get => _searchText;
@@ -72,7 +75,7 @@ public abstract class RecordListEditorViewModel<TConfig> : ObservableObject, IId
 
     protected PersonBasicFieldViewModel Field(string label, string propertyName) =>
         new(label, propertyName, () => SelectedRecord?.Record, Context, GetChoiceProvider(propertyName),
-            itemType: typeof(TConfig), subject: _subject);
+            itemType: ItemType, subject: _subject);
 
     protected virtual Func<IReadOnlyList<PersonChoiceOption>>? GetChoiceProvider(string propertyName) => null;
 
@@ -100,8 +103,8 @@ public abstract class RecordListEditorViewModel<TConfig> : ObservableObject, IId
     protected static string IdLabel(ConfigReferenceTarget target) =>
         $"{target.Id.ToString(CultureInfo.InvariantCulture)} {target.DisplayName}";
 
-    public object? GetValue(string propertyName) => SelectedConfig is { } config
-        ? typeof(TConfig).GetProperty(propertyName)!.GetValue(config)
+    public virtual object? GetValue(string propertyName) => SelectedConfig is { } config
+        ? ItemType.GetProperty(propertyName)!.GetValue(config)
         : null;
 
     public virtual void SetValue(string propertyName, object value, string description)
