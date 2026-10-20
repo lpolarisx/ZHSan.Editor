@@ -25,12 +25,10 @@ internal static class GameDataPropertyReferenceMetadata
                 new("condition-kinds"),
             [(typeof(FacilityKindLevelConfig), nameof(FacilityKindLevelConfig.KindId))] =
                 new("facility-kinds"),
-            [(typeof(FacilityKindLevelConfig), nameof(FacilityKindLevelConfig.TechnologyNeeded))] =
-                new("techniques", emptyValue: 0),
+            // FacilityKindLevelConfig.TechnologyNeeded and MilitaryKindConfig.CreateTechnology are not technique IDs:
+            // the game compares them with the building's 技术 value.
             [(typeof(InfluenceConfig), nameof(InfluenceConfig.KindId))] =
                 new("influence-kinds"),
-            [(typeof(MilitaryKindConfig), nameof(MilitaryKindConfig.CreateTechnology))] =
-                new("techniques", emptyValue: 0),
             [(typeof(MilitaryKindConfig), nameof(MilitaryKindConfig.LevelUpKindID))] =
                 new("military-kinds"),
             [(typeof(MilitaryKindConfig), nameof(MilitaryKindConfig.MorphToKindId))] =

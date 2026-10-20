@@ -23,6 +23,7 @@ public sealed class ConfigReferenceIndexTests
         {
             Id = 10,
             Name = "进阶兵种",
+            // A building technology value, not a technique ID.
             CreateTechnology = 1,
             LevelUpKindID = [11, 12],
             MorphToKindId = 0,
@@ -45,7 +46,7 @@ public sealed class ConfigReferenceIndexTests
         Assert.Equal(2, index.References.Count(reference =>
             reference.Property.Name == nameof(MilitaryKindConfig.LevelUpKindID)));
         Assert.DoesNotContain(index.References, reference => reference.TargetId == 0);
-        Assert.Equal(2, index.GetReferencesTo("techniques", 1).Count);
+        Assert.Single(index.GetReferencesTo("techniques", 1));
     }
 
     [Fact]

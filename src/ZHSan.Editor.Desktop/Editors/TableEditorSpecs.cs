@@ -322,7 +322,7 @@ public static class TableEditorSpecs
                 F("是否外壳", nameof(MilitaryKindConfig.IsShell)),
                 F("描述", nameof(MilitaryKindConfig.Description), wide: true)),
             Section("新建", F("新建资金", nameof(MilitaryKindConfig.CreateCost)),
-                F("所需技术", nameof(MilitaryKindConfig.CreateTechnology)),
+                F("所需技术", nameof(MilitaryKindConfig.CreateTechnology), "所在建筑的技术值达到此数才能新建"),
                 F("水边新建", nameof(MilitaryKindConfig.CreateBesideWater)),
                 F("编队上限", nameof(MilitaryKindConfig.RecruitLimit), "每个势力最多拥有的此兵种编队数"),
                 F("新编条件", nameof(MilitaryKindConfig.CreateConditionsString), "编队所在建筑必须满足的条件")),

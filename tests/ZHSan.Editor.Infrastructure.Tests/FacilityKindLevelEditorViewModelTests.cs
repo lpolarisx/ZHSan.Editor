@@ -132,6 +132,48 @@ public sealed class FacilityKindLevelEditorViewModelTests
         Assert.Same(document.Records[0], document.SelectedRecord);
     }
 
+    [Fact]
+    public void InfluencesAndConditions_FollowSelectedLevelAndUseDocumentHistory()
+    {
+        var first = CreateLevel(1, 1, 1);
+        first.InfluencesString = "7";
+        first.ConditionTableString = "8";
+        var second = CreateLevel(2, 1, 2);
+        var (document, editor) = CreateEditor(
+            [new FacilityKindConfig { Id = 1, Name = "市场" }],
+            first,
+            second);
+
+        editor.SelectedLevel = editor.Levels.Single(level => level.Id == 1);
+        Assert.Equal("7", editor.Influences.Editor.RawText);
+        Assert.Equal("8", editor.Conditions.Editor.RawText);
+
+        editor.SelectedLevel = editor.Levels.Single(level => level.Id == 2);
+        editor.Influences.Editor.RawText = "7 9";
+        editor.Conditions.Editor.RawText = "8";
+
+        Assert.Equal("7 9", second.InfluencesString);
+        Assert.Equal("8", second.ConditionTableString);
+
+        document.UndoCommand.Execute(null);
+
+        Assert.True(string.IsNullOrEmpty(second.ConditionTableString));
+        Assert.Equal("7 9", second.InfluencesString);
+    }
+
+    [Fact]
+    public void TechnologyAndConcubineCapacity_AreEditedAsNumbers()
+    {
+        var level = CreateLevel(1, 1, 1);
+        var (_, editor) = CreateEditor([new FacilityKindConfig { Id = 1, Name = "后宫" }], level);
+
+        editor.SelectedTechnologyNeeded = 300;
+        editor.SelectedConcubineCapacity = 4;
+
+        Assert.Equal(300, level.TechnologyNeeded);
+        Assert.Equal(4, level.ConcubineCapacity);
+    }
+
     private static (ConfigDocumentViewModel Document, FacilityKindLevelEditorViewModel Editor) CreateEditor(
         FacilityKindConfig[] kinds,
         params FacilityKindLevelConfig[] levels)

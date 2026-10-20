@@ -1,8 +1,43 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:editors="using:ZHSan.Editor.Desktop.Editors"
+             xmlns:views="using:ZHSan.Editor.Desktop.Views"
              x:Class="ZHSan.Editor.Desktop.Views.FacilityKindLevelEditorView"
              x:DataType="editors:FacilityKindLevelEditorViewModel">
+  <UserControl.Styles>
+    <Style Selector="NumericUpDown.compact">
+      <Setter Property="ShowButtonSpinner" Value="False" />
+      <Setter Property="HorizontalContentAlignment" Value="Right" />
+    </Style>
+    <Style Selector="NumericUpDown.integer">
+      <Setter Property="Increment" Value="1" />
+      <Setter Property="views:IntegerInput.IsEnabled" Value="True" />
+    </Style>
+    <Style Selector="NumericUpDown.invalid-input">
+      <Setter Property="BorderBrush" Value="#E5534B" />
+      <Setter Property="ToolTip.Tip" Value="只能输入整数，离开输入框后会恢复原值" />
+    </Style>
+    <!-- Same cells as the table editors: 280px cell, 76px right-aligned label, 8px gap, 100px or 180px input. -->
+    <Style Selector="StackPanel.cell">
+      <Setter Property="Orientation" Value="Horizontal" />
+      <Setter Property="Spacing" Value="8" />
+      <Setter Property="Width" Value="280" />
+      <Setter Property="Margin" Value="0,0,0,10" />
+    </Style>
+    <Style Selector="TextBlock.field-label">
+      <Setter Property="Width" Value="76" />
+      <Setter Property="TextAlignment" Value="Right" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Opacity" Value="0.75" />
+    </Style>
+    <Style Selector="Border.card">
+      <Setter Property="Padding" Value="14" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    </Style>
+  </UserControl.Styles>
   <Grid RowDefinitions="Auto,*" Background="#08000000">
     <Border Padding="12,9" BorderThickness="0,0,0,1"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
@@ -14,7 +49,7 @@
       </Grid>
     </Border>
 
-    <Grid Grid.Row="1" ColumnDefinitions="230,1,*,1,300">
+    <Grid Grid.Row="1" ColumnDefinitions="220,1,260,1,*">
       <Grid RowDefinitions="Auto,*">
         <StackPanel Margin="14,14,14,8" Spacing="3">
           <TextBlock Text="设施种类" FontSize="18" FontWeight="SemiBold" />
@@ -77,75 +112,89 @@
       <Border Grid.Column="3" Background="{DynamicResource SystemControlForegroundBaseLowBrush}" />
 
       <ScrollViewer Grid.Column="4">
-        <StackPanel Margin="14" Spacing="10">
+        <StackPanel Margin="14" Spacing="12">
           <TextBlock Text="等级属性" FontSize="18" FontWeight="SemiBold" />
           <TextBlock Text="请选择一条等级配置。" Opacity="0.62"
                      IsVisible="{Binding !HasLevelSelection}" />
 
-          <StackPanel Spacing="9" IsVisible="{Binding HasLevelSelection}">
-            <Grid ColumnDefinitions="Auto,*">
-              <TextBlock Text="记录 ID" VerticalAlignment="Center" />
-              <TextBox Grid.Column="1" Margin="12,0,0,0" Text="{Binding SelectedId}" IsReadOnly="True" />
-            </Grid>
+          <StackPanel Spacing="12" IsVisible="{Binding HasLevelSelection}">
+            <Border Classes="card">
+              <StackPanel Spacing="10">
+                <WrapPanel Margin="0,0,0,-10">
+                  <StackPanel Classes="cell">
+                    <TextBlock Text="记录 ID" Classes="field-label" />
+                    <TextBox Text="{Binding SelectedId}" IsReadOnly="True" Width="100" />
+                  </StackPanel>
+                  <StackPanel Classes="cell">
+                    <TextBlock Text="设施种类" Classes="field-label" />
+                    <ComboBox ItemsSource="{Binding KindOptions}" Width="180"
+                              SelectedItem="{Binding SelectedKindForLevel, Mode=TwoWay}">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="editors:FacilityKindOptionViewModel">
+                          <TextBlock Text="{Binding Label}" />
+                        </DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                  </StackPanel>
+                  <StackPanel Classes="cell">
+                    <TextBlock Text="等级" Classes="field-label" />
+                    <NumericUpDown Value="{Binding SelectedLevelNumber, Mode=TwoWay}" Classes="compact integer" Width="100"
+                                   Minimum="1" Maximum="2147483647" />
+                  </StackPanel>                  <StackPanel Classes="cell">
+                    <TextBlock Text="占地" Classes="field-label" />
+                    <NumericUpDown Value="{Binding SelectedPositionOccupied, Mode=TwoWay}" Classes="compact integer" Width="100"
+                                   Minimum="0" Maximum="2147483647" />
+                  </StackPanel>                  <StackPanel Classes="cell">
+                    <TextBlock Text="耐久" Classes="field-label" />
+                    <NumericUpDown Value="{Binding SelectedEndurance, Mode=TwoWay}" Classes="compact integer" Width="100"
+                                   Minimum="0" Maximum="2147483647" />
+                  </StackPanel>                  <StackPanel Classes="cell">
+                    <TextBlock Text="点数成本" Classes="field-label" />
+                    <NumericUpDown Value="{Binding SelectedPointCost, Mode=TwoWay}" Classes="compact integer" Width="100"
+                                   Minimum="0" Maximum="2147483647" />
+                  </StackPanel>                  <StackPanel Classes="cell">
+                    <TextBlock Text="资金成本" Classes="field-label" />
+                    <NumericUpDown Value="{Binding SelectedFundCost, Mode=TwoWay}" Classes="compact integer" Width="100"
+                                   Minimum="0" Maximum="2147483647" />
+                  </StackPanel>                  <StackPanel Classes="cell">
+                    <TextBlock Text="维护成本" Classes="field-label" />
+                    <NumericUpDown Value="{Binding SelectedMaintenanceCost, Mode=TwoWay}" Classes="compact integer" Width="100"
+                                   Minimum="0" Maximum="2147483647" />
+                  </StackPanel>                  <StackPanel Classes="cell">
+                    <TextBlock Text="建设天数" Classes="field-label" />
+                    <NumericUpDown Value="{Binding SelectedDays, Mode=TwoWay}" Classes="compact integer" Width="100"
+                                   Minimum="0" Maximum="2147483647" />
+                  </StackPanel>                  <StackPanel Classes="cell" ToolTip.Tip="所在建筑的技术值达到此数才能兴建">
+                    <TextBlock Text="所需技术" Classes="field-label" />
+                    <NumericUpDown Value="{Binding SelectedTechnologyNeeded, Mode=TwoWay}" Classes="compact integer" Width="100"
+                                   Minimum="0" Maximum="2147483647" />
+                  </StackPanel>                  <StackPanel Classes="cell">
+                    <TextBlock Text="容纳妃子数" Classes="field-label" />
+                    <NumericUpDown Value="{Binding SelectedConcubineCapacity, Mode=TwoWay}" Classes="compact integer" Width="100"
+                                   Minimum="0" Maximum="2147483647" />
+                  </StackPanel>                </WrapPanel>
 
-            <TextBlock Text="设施种类" FontWeight="SemiBold" />
-            <ComboBox ItemsSource="{Binding KindOptions}"
-                      SelectedItem="{Binding SelectedKindForLevel, Mode=TwoWay}">
-              <ComboBox.ItemTemplate>
-                <DataTemplate x:DataType="editors:FacilityKindOptionViewModel">
-                  <TextBlock Text="{Binding Label}" />
-                </DataTemplate>
-              </ComboBox.ItemTemplate>
-            </ComboBox>
-
-            <Grid ColumnDefinitions="*,8,*">
-              <StackPanel Spacing="4">
-                <TextBlock Text="等级" FontWeight="SemiBold" />
-                <NumericUpDown Minimum="1" Maximum="2147483647" Increment="1"
-                               Value="{Binding SelectedLevelNumber, Mode=TwoWay}" />
+                <Border Padding="10" CornerRadius="5" Background="#12FFFFFF">
+                  <TextBlock Text="{Binding SelectedIssueSummary}" TextWrapping="Wrap" />
+                </Border>
               </StackPanel>
-              <StackPanel Grid.Column="2" Spacing="4">
-                <TextBlock Text="占地" FontWeight="SemiBold" />
-                <NumericUpDown Minimum="0" Maximum="2147483647" Increment="1"
-                               Value="{Binding SelectedPositionOccupied, Mode=TwoWay}" />
-              </StackPanel>
-            </Grid>
-
-            <Grid ColumnDefinitions="*,8,*">
-              <StackPanel Spacing="4">
-                <TextBlock Text="点数成本" FontWeight="SemiBold" />
-                <NumericUpDown Minimum="0" Maximum="2147483647" Increment="1"
-                               Value="{Binding SelectedPointCost, Mode=TwoWay}" />
-              </StackPanel>
-              <StackPanel Grid.Column="2" Spacing="4">
-                <TextBlock Text="资金成本" FontWeight="SemiBold" />
-                <NumericUpDown Minimum="0" Maximum="2147483647" Increment="1"
-                               Value="{Binding SelectedFundCost, Mode=TwoWay}" />
-              </StackPanel>
-            </Grid>
-
-            <TextBlock Text="维护成本" FontWeight="SemiBold" />
-            <NumericUpDown Minimum="0" Maximum="2147483647" Increment="1"
-                           Value="{Binding SelectedMaintenanceCost, Mode=TwoWay}" />
-
-            <Grid ColumnDefinitions="*,8,*">
-              <StackPanel Spacing="4">
-                <TextBlock Text="建设天数" FontWeight="SemiBold" />
-                <NumericUpDown Minimum="0" Maximum="2147483647" Increment="1"
-                               Value="{Binding SelectedDays, Mode=TwoWay}" />
-              </StackPanel>
-              <StackPanel Grid.Column="2" Spacing="4">
-                <TextBlock Text="耐久" FontWeight="SemiBold" />
-                <NumericUpDown Minimum="0" Maximum="2147483647" Increment="1"
-                               Value="{Binding SelectedEndurance, Mode=TwoWay}" />
-              </StackPanel>
-            </Grid>
-
-            <Border Padding="10" Margin="0,4,0,0" CornerRadius="5" Background="#12FFFFFF">
-              <TextBlock Text="{Binding SelectedIssueSummary}" TextWrapping="Wrap" />
             </Border>
-            <TextBlock Text="科技需求、影响和条件等其余字段可在右侧属性面板继续编辑。"
-                       TextWrapping="Wrap" FontSize="11" Opacity="0.58" />
+
+            <Border Classes="card">
+              <StackPanel Spacing="8">
+                <TextBlock Text="{Binding Influences.Label}" FontSize="16" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding Influences.Hint}" TextWrapping="Wrap" FontSize="12" Opacity="0.6" />
+                <ContentControl Content="{Binding Influences.Editor}" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="8">
+                <TextBlock Text="{Binding Conditions.Label}" FontSize="16" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding Conditions.Hint}" TextWrapping="Wrap" FontSize="12" Opacity="0.6" />
+                <ContentControl Content="{Binding Conditions.Editor}" />
+              </StackPanel>
+            </Border>
           </StackPanel>
         </StackPanel>
       </ScrollViewer>

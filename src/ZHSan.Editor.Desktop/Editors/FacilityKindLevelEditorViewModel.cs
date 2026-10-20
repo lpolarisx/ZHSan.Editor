@@ -23,12 +23,18 @@ public sealed class FacilityKindLevelEditorViewModel : ObservableObject, IDispos
         _context.Document.StateChanged += DocumentOnStateChanged;
         _context.Document.PropertyChanged += DocumentOnPropertyChanged;
         _context.Document.ReferenceOptionsChanged += DocumentOnReferenceOptionsChanged;
+        Influences = RuleField("影响", nameof(FacilityKindLevelConfig.InfluencesString),
+            config => config.InfluencesString, "设施建成后生效");
+        Conditions = RuleField("兴建条件", nameof(FacilityKindLevelConfig.ConditionTableString),
+            config => config.ConditionTableString, "所在建筑满足条件才能兴建这一级设施");
         Rebuild();
     }
 
     public ObservableCollection<FacilityKindOptionViewModel> KindOptions { get; } = [];
     public ObservableCollection<FacilityLevelViewModel> Levels { get; } = [];
     public ICommand AddLevelCommand { get; }
+    public TableRuleFieldViewModel Influences { get; }
+    public TableRuleFieldViewModel Conditions { get; }
 
     public int KindCount => KindOptions.Count(option => !option.IsMissing);
     public int LevelCount => _context.Records.Count(record => record.Item is FacilityKindLevelConfig);
@@ -140,6 +146,18 @@ public sealed class FacilityKindLevelEditorViewModel : ObservableObject, IDispos
         set => SetSelectedInt(nameof(FacilityKindLevelConfig.Endurance), value, "修改耐久");
     }
 
+    public decimal? SelectedConcubineCapacity
+    {
+        get => SelectedLevel?.Config.ConcubineCapacity;
+        set => SetSelectedInt(nameof(FacilityKindLevelConfig.ConcubineCapacity), value, "修改可容纳妃子数");
+    }
+
+    public decimal? SelectedTechnologyNeeded
+    {
+        get => SelectedLevel?.Config.TechnologyNeeded;
+        set => SetSelectedInt(nameof(FacilityKindLevelConfig.TechnologyNeeded), value, "修改所需技术");
+    }
+
     public string SelectedIssueSummary => SelectedLevel is null
         ? string.Empty
         : SelectedLevel.Issues.Count == 0
@@ -206,6 +224,23 @@ public sealed class FacilityKindLevelEditorViewModel : ObservableObject, IDispos
         _context.Document.StateChanged -= DocumentOnStateChanged;
         _context.Document.PropertyChanged -= DocumentOnPropertyChanged;
         _context.Document.ReferenceOptionsChanged -= DocumentOnReferenceOptionsChanged;
+    }
+
+    private TableRuleFieldViewModel RuleField(
+        string label, string propertyName, Func<FacilityKindLevelConfig, string?> read, string hint)
+    {
+        var definition = _context.Document.Properties.First(property => property.Name == propertyName).StructuredString
+            ?? throw new InvalidOperationException($"{propertyName} 没有规则字符串元数据");
+        return new TableRuleFieldViewModel(label, hint, definition, _context.GetReferenceTargets,
+            () => SelectedLevel is not null,
+            () => SelectedLevel is null ? "" : read(SelectedLevel.Config) ?? "",
+            value =>
+            {
+                if (SelectedLevel is null) return;
+                _context.SetPropertyValue(SelectedLevel.Record, propertyName, value, $"修改{label}");
+                StatusMessage = $"已修改{label}";
+            },
+            _context.NavigateReference);
     }
 
     private void RebuildLevels(ConfigRecordViewModel? selectedRecord = null)
@@ -368,7 +403,11 @@ public sealed class FacilityKindLevelEditorViewModel : ObservableObject, IDispos
         OnPropertyChanged(nameof(SelectedMaintenanceCost));
         OnPropertyChanged(nameof(SelectedDays));
         OnPropertyChanged(nameof(SelectedEndurance));
+        OnPropertyChanged(nameof(SelectedConcubineCapacity));
+        OnPropertyChanged(nameof(SelectedTechnologyNeeded));
         OnPropertyChanged(nameof(SelectedIssueSummary));
+        Influences.Refresh();
+        Conditions.Refresh();
     }
 
     private (ConfigRecordViewModel Record, FacilityKindLevelConfig Config)[] GetConfigs() =>
@@ -378,7 +417,12 @@ public sealed class FacilityKindLevelEditorViewModel : ObservableObject, IDispos
             .ToArray();
 
     private void DocumentOnStateChanged(object? sender, EventArgs eventArgs) => Rebuild();
-    private void DocumentOnReferenceOptionsChanged(object? sender, EventArgs eventArgs) => Rebuild();
+    private void DocumentOnReferenceOptionsChanged(object? sender, EventArgs eventArgs)
+    {
+        Influences.ReloadOptions();
+        Conditions.ReloadOptions();
+        Rebuild();
+    }
 
     private void DocumentOnPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
     {

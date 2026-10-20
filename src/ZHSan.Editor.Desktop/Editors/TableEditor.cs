@@ -267,23 +267,32 @@ public sealed record TableWideTextViewModel(PersonBasicFieldViewModel Field, str
 public sealed class TableRuleFieldViewModel
 {
     private readonly ConfigStructuredStringDefinition _definition;
-    private readonly TableEditorViewModel _owner;
-    private readonly string _propertyName;
+    private readonly Func<ConfigAddress, IReadOnlyList<ConfigReferenceTarget>> _targets;
+    private readonly Func<bool> _hasValue;
+    private readonly Func<string> _getValue;
     private readonly ObservableCollection<ReferenceOptionViewModel> _options = [];
 
     public TableRuleFieldViewModel(string label, string? hint, ConfigStructuredStringDefinition definition,
         TableEditorViewModel owner, string propertyName)
+        : this(label, hint, definition, owner.Targets, () => owner.HasSelection,
+            () => owner.GetValue(propertyName) as string ?? "",
+            value => owner.SetValue(propertyName, value, $"修改{label}"), owner.NavigateReference)
+    {
+    }
+
+    /// <param name="hasValue">Whether a record is selected, so <see cref="Refresh"/> has a value to show.</param>
+    public TableRuleFieldViewModel(string label, string? hint, ConfigStructuredStringDefinition definition,
+        Func<ConfigAddress, IReadOnlyList<ConfigReferenceTarget>> targets, Func<bool> hasValue,
+        Func<string> getValue, Action<string> setValue, Action<ConfigReferenceTarget>? navigateReference)
     {
         Label = label;
         Hint = hint;
         _definition = definition;
-        _owner = owner;
-        _propertyName = propertyName;
+        _targets = targets;
+        _hasValue = hasValue;
+        _getValue = getValue;
         ReloadOptionList();
-        Editor = new StructuredRuleStringEditorViewModel(definition,
-            () => owner.GetValue(propertyName) as string ?? "",
-            value => owner.SetValue(propertyName, value, $"修改{label}"),
-            _options, owner.NavigateReference);
+        Editor = new StructuredRuleStringEditorViewModel(definition, getValue, setValue, _options, navigateReference);
     }
 
     public string Label { get; }
@@ -293,7 +302,7 @@ public sealed class TableRuleFieldViewModel
 
     public void Refresh()
     {
-        if (_owner.HasSelection) Editor.ReloadFromValue(_owner.GetValue(_propertyName) as string ?? "");
+        if (_hasValue()) Editor.ReloadFromValue(_getValue());
     }
 
     public void ReloadOptions()
@@ -305,9 +314,9 @@ public sealed class TableRuleFieldViewModel
     private void ReloadOptionList()
     {
         _options.Clear();
-        var conditionKinds = _owner.Targets(new ConfigAddress(_definition.TargetAddress.Scope, "condition-kinds"))
+        var conditionKinds = _targets(new ConfigAddress(_definition.TargetAddress.Scope, "condition-kinds"))
             .GroupBy(target => target.Id).ToDictionary(group => group.Key, group => group.First().DisplayName);
-        foreach (var target in _owner.Targets(_definition.TargetAddress).GroupBy(target => target.Id)
+        foreach (var target in _targets(_definition.TargetAddress).GroupBy(target => target.Id)
                      .Select(group => group.First()).OrderBy(target => target.Id))
             _options.Add(new ReferenceOptionViewModel(target.Id,
                 $"#{target.Id.ToString(CultureInfo.InvariantCulture)} · {target.DisplayName}", false, target,
