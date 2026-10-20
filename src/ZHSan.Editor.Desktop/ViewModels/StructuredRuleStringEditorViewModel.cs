@@ -39,7 +39,17 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
         AddPicker = new ReferencePickerViewModel(
             IsConditionExpression ? _conditionOptions : _options,
             () => null,
-            option => Add(option.Id));
+            option => Add(option.Id),
+            isAdded: IsAlreadyAdded)
+        {
+            Placeholder = definition.Kind switch
+            {
+                ConfigStructuredStringKind.InfluenceIds => "＋ 输入名称、ID 或描述添加影响…",
+                ConfigStructuredStringKind.ConditionIds => "＋ 输入名称、ID 或描述添加条件…",
+                ConfigStructuredStringKind.WeightedConditionPairs => "＋ 输入名称、ID 或描述添加条件（权重 1）…",
+                _ => "＋ 输入名称、ID 或描述添加…",
+            },
+        };
         ReloadFromValue(_getValue());
     }
 
@@ -48,6 +58,16 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
     public ReferencePickerViewModel AddPicker { get; }
     public ICommand ToggleRawEditorCommand { get; }
     public string FormatDescription => _definition.FormatDescription;
+
+    /// <summary>What the list means in the game; the separator format is only shown with the raw text.</summary>
+    public string? UsageDescription => _definition.Kind switch
+    {
+        ConfigStructuredStringKind.InfluenceIds => "影响按列表顺序在游戏中生效。",
+        ConfigStructuredStringKind.ConditionIds => _definition.FormatDescription,
+        _ => null,
+    };
+
+    public bool HasUsageDescription => UsageDescription is not null;
     public bool IsWeighted => _definition.Kind == ConfigStructuredStringKind.WeightedConditionPairs;
     public bool IsInfluenceList => _definition.Kind == ConfigStructuredStringKind.InfluenceIds;
     public bool IsConditionExpression => _definition.Kind == ConfigStructuredStringKind.ConditionIds;
@@ -55,9 +75,9 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
     public bool ShowWeightedTable => IsWeighted;
     public bool HasConditionGroups => ConditionGroups.Count > 0;
     public bool HasParseErrors => _parseErrors.Count > 0;
-    public bool CanToggleRawEditor => IsConditionExpression || IsWeighted;
-    public bool ShowRawEditor => ShowFlatList || HasParseErrors || _isRawEditorExpanded;
-    public string RawEditorToggleText => ShowRawEditor ? "隐藏底层文本" : "显示底层文本（高级）";
+    public bool CanToggleRawEditor => !HasParseErrors;
+    public bool ShowRawEditor => HasParseErrors || _isRawEditorExpanded;
+    public string RawEditorToggleText => ShowRawEditor ? "▾ 底层格式" : "▸ 底层格式";
     public bool CanUseStructuredEditor => _parseErrors.Count == 0;
     public bool HasIssues => IssueCount > 0;
     public bool HasPasteIssues => _pasteErrors.Count > 0;
@@ -73,13 +93,25 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
     public ConditionExpressionGroupViewModel? SelectedAddGroup
     {
         get => _selectedAddGroup;
-        set => SetProperty(ref _selectedAddGroup, value);
+        set
+        {
+            if (SetProperty(ref _selectedAddGroup, value))
+            {
+                AddPicker?.RefreshSuggestions();
+            }
+        }
     }
 
     public bool AddAsAlternativeGroup
     {
         get => _addAsAlternativeGroup;
-        set => SetProperty(ref _addAsAlternativeGroup, value);
+        set
+        {
+            if (SetProperty(ref _addAsAlternativeGroup, value))
+            {
+                AddPicker?.RefreshSuggestions();
+            }
+        }
     }
 
     public StructuredRuleStringEntryViewModel? SelectedWeightedEntry
@@ -307,9 +339,18 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
             MoveUp,
             MoveDown);
 
+    /// <summary>
+    /// Whether adding the ID would repeat it. A condition may appear in several "or" groups, so only the group it
+    /// would be added to counts.
+    /// </summary>
+    private bool IsAlreadyAdded(int id) => IsConditionExpression
+        ? !AddAsAlternativeGroup && SelectedAddGroup is { } group && ConditionGroups.Contains(group) &&
+          group.Terms.Any(term => term.Id == id)
+        : Entries.Any(entry => entry.Id == id);
+
     private void Add(int id)
     {
-        if (!CanUseStructuredEditor)
+        if (!CanUseStructuredEditor || IsAlreadyAdded(id))
         {
             return;
         }
@@ -576,6 +617,8 @@ public sealed class StructuredRuleStringEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(HasPasteIssues));
         OnPropertyChanged(nameof(PasteIssueSummary));
         OnPropertyChanged(nameof(Summary));
+        OnPropertyChanged(nameof(CanToggleRawEditor));
+        AddPicker?.RefreshSuggestions();
     }
 }
 

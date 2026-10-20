@@ -924,7 +924,13 @@ public sealed class PersonBasicFieldViewModel : ObservableObject
     public bool IsIdList { get; }
     public bool IsTextList { get; }
     public bool IsSupported { get; }
-    public double InputWidth => IsChoice || IsEnum || IsIdList ? 180 : 100;
+    public double InputWidth => CustomInputWidth ?? (IsChoice || IsEnum || IsIdList ? 180 : 100);
+
+    /// <summary>Set by editors that size a text field to the values it holds, e.g. long names.</summary>
+    public double? CustomInputWidth { get; set; }
+
+    /// <summary>The width of the grid cell holding the field, in editors whose cells can span several columns.</summary>
+    public double CellWidth { get; set; } = TableSectionViewModel.CellWidth;
     public IReadOnlyList<PersonChoiceOption> ChoiceOptions => _choiceOptions;
     public bool IsOutOfRange => _range is { } range && Value is int number &&
         (number < range.Minimum || number > range.Maximum);

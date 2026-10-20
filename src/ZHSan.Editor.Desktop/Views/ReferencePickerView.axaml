@@ -10,12 +10,17 @@
       <Button Grid.Column="2" Content="清除" Command="{Binding ClearSearchCommand}" />
     </Grid>
     <Grid ColumnDefinitions="*,6,Auto">
-      <ComboBox ItemsSource="{Binding FilteredOptions}"
+      <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding FilteredOptions}"
                 SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
                 PlaceholderText="没有匹配的引用目标">
         <ComboBox.ItemTemplate>
           <DataTemplate x:DataType="vm:ReferenceOptionViewModel">
-            <TextBlock Text="{Binding Label}" />
+            <Grid ColumnDefinitions="Auto,*" ToolTip.Tip="{Binding Description}">
+              <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+              <TextBlock Grid.Column="1" Text="{Binding Description, StringFormat='　{0}'}"
+                         IsVisible="{Binding HasDescription}" Opacity="0.55"
+                         TextTrimming="CharacterEllipsis" />
+            </Grid>
           </DataTemplate>
         </ComboBox.ItemTemplate>
       </ComboBox>

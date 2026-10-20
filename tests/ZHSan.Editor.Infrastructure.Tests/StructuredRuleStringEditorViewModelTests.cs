@@ -294,6 +294,48 @@ public sealed class StructuredRuleStringEditorViewModelTests
         Assert.True(term.IsNegated);
     }
 
+    [Fact]
+    public void InfluenceEditor_AddBoxMarksAddedTargetsRefusesRepeatsAndClearsTheSearch()
+    {
+        var technique = new TechniqueConfig { Id = 1, Name = "技术", InfluencesString = "10" };
+        var (_, editor) = CreateEditor(
+            technique,
+            [
+                new InfluenceConfig { Id = 10, Name = "影响甲" },
+                new InfluenceConfig { Id = 20, Name = "影响乙" },
+            ]);
+
+        Assert.False(editor.ShowRawEditor);
+        Assert.True(Assert.Single(editor.AddPicker.Suggestions, item => item.Option.Id == 10).IsAdded);
+        Assert.False(editor.AddPicker.Add(editor.AddPicker.Suggestions.Single(item => item.Option.Id == 10).Option));
+        Assert.Equal("10", technique.InfluencesString);
+
+        editor.AddPicker.SearchText = "乙";
+        var suggestion = Assert.Single(editor.AddPicker.Suggestions);
+        Assert.True(editor.AddPicker.Add(suggestion.Option));
+
+        Assert.Equal("10 20", technique.InfluencesString);
+        Assert.Equal(string.Empty, editor.AddPicker.SearchText);
+        Assert.All(editor.AddPicker.Suggestions, item => Assert.True(item.IsAdded));
+    }
+
+    [Fact]
+    public void ConditionEditor_AllowsTheSameConditionInAnotherOrGroupOnly()
+    {
+        var technique = new TechniqueConfig { Id = 1, Name = "技术", ConditionTableString = "10" };
+        var (_, editor) = CreateConditionEditor(
+            technique,
+            [new ConditionConfig { Id = 10, Name = "条件甲" }]);
+        var option = Assert.Single(editor.AddPicker.Suggestions).Option;
+
+        Assert.False(editor.AddPicker.Add(option));
+        editor.AddAsAlternativeGroup = true;
+        Assert.False(Assert.Single(editor.AddPicker.Suggestions).IsAdded);
+        Assert.True(editor.AddPicker.Add(option));
+
+        Assert.Equal("10 997 10", technique.ConditionTableString);
+    }
+
     private static (ConfigDocumentViewModel Document, StructuredRuleStringEditorViewModel Editor) CreateEditor(
         TechniqueConfig technique,
         InfluenceConfig[] influences)

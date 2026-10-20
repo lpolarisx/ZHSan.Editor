@@ -139,6 +139,8 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     internal ConfigDocumentViewModel? FindRelatedDocument(string key) =>
         _findRelatedDocument?.Invoke(key);
 
+    internal Action<ConfigReferenceTarget>? NavigateReference => _navigateReference;
+
     public ConfigDocument Document { get; }
     public string Key => Document.Definition.Key;
     public string DisplayName => Document.Definition.DisplayName;

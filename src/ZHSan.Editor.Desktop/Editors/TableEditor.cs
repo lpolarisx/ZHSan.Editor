@@ -1,3 +1,4 @@
+using GameDatas;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using ZHSan.Editor.Application.References;
@@ -118,7 +119,11 @@ public sealed class TableEditorViewModel : RecordListEditorViewModel<object>
                     if (!editor.IsSupported)
                         throw new ArgumentException($"{spec.Key}.{field.Property} 的类型 {property.PropertyType.Name} 不能在专用编辑器中编辑");
                     if ((field.Wide && editor.IsText) || editor.IsTextList) wide.Add(new TableWideTextViewModel(editor, field.Hint));
-                    else fields.Add(editor);
+                    else
+                    {
+                        if (editor.IsText) FitToValues(editor, field.Property, section.Columns);
+                        fields.Add(editor);
+                    }
                 }
             }
             var group = new PersonFieldGroupViewModel(section.Title, fields);
@@ -184,6 +189,7 @@ public sealed class TableEditorViewModel : RecordListEditorViewModel<object>
     }
 
     internal IReadOnlyList<ConfigReferenceTarget> Targets(ConfigAddress address) => Context.GetReferenceTargets(address);
+    internal Action<ConfigReferenceTarget>? NavigateReference => Context.NavigateReference;
 
     protected override void RefreshSelection()
     {
@@ -197,6 +203,36 @@ public sealed class TableEditorViewModel : RecordListEditorViewModel<object>
         base.OnReferenceOptionsChanged(sender, e);
         foreach (var rule in _ruleFields) rule.ReloadOptions();
     }
+
+    // Label (76) and gap (8) come before the input; the cell keeps a little room on its right.
+    private const double CellChrome = 76 + 8 + 12;
+    private const int MaxCellSpan = 3;
+
+    /// <summary>
+    /// Widens a text field whose values do not fit the default box, spanning up to three grid cells so that long names
+    /// (some kinds describe their whole effect in the name) can be read without scrolling inside the box.
+    /// </summary>
+    private void FitToValues(PersonBasicFieldViewModel editor, string propertyName, int? columns)
+    {
+        var property = _spec.ItemType.GetProperty(propertyName);
+        if (property is null) return;
+        var needed = Context.Records
+            .Select(record => property.GetValue(record.Item) as string)
+            .Where(text => !string.IsNullOrEmpty(text))
+            .Select(text => EstimateTextWidth(text!))
+            .DefaultIfEmpty(0)
+            .Max();
+        if (needed <= editor.InputWidth) return;
+        var span = Math.Min((int)Math.Ceiling((needed + CellChrome) / TableSectionViewModel.CellWidth),
+            Math.Min(MaxCellSpan, columns ?? MaxCellSpan));
+        if (span <= 1) return;
+        editor.CellWidth = span * TableSectionViewModel.CellWidth;
+        editor.CustomInputWidth = editor.CellWidth - CellChrome;
+    }
+
+    // At the editor's 14px font a CJK character is about 14px wide and a Latin one about half that; 20px for padding.
+    private static double EstimateTextWidth(string text) =>
+        text.Sum(character => character < 0x2E80 ? 7.5 : 14.0) + 20;
 
     private ConfigPropertyDefinition Property(string name) =>
         Context.Document.Properties.FirstOrDefault(property => property.Name == name)
@@ -247,7 +283,7 @@ public sealed class TableRuleFieldViewModel
         Editor = new StructuredRuleStringEditorViewModel(definition,
             () => owner.GetValue(propertyName) as string ?? "",
             value => owner.SetValue(propertyName, value, $"修改{label}"),
-            _options, null);
+            _options, owner.NavigateReference);
     }
 
     public string Label { get; }
@@ -269,9 +305,30 @@ public sealed class TableRuleFieldViewModel
     private void ReloadOptionList()
     {
         _options.Clear();
+        var conditionKinds = _owner.Targets(new ConfigAddress(_definition.TargetAddress.Scope, "condition-kinds"))
+            .GroupBy(target => target.Id).ToDictionary(group => group.Key, group => group.First().DisplayName);
         foreach (var target in _owner.Targets(_definition.TargetAddress).GroupBy(target => target.Id)
                      .Select(group => group.First()).OrderBy(target => target.Id))
             _options.Add(new ReferenceOptionViewModel(target.Id,
-                $"#{target.Id.ToString(CultureInfo.InvariantCulture)} · {target.DisplayName}", false, target));
+                $"#{target.Id.ToString(CultureInfo.InvariantCulture)} · {target.DisplayName}", false, target,
+                Describe(target.Item, conditionKinds)));
+    }
+
+    /// <summary>What an influence or condition does, shown after its name since names are often vague.</summary>
+    private static string? Describe(object item, IReadOnlyDictionary<int, string> conditionKinds)
+    {
+        switch (item)
+        {
+            case InfluenceConfig influence:
+                return string.IsNullOrWhiteSpace(influence.Description) ? null : influence.Description.Trim();
+            case ConditionConfig condition:
+                var kind = conditionKinds.GetValueOrDefault(condition.KindId)
+                    ?? $"条件类型 #{condition.KindId.ToString(CultureInfo.InvariantCulture)}";
+                var parameters = new[] { condition.Parameter, condition.Parameter2 }
+                    .Where(parameter => !string.IsNullOrWhiteSpace(parameter)).ToArray();
+                return parameters.Length == 0 ? kind : $"{kind}（{string.Join("，", parameters)}）";
+            default:
+                return null;
+        }
     }
 }

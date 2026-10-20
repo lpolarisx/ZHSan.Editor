@@ -64,7 +64,7 @@
                         MaxWidth="{Binding FieldsMaxWidth}" HorizontalAlignment="Left">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
-                <WrapPanel ItemWidth="280" />
+                <WrapPanel />
               </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
           </ItemsControl>
@@ -79,7 +79,7 @@
       </Border>
     </DataTemplate>
     <DataTemplate x:DataType="editors:PersonBasicFieldViewModel">
-      <StackPanel Orientation="Horizontal" Margin="0,0,0,10" Spacing="8">
+      <StackPanel Orientation="Horizontal" Margin="0,0,0,10" Spacing="8" Width="{Binding CellWidth}">
         <TextBlock Text="{Binding Label}" Classes="field-label" />
         <Panel Width="{Binding InputWidth}">
           <TextBox Text="{Binding TextValue, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" IsVisible="{Binding IsText}" />

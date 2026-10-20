@@ -685,7 +685,11 @@ public sealed record ReferenceOptionViewModel(
     int Id,
     string Label,
     bool IsMissing,
-    ConfigReferenceTarget? Target = null);
+    ConfigReferenceTarget? Target = null,
+    string? Description = null)
+{
+    public bool HasDescription => !string.IsNullOrEmpty(Description);
+}
 
 public sealed class CollectionItemViewModel : ObservableObject
 {
