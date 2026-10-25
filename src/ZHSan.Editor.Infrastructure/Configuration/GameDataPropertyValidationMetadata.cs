@@ -8,9 +8,7 @@ internal static class GameDataPropertyValidationMetadata
 {
     private static readonly HashSet<string> PercentagePropertyNames = new(StringComparer.Ordinal)
     {
-        "ChallengeChance",
         "ChildrenFemaleChance",
-        "ControversyChance",
         "FemaleChance",
         "GenerationChance",
         "InheritChance",
@@ -20,6 +18,24 @@ internal static class GameDataPropertyValidationMetadata
         "TitleChance",
         "Chance",
     };
+
+    // Same-named properties that are weights rather than percentages, so they may exceed 100.
+    private static readonly HashSet<(Type ItemType, string PropertyName)> NonPercentageProperties =
+    [
+        (typeof(PersonGeneratorTypeConfig), nameof(PersonGeneratorTypeConfig.GenerationChance)),
+    ];
+
+    // Records the game never names, so an empty Name is normal.
+    private static readonly HashSet<Type> NamelessItemTypes =
+    [
+        typeof(BiographyAdjectiveConfig),
+        typeof(CaptiveConfig),
+        typeof(FacilityConfig),
+        typeof(InformationKindConfig),
+        typeof(PersonGeneratorSettingConfig),
+        typeof(PersonRelationConfig),
+        typeof(TroopConfig),
+    ];
 
     private static readonly IReadOnlyDictionary<(Type ItemType, string PropertyName), int>
         FixedCollectionLengths = new Dictionary<(Type, string), int>
@@ -33,9 +49,11 @@ internal static class GameDataPropertyValidationMetadata
     public static ConfigPropertyValidation Get(PropertyInfo property)
     {
         var isRequired = property.PropertyType == typeof(string)
-            && property.Name == "Name";
+            && property.Name == "Name"
+            && !NamelessItemTypes.Contains(property.ReflectedType!);
         var hasPercentageRange = IsNumeric(property.PropertyType)
-            && PercentagePropertyNames.Contains(property.Name);
+            && PercentagePropertyNames.Contains(property.Name)
+            && !NonPercentageProperties.Contains((property.ReflectedType!, property.Name));
         var expectedCollectionLength = FixedCollectionLengths.GetValueOrDefault(
             (property.DeclaringType!, property.Name));
         var hasFixedCollectionLength = FixedCollectionLengths.ContainsKey(

@@ -319,6 +319,49 @@ public sealed class LegacyScenarioConverter : ILegacyScenarioConverter
             return source.DeepClone();
         }
 
+        if (TryGetKeyValuePairListTypes(targetType, out var pairKeyType, out var pairValueType))
+        {
+            var result = new JsonArray();
+            if (source is JsonArray entries)
+            {
+                for (var index = 0; index < entries.Count; index++)
+                {
+                    var entry = RequiredItemObject(entries[index], targetType.Name);
+                    if (!TryGetProperty(entry, "Key", out var keyNode) || keyNode is null ||
+                        !TryGetProperty(entry, "Value", out var valueNode))
+                    {
+                        throw new InvalidDataException($"旧版数据 {dataPath} 的键值列表存在无效的 Key/Value 项。");
+                    }
+
+                    result.Add(new JsonObject
+                    {
+                        ["Key"] = NormalizeNode(keyNode, pairKeyType, $"{dataPath}[{index}].Key"),
+                        ["Value"] = NormalizeNode(valueNode, pairValueType, $"{dataPath}[{index}].Value"),
+                    });
+                }
+            }
+            else if (source is JsonObject sourceObject)
+            {
+                foreach (var property in sourceObject)
+                {
+                    result.Add(new JsonObject
+                    {
+                        ["Key"] = pairKeyType == typeof(int) &&
+                            int.TryParse(property.Key, System.Globalization.CultureInfo.InvariantCulture, out var intKey)
+                                ? JsonValue.Create(intKey)
+                                : JsonValue.Create(property.Key),
+                        ["Value"] = NormalizeNode(property.Value, pairValueType, $"{dataPath}[{property.Key}]"),
+                    });
+                }
+            }
+            else
+            {
+                throw new InvalidDataException($"旧版数据 {dataPath} 的键值列表 JSON 结构无效。");
+            }
+
+            return result;
+        }
+
         if (TryGetDictionaryTypes(targetType, out _, out var valueType))
         {
             var result = new JsonObject();
@@ -336,11 +379,6 @@ public sealed class LegacyScenarioConverter : ILegacyScenarioConverter
                     var key = GetDictionaryKeyText(keyNode, dataPath);
                     if (result.ContainsKey(key))
                     {
-                        if (ShouldDeduplicateLegacyDictionary(dataPath))
-                        {
-                            continue;
-                        }
-
                         throw new InvalidDataException($"旧版数据 {dataPath} 的字典包含重复键 {key}。");
                     }
 
@@ -409,11 +447,22 @@ public sealed class LegacyScenarioConverter : ILegacyScenarioConverter
         return targetObject;
     }
 
-    private static bool ShouldDeduplicateLegacyDictionary(string dataPath) =>
-        string.Equals(
-            dataPath,
-            $"{nameof(ArchitectureConfig)}.{nameof(ArchitectureConfig.CaptiveLoyaltyFall)}",
-            StringComparison.Ordinal);
+    private static bool TryGetKeyValuePairListTypes(Type type, out Type keyType, out Type valueType)
+    {
+        if (!TryGetDictionaryTypes(type, out _, out _) &&
+            TryGetCollectionElementType(type, out var elementType) &&
+            elementType.IsGenericType && elementType.GetGenericTypeDefinition() == typeof(KeyValuePair<,>))
+        {
+            var arguments = elementType.GetGenericArguments();
+            keyType = arguments[0];
+            valueType = arguments[1];
+            return true;
+        }
+
+        keyType = typeof(object);
+        valueType = typeof(object);
+        return false;
+    }
 
     private static string GetDictionaryKeyText(JsonNode keyNode, string dataPath)
     {

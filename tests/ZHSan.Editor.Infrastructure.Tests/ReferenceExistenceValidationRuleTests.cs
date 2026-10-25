@@ -89,7 +89,7 @@ public sealed class ReferenceExistenceValidationRuleTests
                 // Unset links are -1, as in the game's scenarios.
                 new MilitaryConfig
                 {
-                    Id = 1, KindId = 404, LeaderID = 7, FollowedLeaderID = -1, RecruitmentPersonID = -1,
+                    Id = 1, KindId = 404, LeaderID = 7, BelongedArchitectureID = -1, FollowedLeaderID = -1, RecruitmentPersonID = -1,
                     StartingArchitectureID = -1, TargetArchitectureID = -1, ShelledMilitaryID = -1
                 }));
         var service = new ConfigValidationService(

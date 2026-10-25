@@ -96,7 +96,7 @@ public sealed class LegacyScenarioConverterTests
     }
 
     [Fact]
-    public async Task ConvertAsync_ArchitectureCaptiveLoyaltyFall_DeduplicatesByKey()
+    public async Task ConvertAsync_ArchitectureCaptiveLoyaltyFall_KeepsDuplicateKeys()
     {
         var directory = Path.Combine(Path.GetTempPath(), $"zhsan-legacy-scenario-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
@@ -115,9 +115,12 @@ public sealed class LegacyScenarioConverterTests
 
             using var archive = GameDataArchive.Open(destinationPath);
             var architecture = Assert.Single(archive.Load<List<ArchitectureConfig>>("Architectures.json")!);
-            var loyaltyFall = Assert.Single(architecture.CaptiveLoyaltyFall);
-            Assert.Equal(99, loyaltyFall.Key);
-            Assert.Equal(1, loyaltyFall.Value);
+            Assert.Equal(4, architecture.CaptiveLoyaltyFall.Count);
+            Assert.All(architecture.CaptiveLoyaltyFall, loyaltyFall =>
+            {
+                Assert.Equal(99, loyaltyFall.Key);
+                Assert.Equal(1, loyaltyFall.Value);
+            });
         }
         finally
         {

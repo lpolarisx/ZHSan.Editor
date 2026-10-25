@@ -27,5 +27,6 @@ public sealed record ConfigReferenceDefinition
 
     public bool IsOptional => EmptyValue.HasValue;
 
-    public bool IsEmpty(int value) => EmptyValue == value;
+    // IDs are never negative, so -1 always means "none" even where the field's own empty value is 0.
+    public bool IsEmpty(int value) => value == -1 || EmptyValue == value;
 }

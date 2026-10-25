@@ -87,7 +87,7 @@ internal static class GameDataPropertyReferenceMetadata
             [(typeof(MilitaryConfig), nameof(MilitaryConfig.LeaderID))] =
                 new("persons", emptyValue: -1, targetScope: ConfigScope.Scenario),
             [(typeof(MilitaryConfig), nameof(MilitaryConfig.BelongedArchitectureID))] =
-                new("architectures", emptyValue: 0, targetScope: ConfigScope.Scenario),
+                new("architectures", emptyValue: -1, targetScope: ConfigScope.Scenario),
             [(typeof(MilitaryConfig), nameof(MilitaryConfig.FollowedLeaderID))] =
                 new("persons", emptyValue: -1, targetScope: ConfigScope.Scenario),
             [(typeof(MilitaryConfig), nameof(MilitaryConfig.RecruitmentPersonID))] =
