@@ -377,7 +377,7 @@
         <TabItem Header="技能与称号">
           <ScrollViewer>
             <StackPanel Margin="16" Spacing="13">
-              <TextBlock Text="技能点击按钮切换；称号按种类选择；专属称号与兵种从下拉框添加、点 × 移除。人物仅保存战法经验，具体战法在部队的“当前战法／自动战法”中设置。修改可撤销并随人物配置保存。"
+              <TextBlock Text="技能与特技点击按钮切换；称号按种类选择；专属称号与兵种从下拉框添加、点 × 移除。人物仅保存战法经验，具体战法在部队的“当前战法／自动战法”中设置。修改可撤销并随人物配置保存。"
                          TextWrapping="Wrap" FontSize="12" Opacity="0.65" />
               <TextBlock Text="当前没有人物记录。" IsVisible="{Binding !HasSelection}" />
               <Border Padding="14" CornerRadius="7" BorderThickness="1"
@@ -393,7 +393,7 @@
                       </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
-                      <DataTemplate x:DataType="editors:PersonSkillButtonViewModel">
+                      <DataTemplate x:DataType="editors:PersonIdToggleViewModel">
                         <ToggleButton Classes="skill-toggle" Content="{Binding Name}"
                                       IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                       IsEnabled="{Binding CanToggle}"
@@ -401,6 +401,42 @@
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
+                </StackPanel>
+              </Border>
+              <Border Padding="14" CornerRadius="7" BorderThickness="1"
+                      BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                      IsVisible="{Binding HasSelection}">
+                <StackPanel Spacing="10">
+                  <TextBlock Text="特技" FontSize="16" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding StuntStatus}" TextWrapping="Wrap" FontSize="12" Opacity="0.65" />
+                  <ItemsControl ItemsSource="{Binding StuntButtons}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel ItemWidth="112" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="editors:PersonIdToggleViewModel">
+                        <ToggleButton Classes="skill-toggle" Content="{Binding Name}"
+                                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                      IsEnabled="{Binding CanToggle}" ToolTip.Tip="{Binding ToolTip}"
+                                      Margin="0,0,8,8" MinHeight="34" />
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <Border Height="1" Background="{DynamicResource SystemControlForegroundBaseLowBrush}" Margin="0,0,0,4" />
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding StudyingStuntField.Label}" Classes="field-label" />
+                    <ComboBox ItemsSource="{Binding StudyingStuntField.ChoiceOptions}"
+                              SelectedItem="{Binding StudyingStuntField.SelectedChoice, Mode=TwoWay}" Width="300">
+                      <ComboBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <VirtualizingStackPanel />
+                        </ItemsPanelTemplate>
+                      </ComboBox.ItemsPanel>
+                    </ComboBox>
+                    <TextBlock Text="正在学习、尚未获得的特技" FontSize="12" Opacity="0.55" VerticalAlignment="Center" />
+                  </StackPanel>
                 </StackPanel>
               </Border>
               <Border Padding="14" CornerRadius="7" BorderThickness="1"

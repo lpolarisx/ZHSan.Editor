@@ -91,7 +91,7 @@ public sealed class PersonBasicEditorViewModelTests
         Assert.False(male.Sex);
     }
     [Fact]
-    public void Associations_ToggleSkillsPickTitlesPerKindEditExclusiveListsAndExperienceWithUndo()
+    public void Associations_ToggleSkillsAndStuntsPickTitlesPerKindEditExclusiveListsAndExperienceWithUndo()
     {
         var person = new PersonConfig
         {
@@ -122,7 +122,8 @@ public sealed class PersonBasicEditorViewModelTests
                 {
                     Definition = new ConfigDefinition("stunts", "特技", "战斗", "Stunts.json",
                         typeof(StuntConfig), ConfigScope.Common),
-                    Items = [new StuntConfig { Id = 21, Name = "神速" }]
+                    Items = [new StuntConfig { Id = 21, Name = "神速", Combativity = 30, Period = 3 },
+                        new StuntConfig { Id = 22, Name = "猛袭" }]
                 },
                 new ConfigDocument
                 {
@@ -186,6 +187,21 @@ public sealed class PersonBasicEditorViewModelTests
         document.UndoCommand.Execute(null);
         Assert.Equal("11 99", person.SkillsString);
         Assert.True(riding.IsSelected);
+
+        var swift = Assert.Single(editor.StuntButtons, button => button.Name == "神速");
+        var raid = Assert.Single(editor.StuntButtons, button => button.Name == "猛袭");
+        Assert.True(swift.IsSelected);
+        Assert.Equal("消耗战意 30，持续 3 天", swift.ToolTip);
+        raid.IsSelected = true;
+        Assert.Equal("21 22", person.StuntsString);
+        document.UndoCommand.Execute(null);
+        Assert.Equal("21", person.StuntsString);
+        Assert.False(raid.IsSelected);
+        Assert.Equal("21 神速", editor.StudyingStuntField.SelectedChoice?.Label);
+        editor.StudyingStuntField.SelectedChoice = editor.StudyingStuntField.ChoiceOptions[0];
+        Assert.Equal(-1, person.StudyingStuntString);
+        document.UndoCommand.Execute(null);
+        Assert.Equal(21, person.StudyingStuntString);
 
         Assert.Equal(["武将", "合称 2", "合称 3"], editor.TitleSlots.Select(slot => slot.KindName));
         var general = editor.TitleSlots[0];

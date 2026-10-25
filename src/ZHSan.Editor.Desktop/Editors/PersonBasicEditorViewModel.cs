@@ -101,6 +101,7 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOw
         // PersonalTitleString / CombatTitleString are legacy fields the game no longer reads; they are
         // left untouched and not shown.
         StudyingTitleField = Field("学习中", nameof(PersonConfig.StudyingTitleString));
+        StudyingStuntField = Field("学习中", nameof(PersonConfig.StudyingStuntString));
         ExclusiveLists =
         [
             new PersonIdChipListViewModel("专属称号", nameof(PersonConfig.UniqueTitlesString), "titles", this),
@@ -116,6 +117,7 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOw
             ("水军", nameof(PersonConfig.ShuijunExperience)));
         Messages = new PersonMessagesViewModel(context, () => SelectedPerson?.Config);
         RebuildSkillButtons();
+        RebuildStuntButtons();
         RebuildTitleCatalog();
         _context.Document.ReferenceOptionsChanged += OnReferenceOptionsChanged;
         if (_biographyDocument is not null) _biographyDocument.StateChanged += OnBiographyStateChanged;
@@ -136,7 +138,8 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOw
     public IEnumerable<PersonBasicFieldViewModel> AllFields => BasicTabFields.Concat(SkillTabFields);
     private IEnumerable<PersonBasicFieldViewModel> BasicTabFields => Groups.SelectMany(group => group.Fields)
         .Concat(AbilityColumns.SelectMany(column => new[] { column.Ability, column.Experience }));
-    private IEnumerable<PersonBasicFieldViewModel> SkillTabFields => ExperienceGroup.Fields.Append(StudyingTitleField);
+    private IEnumerable<PersonBasicFieldViewModel> SkillTabFields =>
+        ExperienceGroup.Fields.Append(StudyingTitleField).Append(StudyingStuntField);
 
     public const int BasicTab = 0;
     public const int SkillTab = 1;
@@ -157,8 +160,11 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOw
     public PersonBasicFieldViewModel StudyingTitleField { get; }
     public IReadOnlyList<PersonIdChipListViewModel> ExclusiveLists { get; }
     public PersonFieldGroupViewModel ExperienceGroup { get; }
-    public ObservableCollection<PersonSkillButtonViewModel> SkillButtons { get; } = [];
+    public ObservableCollection<PersonIdToggleViewModel> SkillButtons { get; } = [];
     public string SkillStatus => GetSkillStatus();
+    public ObservableCollection<PersonIdToggleViewModel> StuntButtons { get; } = [];
+    public string StuntStatus => GetStuntStatus();
+    public PersonBasicFieldViewModel StudyingStuntField { get; }
     public IReadOnlyList<BiographyTextFieldViewModel> BiographyFields { get; }
     public PersonIdChipListViewModel BiographyMilitaryKinds { get; }
     public PersonMessagesViewModel Messages { get; }
@@ -354,6 +360,8 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOw
         nameof(PersonConfig.StudyingTitleString) => () => [new(-1, "无"), .._titles.Values
             .OrderBy(title => title.KindId).ThenBy(title => title.Level).ThenBy(title => title.Id)
             .Select(title => new PersonChoiceOption(title.Id, StudyingTitleLabel(title)))],
+        nameof(PersonConfig.StudyingStuntString) => () => [new(-1, "无"),
+            ..ReferenceOptions(_context.GetReferenceTargets("stunts"))],
         _ => null
     };
 
@@ -505,45 +513,71 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOw
     {
         SkillButtons.Clear();
         foreach (var target in _context.GetReferenceTargets("skills").GroupBy(target => target.Id).Select(group => group.First()))
-            SkillButtons.Add(new PersonSkillButtonViewModel(target.Id, target.DisplayName, this));
+            SkillButtons.Add(new PersonIdToggleViewModel(target.Id, target.DisplayName, null,
+                nameof(PersonConfig.SkillsString), this));
         RefreshSkills();
     }
 
-    private string GetSkillStatus()
+    // Stunts are the special moves a person's troop can cast in battle; StuntsString lists the ones learned.
+    private void RebuildStuntButtons()
+    {
+        StuntButtons.Clear();
+        foreach (var target in _context.GetReferenceTargets("stunts").GroupBy(target => target.Id)
+                     .Select(group => group.First()).OrderBy(target => target.Id))
+            StuntButtons.Add(new PersonIdToggleViewModel(target.Id, target.DisplayName,
+                target.Item is StuntConfig stunt ? $"消耗战意 {stunt.Combativity}，持续 {stunt.Period} 天" : null,
+                nameof(PersonConfig.StuntsString), this));
+        RefreshStunts();
+    }
+
+    private string GetSkillStatus() => GetIdListStatus(nameof(PersonConfig.SkillsString), SkillButtons, "技能", "已掌握");
+
+    private string GetStuntStatus() => GetIdListStatus(nameof(PersonConfig.StuntsString), StuntButtons, "特技", "可使用");
+
+    private string GetIdListStatus(string propertyName, IEnumerable<PersonIdToggleViewModel> buttons, string noun, string selectedMeaning)
     {
         if (SelectedPerson is null) return "请先选择人物。";
-        if (SkillButtons.Count == 0) return "打开 CommonData 后可按名称选择技能。";
-        var parsed = ConfigStructuredStringCodec.ParseIds(SelectedPerson.Config.SkillsString);
+        var knownIds = buttons.Select(button => button.Id).ToHashSet();
+        if (knownIds.Count == 0) return $"打开 CommonData 后可按名称选择{noun}。";
+        var parsed = ConfigStructuredStringCodec.ParseIds((string?)GetPersonValue(propertyName));
         if (!parsed.IsValid)
-            return $"技能 ID 列表格式有误：{string.Join("；", parsed.Errors)} 请先在通用编辑器中修正。";
-        var knownIds = SkillButtons.Select(button => button.Id).ToHashSet();
+            return $"{noun} ID 列表格式有误：{string.Join("；", parsed.Errors)} 请先在通用编辑器中修正。";
         var unknownIds = parsed.Items.Where(id => !knownIds.Contains(id)).Distinct().ToArray();
         return unknownIds.Length == 0
-            ? "点击技能按钮即可添加或移除；亮色表示已掌握。"
-            : $"点击技能按钮即可添加或移除；未收录在技能目录中的 ID：{string.Join("、", unknownIds)}（编辑时会保留）。";
+            ? $"点击{noun}按钮即可添加或移除；亮色表示{selectedMeaning}。"
+            : $"点击{noun}按钮即可添加或移除；未收录在{noun}目录中的 ID：{string.Join("、", unknownIds)}（编辑时会保留）。";
     }
 
-    internal bool CanToggleSkills => SelectedPerson is not null && SkillButtons.Count > 0 &&
-        ConfigStructuredStringCodec.ParseIds(SelectedPerson.Config.SkillsString).IsValid;
+    internal bool CanToggleIds(string propertyName) => SelectedPerson is not null &&
+        (propertyName == nameof(PersonConfig.SkillsString) ? SkillButtons : StuntButtons).Count > 0 &&
+        ConfigStructuredStringCodec.ParseIds((string?)GetPersonValue(propertyName)).IsValid;
 
-    internal bool HasSkill(int id) => SelectedPerson is not null &&
-        ConfigStructuredStringCodec.ParseIds(SelectedPerson.Config.SkillsString).Items.Contains(id);
+    internal bool HasId(string propertyName, int id) => SelectedPerson is not null &&
+        ConfigStructuredStringCodec.ParseIds((string?)GetPersonValue(propertyName)).Items.Contains(id);
 
-    internal void ToggleSkill(int id, bool selected)
+    internal void ToggleId(string propertyName, int id, bool selected)
     {
-        if (!CanToggleSkills || SelectedPerson is not { } person) return;
-        var ids = ConfigStructuredStringCodec.ParseIds(person.Config.SkillsString).Items;
+        if (!CanToggleIds(propertyName) || SelectedPerson is not { } person) return;
+        var ids = ConfigStructuredStringCodec.ParseIds((string?)GetPersonValue(propertyName)).Items;
         if (ids.Contains(id) == selected) return;
         var updated = selected ? ids.Append(id) : ids.Where(value => value != id);
-        _context.SetPropertyValue(person.Record, nameof(PersonConfig.SkillsString),
-            ConfigStructuredStringCodec.FormatIds(updated), $"{(selected ? "添加" : "移除")}人物技能");
-        RefreshSkills();
+        var noun = propertyName == nameof(PersonConfig.SkillsString) ? "技能" : "特技";
+        _context.SetPropertyValue(person.Record, propertyName,
+            ConfigStructuredStringCodec.FormatIds(updated), $"{(selected ? "添加" : "移除")}人物{noun}");
+        if (propertyName == nameof(PersonConfig.SkillsString)) RefreshSkills();
+        else RefreshStunts();
     }
 
     private void RefreshSkills()
     {
         OnPropertyChanged(nameof(SkillStatus));
         foreach (var button in SkillButtons) button.Refresh();
+    }
+
+    private void RefreshStunts()
+    {
+        OnPropertyChanged(nameof(StuntStatus));
+        foreach (var button in StuntButtons) button.Refresh();
     }
 
     // Raised after every edit in either open file (including CommonData's person messages), so the skill and
@@ -578,12 +612,14 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOw
                 {
                     _catalogsStale = false;
                     RebuildSkillButtons();
+                    RebuildStuntButtons();
                     RebuildTitleCatalog();
                 }
                 foreach (var field in SkillTabFields) field.Refresh();
                 RefreshTitles();
                 foreach (var list in ExclusiveLists) list.Refresh();
                 RefreshSkills();
+                RefreshStunts();
                 break;
             case MessageTab:
                 Messages.Refresh();
@@ -819,16 +855,19 @@ public sealed class PersonOptionViewModel(ConfigRecordViewModel record) : Observ
     }
 }
 
-public sealed class PersonSkillButtonViewModel(int id, string name, PersonBasicEditorViewModel owner) : ObservableObject
+// A toggle for one ID in a person's skill or stunt ID list.
+public sealed class PersonIdToggleViewModel(int id, string name, string? toolTip, string propertyName,
+    PersonBasicEditorViewModel owner) : ObservableObject
 {
     public int Id { get; } = id;
     public string Name { get; } = name;
+    public string? ToolTip { get; } = toolTip;
     public bool IsSelected
     {
-        get => owner.HasSkill(Id);
-        set => owner.ToggleSkill(Id, value);
+        get => owner.HasId(propertyName, Id);
+        set => owner.ToggleId(propertyName, Id, value);
     }
-    public bool CanToggle => owner.CanToggleSkills;
+    public bool CanToggle => owner.CanToggleIds(propertyName);
     public void Refresh()
     {
         OnPropertyChanged(nameof(IsSelected));
