@@ -21,6 +21,10 @@ public sealed partial class ReferenceAddBox : UserControl
             if (SearchBox.IsFocused && !string.IsNullOrEmpty(SearchBox.Text)) Open();
         };
         SearchBox.AddHandler(PointerReleasedEvent, (_, _) => Open(), RoutingStrategies.Bubble, handledEventsToo: true);
+        // Wheel events in the popup bubble on into the editor's ScrollViewer once the list reaches its end, which
+        // would scroll the search box out of view; keep them inside the popup.
+        SuggestionPopup.Child!.AddHandler(PointerWheelChangedEvent, (_, eventArgs) => eventArgs.Handled = true,
+            RoutingStrategies.Bubble, handledEventsToo: true);
         SuggestionList.Tapped += (_, _) =>
         {
             if (SuggestionList.SelectedItem is ReferenceSuggestionViewModel suggestion) Commit(suggestion);
