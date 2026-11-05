@@ -34,7 +34,7 @@ public sealed class GameDataConfigRegistry : IConfigRegistry
         Add<FacilityKindLevelConfig>(definitions, "facility-kind-levels", "设施等级", "设施", "FacilityKindLevels.json");
         Add<DisasterKindConfig>(definitions, "disaster-kinds", "灾害类型", "规则", "DisasterKinds.json");
         Add<OfficialTitleKindConfig>(definitions, "official-title-kinds", "官职类型", "称号", "OfficialTitleKinds.json");
-        Add<SectionAIDetailConfig>(definitions, "section-ai-details", "军团 AI", "AI", "SectionAIDetails.json");
+        Add<SectionAIDetailConfig>(definitions, "section-ai-details", "军区委任", "AI", "SectionAIDetails.json");
         Add<IdealTendencyKindConfig>(definitions, "ideal-tendency-kinds", "理想倾向", "人物", "IdealTendencyKinds.json");
         Add<MilitaryKindConfig>(definitions, "military-kinds", "兵种", "战斗", "MilitaryKinds.json");
         Add<ArchitectureKindConfig>(definitions, "architecture-kinds", "建筑类型", "建筑", "ArchitectureKinds.json");
@@ -45,18 +45,20 @@ public sealed class GameDataConfigRegistry : IConfigRegistry
         {
             ShowInNavigation = false
         });
-        Add<AnimationConfig>(definitions, "tile-animations", "地块动画", "动画", "TileAnimations.json");
-        Add<AnimationConfig>(definitions, "troop-animations", "部队动画", "动画", "TroopAnimations.json");
+        // Animation frame tables are kept as loaded (stunts still pick tile animations) but not listed.
+        Add<AnimationConfig>(definitions, "tile-animations", "地块动画", "动画", "TileAnimations.json", showInNavigation: false);
+        Add<AnimationConfig>(definitions, "troop-animations", "部队动画", "动画", "TroopAnimations.json", showInNavigation: false);
         Add<BiographyAdjectiveConfig>(definitions, "biography-adjectives", "列传形容词", "人物", "BiographyAdjectives.json");
         Add<PersonGeneratorTypeConfig>(definitions, "person-generator-types", "人物生成类型", "人物生成", "PersonGeneratorTypes.json");
         Add<TrainPolicyConfig>(definitions, "train-policies", "培养策略", "人物生成", "TrainPolicies.json");
         Add<PersonGeneratorSettingConfig>(definitions, "person-generator-settings", "人物生成设置", "人物生成", "PersonGeneratorSettings.json");
         Add<TreasureCreationSettingConfig>(definitions, "treasure-creation-settings", "宝物生成设置", "人物生成", "TreasureCreationSettings.json");
-        Add<AttackDefaultKindConfig>(definitions, "attack-default-kinds", "默认攻击类型", "战斗规则", "AttackDefaultKinds.json");
-        Add<AttackTargetKindConfig>(definitions, "attack-target-kinds", "攻击目标类型", "战斗规则", "AttackTargetKinds.json");
-        Add<CastDefaultKindConfig>(definitions, "cast-default-kinds", "默认施放类型", "战斗规则", "CastDefaultKinds.json");
-        Add<CastTargetKindConfig>(definitions, "cast-target-kinds", "施放目标类型", "战斗规则", "CastTargetKinds.json");
-        Add<StatusEffectConfig>(definitions, "status-effects", "状态效果", "战斗规则", "StatusEffects.json");
+        // Fixed code tables that are only picked from combat method / stratagem dropdowns, so they are not listed.
+        Add<AttackDefaultKindConfig>(definitions, "attack-default-kinds", "默认攻击类型", "战斗规则", "AttackDefaultKinds.json", showInNavigation: false);
+        Add<AttackTargetKindConfig>(definitions, "attack-target-kinds", "攻击目标类型", "战斗规则", "AttackTargetKinds.json", showInNavigation: false);
+        Add<CastDefaultKindConfig>(definitions, "cast-default-kinds", "默认施放类型", "战斗规则", "CastDefaultKinds.json", showInNavigation: false);
+        Add<CastTargetKindConfig>(definitions, "cast-target-kinds", "施放目标类型", "战斗规则", "CastTargetKinds.json", showInNavigation: false);
+        Add<StatusEffectConfig>(definitions, "status-effects", "状态效果", "人物生成", "StatusEffects.json");
         Add<FactionColorConfig>(definitions, "colors", "势力颜色", "势力与组织", "Colors.json");
 
         Add<ArchitectureConfig>(definitions, "architectures", "建筑", "世界与地图", "Architectures.json", ConfigScope.Scenario);
@@ -75,13 +77,13 @@ public sealed class GameDataConfigRegistry : IConfigRegistry
         Add<FacilityConfig>(definitions, "facilities", "设施", "世界与地图", "Facilities.json", ConfigScope.Scenario);
         Add<FactionConfig>(definitions, "factions", "势力", "势力与组织", "Factions.json", ConfigScope.Scenario);
         // The game's 军团 (Legion) groups troops on a campaign and is built and disbanded at run time, so it is kept
-        // as loaded but not listed. The game's 军势 (Section) is what players call 军团 and is listed as such.
+        // as loaded but not listed. The game's 军势 (Section) is what players call 军团 and is listed as 军区.
         definitions.Add(new ConfigDefinition("legions", "出征部队组", "势力与组织", "Legions.json",
             typeof(LegionConfig), ConfigScope.Scenario)
         {
             ShowInNavigation = false
         });
-        Add<MilitaryConfig>(definitions, "militaries", "军事单位", "军事", "Militaries.json", ConfigScope.Scenario);
+        Add<MilitaryConfig>(definitions, "militaries", "编队", "军事", "Militaries.json", ConfigScope.Scenario);
         Add<PersonRelationConfig>(definitions, "person-relations", "人物关系", "人物", "PersonRelations.json", ConfigScope.Scenario);
         Add<PersonConfig>(definitions, "persons", "人物", "人物", "Persons.json", ConfigScope.Scenario);
         // Edited in the person editor's 亲属与人际 card, so it is not listed separately.
@@ -91,7 +93,7 @@ public sealed class GameDataConfigRegistry : IConfigRegistry
             ShowInNavigation = false,
             NavigationTargetKey = "persons"
         });
-        Add<SectionConfig>(definitions, "sections", "军团", "势力与组织", "Sections.json", ConfigScope.Scenario);
+        Add<SectionConfig>(definitions, "sections", "军区", "势力与组织", "Sections.json", ConfigScope.Scenario);
         Add<TreasureConfig>(definitions, "treasures", "宝物", "宝物", "Treasures.json", ConfigScope.Scenario);
         Add<TroopEventConfig>(definitions, "troop-events", "部队事件", "事件与情报", "TroopEvents.json", ConfigScope.Scenario);
         Add<TroopConfig>(definitions, "troops", "部队", "军事", "Troops.json", ConfigScope.Scenario);
@@ -114,12 +116,16 @@ public sealed class GameDataConfigRegistry : IConfigRegistry
         string displayName,
         string category,
         string entryName,
-        ConfigScope scope = ConfigScope.Common) =>
+        ConfigScope scope = ConfigScope.Common,
+        bool showInNavigation = true) =>
         definitions.Add(new ConfigDefinition(
             key,
             displayName,
             category,
             entryName,
             typeof(T),
-            scope));
+            scope)
+        {
+            ShowInNavigation = showInNavigation
+        });
 }

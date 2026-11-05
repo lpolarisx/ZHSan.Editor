@@ -19,11 +19,11 @@ public sealed class SectionEditorViewModelTests
     {
         var registry = new GameDataConfigRegistry();
 
-        Assert.Equal("军团", Find(ConfigScope.Scenario, "sections").DisplayName);
+        Assert.Equal("军区", Find(ConfigScope.Scenario, "sections").DisplayName);
         Assert.False(Find(ConfigScope.Scenario, "legions").ShowInNavigation);
         Assert.Equal("Legions.json", Find(ConfigScope.Scenario, "legions").EntryName);
         Assert.Single(registry.GetDefinitions(ConfigScope.Scenario),
-            definition => definition.DisplayName == "军团" && definition.ShowInNavigation);
+            definition => definition.DisplayName == "军区" && definition.ShowInNavigation);
     }
 
     [Fact]
@@ -90,15 +90,15 @@ public sealed class SectionEditorViewModelTests
         Assert.Equal(["名称", "委任类型"], editor.BasicGroup.Fields.Select(field => field.Label));
         Assert.Equal("2 输送", editor.BasicGroup.Fields[1].SelectedChoice?.Label);
         Assert.Equal("向目标军区输送物资", editor.BasicGroup.Note);
-        Assert.Equal("委任类型“输送”需要设置目标军团", editor.OrientationGroup.Note);
+        Assert.Equal("委任类型“输送”需要设置目标军区", editor.OrientationGroup.Note);
         Assert.True(editor.OrientationGroup.IsWarning);
         Assert.Equal("1 曹操", editor.FactionText);
         Assert.Equal(["59 陈留", "60 许昌"], editor.Architectures.Items.Select(item => item.Label));
 
-        var target = editor.OrientationGroup.Fields.Single(field => field.Label == "目标军团");
+        var target = editor.OrientationGroup.Fields.Single(field => field.Label == "目标军区");
         target.SelectedChoice = target.ChoiceOptions.Single(option => option.Id == 1);
         Assert.Equal(1, west.OrientationSectionID);
-        Assert.Equal("委任类型“输送”只使用目标军团", editor.OrientationGroup.Note);
+        Assert.Equal("委任类型“输送”只使用目标军区", editor.OrientationGroup.Note);
 
         // Taking 小沛 moves it out of 刘备's section in one step and flags it as outside 曹操's architectures.
         editor.Architectures.Candidate = editor.Architectures.Candidates.Single(option => option.Id == 61);

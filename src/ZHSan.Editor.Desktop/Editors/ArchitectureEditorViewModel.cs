@@ -51,7 +51,7 @@ public sealed class ArchitectureEditorViewModel : RecordListEditorViewModel<Arch
             ChipList("设施", nameof(ArchitectureConfig.FacilitiesString), "facilities",
                 "城中已建成的设施，对应剧本“设施”表中的记录。只读。", readOnly: true),
             ChipList("编队", nameof(ArchitectureConfig.MilitariesString), "militaries",
-                "驻扎在城中的部队编队，对应剧本“军事单位”表中的记录。只读。", readOnly: true),
+                "驻扎在城中的部队编队，对应剧本“编队”表中的记录。只读。", readOnly: true),
             ChipList("陆路连接", nameof(ArchitectureConfig.AILandLinksString), "architectures",
                 "电脑势力认为从本城走陆路可以直接到达的城。"),
             ChipList("水路连接", nameof(ArchitectureConfig.AIWaterLinksString), "architectures",

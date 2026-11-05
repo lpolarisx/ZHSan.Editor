@@ -16,7 +16,7 @@ public static class EnumLabels
         [InfluenceType.Combat] = "战斗", [InfluenceType.ArchitectureCombat] = "建筑战斗",
         [InfluenceType.Architecture] = "建筑", [InfluenceType.Faction] = "势力",
         [FacilityType.General] = "通用", [FacilityType.Special] = "专用", [FacilityType.Military] = "军事",
-        [SectionOrientationKind.None] = "无", [SectionOrientationKind.Section] = "军团",
+        [SectionOrientationKind.None] = "无", [SectionOrientationKind.Section] = "军区",
         [SectionOrientationKind.Faction] = "势力", [SectionOrientationKind.State] = "州域",
         [SectionOrientationKind.Architecture] = "建筑",
         // The game's [Description] of these is a whole sentence; the short names from its comments fit a list.

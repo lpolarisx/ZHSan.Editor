@@ -109,7 +109,7 @@
   </UserControl.DataTemplates>
   <Grid ColumnDefinitions="220,1,*" Background="#08000000">
     <Grid RowDefinitions="Auto,Auto,*" Margin="10">
-      <TextBlock Text="军团" FontSize="18" FontWeight="SemiBold" Margin="5,4,0,8" />
+      <TextBlock Text="军区" FontSize="18" FontWeight="SemiBold" Margin="5,4,0,8" />
       <TextBox Grid.Row="1" Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                PlaceholderText="搜索名称或 ID" Margin="0,0,0,6" />
       <ListBox Grid.Row="2" ItemsSource="{Binding FilteredRecords}"
@@ -135,22 +135,22 @@
       </Border>
       <ScrollViewer Grid.Row="1">
         <StackPanel Margin="16" Spacing="13">
-          <TextBlock Text="军团是势力把若干建筑划在一起、交给 AI 按委任类型管理的单位（游戏内部称“军势”）。修改会进入撤销记录，使用主窗口的保存按钮写入文件。" TextWrapping="Wrap" Opacity="0.6" FontSize="12" />
-          <TextBlock Text="电脑势力的军团会在开局和每季度初由游戏重新划分，这里的设置主要对玩家势力生效。" TextWrapping="Wrap" Opacity="0.6" FontSize="12" />
+          <TextBlock Text="军区是势力把若干建筑划在一起、交给 AI 按委任类型管理的单位（游戏内部称“军势”）。修改会进入撤销记录，使用主窗口的保存按钮写入文件。" TextWrapping="Wrap" Opacity="0.6" FontSize="12" />
+          <TextBlock Text="电脑势力的军区会在开局和每季度初由游戏重新划分，这里的设置主要对玩家势力生效。" TextWrapping="Wrap" Opacity="0.6" FontSize="12" />
           <TextBlock Text="当前没有记录。" IsVisible="{Binding !HasSelection}" />
           <ContentControl Content="{Binding BasicGroup}" IsVisible="{Binding HasSelection}" />
           <Border Classes="card" IsVisible="{Binding HasSelection}">
             <StackPanel Spacing="8">
               <TextBlock Text="所属势力" FontSize="16" FontWeight="SemiBold" />
               <TextBlock Text="{Binding FactionText}" TextWrapping="Wrap" Classes.warning="{Binding IsFactionWarning}" />
-              <TextBlock Text="由势力配置的“军团”列表决定，只读。" TextWrapping="Wrap" FontSize="12" Opacity="0.55" />
+              <TextBlock Text="由势力配置的“军区”列表决定，只读。" TextWrapping="Wrap" FontSize="12" Opacity="0.55" />
             </StackPanel>
           </Border>
           <ContentControl Content="{Binding OrientationGroup}" IsVisible="{Binding HasSelection}" />
           <Border Classes="card" IsVisible="{Binding HasSelection}">
             <StackPanel Spacing="10">
               <TextBlock Text="所辖建筑" FontSize="16" FontWeight="SemiBold" />
-              <TextBlock Text="一座建筑只属于一个军团；添加已属于其他军团的建筑时，会把它从原军团移出。"
+              <TextBlock Text="一座建筑只属于一个军区；添加已属于其他军区的建筑时，会把它从原军区移出。"
                          TextWrapping="Wrap" FontSize="12" Opacity="0.65" />
               <TextBlock Text="{Binding ArchitectureNote}" IsVisible="{Binding HasArchitectureNote}" TextWrapping="Wrap"
                          FontSize="12" Classes="warning" />

@@ -198,8 +198,8 @@ public sealed class TableEditorViewModelTests
         using var _ = document;
         var kind = editor.Sections[0].Group.Fields.Single(field => field.Label == "目标种类");
 
-        Assert.Equal(["无", "军团", "势力", "州域", "建筑"], kind.Options);
-        Assert.Equal("军团", kind.SelectedOption);
+        Assert.Equal(["无", "军区", "势力", "州域", "建筑"], kind.Options);
+        Assert.Equal("军区", kind.SelectedOption);
         kind.SelectedOption = "州域";
         Assert.Equal(SectionOrientationKind.State, detail.OrientationKind);
     }

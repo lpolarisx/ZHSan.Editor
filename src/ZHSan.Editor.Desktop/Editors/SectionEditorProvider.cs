@@ -6,7 +6,7 @@ namespace ZHSan.Editor.Desktop.Editors;
 public sealed class SectionEditorProvider : IConfigEditorProvider
 {
     public string Id => "section";
-    public string DisplayName => "军团属性";
+    public string DisplayName => "军区属性";
     public int Priority => 100;
 
     public bool CanEdit(ConfigDefinition definition) =>

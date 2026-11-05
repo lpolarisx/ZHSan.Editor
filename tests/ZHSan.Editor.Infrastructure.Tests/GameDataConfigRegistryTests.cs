@@ -19,6 +19,23 @@ public sealed class GameDataConfigRegistryTests
     }
 
     [Fact]
+    public void CommonDefinitions_HideCodeKindAndAnimationTablesFromNavigation()
+    {
+        var registry = new GameDataConfigRegistry();
+
+        Assert.Equal("人物生成", registry.Find("status-effects")?.Category);
+        Assert.Equal(
+            [
+                "attack-default-kinds", "attack-target-kinds", "cast-default-kinds", "cast-target-kinds",
+                "person-messages", "tile-animations", "troop-animations",
+            ],
+            registry.GetDefinitions(ConfigScope.Common)
+                .Where(definition => !definition.ShowInNavigation)
+                .Select(definition => definition.Key)
+                .Order());
+    }
+
+    [Fact]
     public void Find_PreservesCommonKeyLookupAndSupportsScopedAddress()
     {
         var registry = new GameDataConfigRegistry();

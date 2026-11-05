@@ -7,7 +7,7 @@ using ZHSan.Editor.Desktop.ViewModels;
 namespace ZHSan.Editor.Desktop.Editors;
 
 /// <summary>
-/// Edits Sections.json, the game's 军势, shown to players as 军团: a group of a faction's architectures run by an
+/// Edits Sections.json, the game's 军势, shown in the editor as 军区: a group of a faction's architectures run by an
 /// AI commission. The game links each architecture to the last section listing it, so an architecture is kept in
 /// one section: adding it here removes it from its old section in the same undo step.
 /// </summary>
@@ -18,19 +18,19 @@ public sealed class SectionEditorViewModel : RecordListEditorViewModel<SectionCo
     private static readonly IReadOnlyDictionary<SectionOrientationKind, (string Label, string Property)> Orientations =
         new Dictionary<SectionOrientationKind, (string, string)>
         {
-            [SectionOrientationKind.Section] = ("目标军团", nameof(SectionConfig.OrientationSectionID)),
+            [SectionOrientationKind.Section] = ("目标军区", nameof(SectionConfig.OrientationSectionID)),
             [SectionOrientationKind.Faction] = ("目标势力", nameof(SectionConfig.OrientationFactionID)),
             [SectionOrientationKind.State] = ("目标州域", nameof(SectionConfig.OrientationStateID)),
             [SectionOrientationKind.Architecture] = ("目标建筑", nameof(SectionConfig.OrientationArchitectureID))
         };
 
-    public SectionEditorViewModel(ConfigEditorContext context) : base(context, "军团", "个")
+    public SectionEditorViewModel(ConfigEditorContext context) : base(context, "军区", "个")
     {
         Groups =
         [
             Group("基本", ("名称", nameof(SectionConfig.Name)), ("委任类型", nameof(SectionConfig.AIDetailIDString)))
                 .WithNote(GetBasicNote),
-            Group("目标", ("目标军团", nameof(SectionConfig.OrientationSectionID)),
+            Group("目标", ("目标军区", nameof(SectionConfig.OrientationSectionID)),
                     ("目标势力", nameof(SectionConfig.OrientationFactionID)),
                     ("目标州域", nameof(SectionConfig.OrientationStateID)),
                     ("目标建筑", nameof(SectionConfig.OrientationArchitectureID)))
@@ -80,7 +80,7 @@ public sealed class SectionEditorViewModel : RecordListEditorViewModel<SectionCo
                 changes.Add(new(record, propertyName,
                     ConfigStructuredStringCodec.FormatIds(parsed.Items.Where(id => !added.Contains(id)))));
         }
-        Context.SetPropertyValues(changes, changes.Count > 1 ? $"{description}（并从原军团移出）" : description);
+        Context.SetPropertyValues(changes, changes.Count > 1 ? $"{description}（并从原军区移出）" : description);
         foreach (var list in ChipLists) list.Refresh();
     }
 
@@ -109,7 +109,7 @@ public sealed class SectionEditorViewModel : RecordListEditorViewModel<SectionCo
 
     private string GetFactionText(SectionConfig section) => OwningFactions(section) switch
     {
-        [] => "未被任何势力列入，游戏中不会使用这个军团。在势力配置的“军团”列表中添加。",
+        [] => "未被任何势力列入，游戏中不会使用这个军区。在势力配置的“军区”列表中添加。",
         [var faction] => $"{faction.Id} {faction.Name}",
         var factions => $"同时被多个势力列入：{string.Join("、", factions.Select(faction => $"{faction.Id} {faction.Name}"))}",
     };
