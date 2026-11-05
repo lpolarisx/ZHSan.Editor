@@ -204,6 +204,9 @@
                 <TextBlock Text="{Binding SelectedDocument.EntryStateMessage}"
                            Foreground="#D97706" TextWrapping="Wrap"
                            IsVisible="{Binding SelectedDocument.HasEntryWarning}" />
+                <TextBlock Text="此配置与游戏程序相关，目前仅支持查看。"
+                           Foreground="#D97706" TextWrapping="Wrap"
+                           IsVisible="{Binding SelectedDocument.IsReadOnly, FallbackValue=False}" />
               </StackPanel>
               <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center"
                           IsVisible="{Binding SelectedDocument.HasSpecializedEditor}">

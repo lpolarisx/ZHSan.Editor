@@ -22,6 +22,18 @@ dotnet run --project src/ZHSan.Editor.Desktop/ZHSan.Editor.Desktop.csproj
 
 > `ZHSan.Data.dll` 的 `GameDataArchive` 使用 MonoGame 的 `PointJsonConverter`，因此 Infrastructure 显式引用与游戏一致的 `MonoGame.Framework.DesktopGL 3.8.5.1`。
 
+## 发布
+
+```powershell
+# 全部可编辑的版本，输出到 artifacts/ZHSan.Editor
+dotnet publish src/ZHSan.Editor.Desktop -p:PublishProfile=SingleExe
+
+# 部分只读的版本，输出到 artifacts/ZHSan.Editor.ReadOnly
+dotnet publish src/ZHSan.Editor.Desktop -p:PublishProfile=SingleExe -p:ReadOnlyConfigs=true
+```
+
+带 `-p:ReadOnlyConfigs=true` 时，[`src/ZHSan.Editor.Desktop/ReadOnlyConfigs.json`](src/ZHSan.Editor.Desktop/ReadOnlyConfigs.json) 中列出的配置只能查看：专用编辑器的编辑区不可操作，新增、创建副本、粘贴、删除、剪切、批量修改和导入都不可用。列表按配置键（如 `influence-kinds`）或导航显示名（如 `影响类型`）填写，可加 `Common:` / `Scenario:` 前缀限定范围。
+
 ## 文档
 
 - [项目架构](docs/ARCHITECTURE.md)

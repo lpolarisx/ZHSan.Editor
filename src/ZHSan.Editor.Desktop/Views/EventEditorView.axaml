@@ -268,7 +268,7 @@
         </Grid>
       </Border>
       <ScrollViewer Grid.Row="1">
-        <StackPanel Margin="16" Spacing="13">
+        <StackPanel Margin="16" Spacing="13" IsEnabled="{Binding !IsReadOnly}">
           <TextBlock Text="选择左侧事件，编辑触发条件、参与武将、对话与效果。修改会进入撤销记录，使用主窗口的保存按钮写入文件。" TextWrapping="Wrap" Opacity="0.6" FontSize="12" />
           <TextBlock Text="当前没有记录。" IsVisible="{Binding !HasSelection}" />
           <ContentControl Content="{Binding BasicGroup}" IsVisible="{Binding HasSelection}" />

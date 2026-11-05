@@ -35,6 +35,7 @@ public abstract class RecordListEditorViewModel<TConfig> : ObservableObject, IId
     public IReadOnlyList<PersonIdChipListViewModel> ChipLists { get; protected init; } = [];
     public virtual IEnumerable<PersonBasicFieldViewModel> AllFields => Groups.SelectMany(group => group.Fields);
     public bool HasSelection => SelectedRecord is not null;
+    public bool IsReadOnly => Context.Document.IsReadOnly;
     public string SelectedTitle => SelectedRecord?.Name ?? $"请选择{_subject}";
     public string SelectedId => SelectedRecord is null ? "" : $"ID {SelectedRecord.Id}";
     public string CountText => $"{FilteredRecords.Count} / {Records.Count} {_unit}";

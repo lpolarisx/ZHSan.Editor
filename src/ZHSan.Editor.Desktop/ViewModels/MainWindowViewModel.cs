@@ -42,6 +42,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly EditorUiState _uiState;
     private readonly RecordClipboard _recordClipboard = new();
     private readonly ConfigEditorProviderRegistry _editorProviderRegistry;
+    private readonly ReadOnlyConfigPolicy _readOnlyConfigPolicy;
     private readonly List<ConfigDocumentViewModel> _documents = [];
     private readonly Dictionary<ConfigScope, IReadOnlyList<ConfigDocumentViewModel>> _slotDocuments = [];
     private readonly Dictionary<ConfigScope, IReadOnlyList<ConfigCategoryViewModel>> _slotCategories = [];
@@ -89,7 +90,8 @@ public sealed class MainWindowViewModel : ObservableObject
         ILegacyScenarioConverter? legacyScenarioConverter = null,
         ILegacyCommonDataConverter? legacyCommonDataConverter = null,
         EditorWorkspaceService? workspaceService = null,
-        SaveWorkspaceService? saveWorkspaceService = null)
+        SaveWorkspaceService? saveWorkspaceService = null,
+        ReadOnlyConfigPolicy? readOnlyConfigPolicy = null)
     {
         _workspaceService = workspaceService ?? new EditorWorkspaceService(openArchiveService);
         _saveArchiveService = saveArchiveService;
@@ -108,6 +110,7 @@ public sealed class MainWindowViewModel : ObservableObject
         _legacyScenarioConverter = legacyScenarioConverter;
         _legacyCommonDataConverter = legacyCommonDataConverter;
         _editorProviderRegistry = editorProviderRegistry ?? new ConfigEditorProviderRegistry([]);
+        _readOnlyConfigPolicy = readOnlyConfigPolicy ?? ReadOnlyConfigPolicy.None;
         _editorSettingsStore = editorSettingsStore;
         _editorSettings = editorSettingsStore.Load();
         _uiStateStore = uiStateStore;
@@ -938,10 +941,18 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
-        _importPreview = _configImportService.CreatePreview(
+        var preview = _configImportService.CreatePreview(
             _project,
             _importSource,
             SelectedImportStrategy.Strategy);
+        // View-only configurations are listed with the reason instead of being applied.
+        _importPreview = new ConfigImportPreview(
+            preview.SourcePath,
+            preview.RequestedStrategy,
+            preview.Items.Select(item => _readOnlyConfigPolicy.IsReadOnly(item.Document.Definition)
+                ? item with { ErrorMessage = "此配置与游戏程序相关，目前仅支持查看，不能导入" }
+                : item).ToArray(),
+            preview.Failures);
         ImportPreviewDocuments.Clear();
         ImportDifferenceRows.Clear();
         ImportFailures.Clear();
@@ -1174,7 +1185,8 @@ public sealed class MainWindowViewModel : ObservableObject
                 source, _metadataProvider, SelectDocument, _recordClipboard,
                 _uiState.GetDocument(source.Definition.Address), referenceIndex,
                 _referenceDeletionPrompt, _editorProviderRegistry, NavigateToReference,
-                key => documentsByKey.GetValueOrDefault(key) ?? FindOtherSlotDocument(project.Scope, key));
+                key => documentsByKey.GetValueOrDefault(key) ?? FindOtherSlotDocument(project.Scope, key),
+                _readOnlyConfigPolicy.IsReadOnly(source.Definition));
             documentsByKey[source.Definition.Key] = viewModel;
         }
         var documents = project.Documents
@@ -1678,7 +1690,8 @@ public sealed class MainWindowViewModel : ObservableObject
     private bool CanSaveProject() => !IsBusy && _project is not null;
 
     private bool CanImportJson() =>
-        !IsBusy && _configImportService is not null && _project is not null && SelectedDocument is not null;
+        !IsBusy && _configImportService is not null && _project is not null &&
+        SelectedDocument is { IsReadOnly: false };
 
     private bool CanImportArchive() =>
         !IsBusy && _configImportService is not null && _project is not null;

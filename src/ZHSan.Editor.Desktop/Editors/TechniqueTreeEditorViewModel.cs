@@ -60,6 +60,7 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
     public int IssueCount => Nodes.Sum(node => node.Issues.Count);
     public string Summary => $"{NodeCount} 个科技 · {EdgeCount} 条关系 · {IssueCount} 个问题";
     public bool HasSelection => SelectedNode is not null;
+    public bool IsReadOnly => _context.Document.IsReadOnly;
     public bool CanEditRelationships => SelectedNode is not null &&
         SelectedNode.Id != NoTechniqueId &&
         Nodes.Count(node => node.Id == SelectedNode.Id) == 1;
@@ -520,6 +521,11 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
     public void MoveNodeTo(TechniqueTreeNodeViewModel node, int column, int row)
     {
         ArgumentNullException.ThrowIfNull(node);
+        if (IsReadOnly)
+        {
+            return;
+        }
+
         column = Math.Max(0, column);
         row = Math.Max(0, row);
         var oldColumn = node.Technique.DisplayCol;

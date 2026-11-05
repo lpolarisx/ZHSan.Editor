@@ -134,7 +134,7 @@
         </Grid>
       </Border>
       <ScrollViewer Grid.Row="1">
-        <StackPanel Margin="16" Spacing="13">
+        <StackPanel Margin="16" Spacing="13" IsEnabled="{Binding !IsReadOnly}">
           <TextBlock Text="军区是势力把若干建筑划在一起、交给 AI 按委任类型管理的单位（游戏内部称“军势”）。修改会进入撤销记录，使用主窗口的保存按钮写入文件。" TextWrapping="Wrap" Opacity="0.6" FontSize="12" />
           <TextBlock Text="电脑势力的军区会在开局和每季度初由游戏重新划分，这里的设置主要对玩家势力生效。" TextWrapping="Wrap" Opacity="0.6" FontSize="12" />
           <TextBlock Text="当前没有记录。" IsVisible="{Binding !HasSelection}" />

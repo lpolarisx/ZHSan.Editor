@@ -1,0 +1,13 @@
+{
+  // 只读配置表：用 -p:ReadOnlyConfigs=true 发布时，这里列出的配置只能查看，不能修改、新增、删除、粘贴或导入。
+  // 不带该参数发布或直接运行时，这个文件不起作用，所有配置都可编辑。
+  //
+  // 每项写配置键或导航中显示的名称，例如 "influence-kinds" 或 "影响类型"；
+  // 同名配置只想锁定其中一个范围时，加上 Common: 或 Scenario: 前缀，例如 "Scenario:persons"。
+  "readOnly": [
+    "influence-kinds",            // 影响类型
+    "condition-kinds",            // 条件类型
+    "architecture-effect-kinds",  // 建筑事件效果类型
+    "troop-effect-kinds"          // 部队事件效果类型
+  ]
+}

@@ -238,6 +238,12 @@ public sealed partial class TechniqueTreeEditorView : UserControl
 
         _viewModel.SelectedNode = node;
         eventArgs.Handled = true;
+        // A view-only build lets people select nodes but not drag, link or unlink them.
+        if (_viewModel.IsReadOnly)
+        {
+            return;
+        }
+
         if (properties.IsRightButtonPressed)
         {
             ShowNodeMenu(node);

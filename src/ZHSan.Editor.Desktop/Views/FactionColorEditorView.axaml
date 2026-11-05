@@ -50,7 +50,7 @@
         </Grid>
       </Border>
       <ScrollViewer Grid.Row="1">
-        <StackPanel Margin="16" Spacing="13">
+        <StackPanel Margin="16" Spacing="13" IsEnabled="{Binding !IsReadOnly}">
           <TextBlock Text="势力和列传按位置引用颜色，ID 即位置。在下方选好颜色后点“应用”写入，修改会进入撤销记录，使用主窗口的保存按钮写入文件。"
                      TextWrapping="Wrap" Opacity="0.6" FontSize="12" />
           <TextBlock Text="当前没有记录。" IsVisible="{Binding !HasSelection}" />

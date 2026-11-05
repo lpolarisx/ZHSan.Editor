@@ -199,6 +199,7 @@ public sealed class PersonBasicEditorViewModel : ObservableObject, IIdChipListOw
     public string FamilyStatus => GetFamilyStatus();
     internal IReadOnlyList<PersonChoiceOption> PersonChoices => _personChoices;
     public bool HasSelection => SelectedPerson is not null;
+    public bool IsReadOnly => _context.Document.IsReadOnly;
     public string SelectedTitle => SelectedPerson?.Name ?? "请选择人物";
     public string SelectedId => SelectedPerson is null ? "" : $"ID {SelectedPerson.Config.Id}";
     public string CountText => $"{FilteredPeople.Count} / {People.Count} 人";

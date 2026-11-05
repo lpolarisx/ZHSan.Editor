@@ -70,9 +70,11 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         IReferenceDeletionPrompt? referenceDeletionPrompt = null,
         ConfigEditorProviderRegistry? editorProviderRegistry = null,
         Action<ConfigReferenceTarget>? navigateReference = null,
-        Func<string, ConfigDocumentViewModel?>? findRelatedDocument = null)
+        Func<string, ConfigDocumentViewModel?>? findRelatedDocument = null,
+        bool isReadOnly = false)
     {
         Document = document;
+        IsReadOnly = isReadOnly;
         _clipboard = clipboard ?? new RecordClipboard();
         _uiState = uiState ?? new DocumentUiState();
         _referenceIndex = referenceIndex;
@@ -103,7 +105,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         }
 
         SelectCommand = new RelayCommand(() => selectDocument(this));
-        InitializeEntryCommand = new RelayCommand(InitializeEntry, () => CanInitializeEntry);
+        InitializeEntryCommand = new RelayCommand(InitializeEntry, () => CanInitializeEntry && !IsReadOnly);
         AddCommand = new RelayCommand(AddRecord, CanCreateRecord);
         CopyCommand = new RelayCommand(
             CopySelectedRecords,
@@ -142,6 +144,8 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     internal Action<ConfigReferenceTarget>? NavigateReference => _navigateReference;
 
     public ConfigDocument Document { get; }
+    // Set for the configurations a restricted build only lets people view (see ReadOnlyConfigPolicy).
+    public bool IsReadOnly { get; }
     public string Key => Document.Definition.Key;
     public string DisplayName => Document.Definition.DisplayName;
     public string EntryName => Document.Definition.EntryName;
@@ -219,7 +223,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
                 : string.Empty;
         }
     }
-    private bool CanMutateRecordStructure => !CanInitializeEntry && !HasNullRecords;
+    private bool CanMutateRecordStructure => !IsReadOnly && !CanInitializeEntry && !HasNullRecords;
     public bool HasMultipleSelection => _selectedRecords.Count > 1;
     public bool IsDirty => Document.IsDirty;
     public string DirtyMarker => IsDirty ? " ●" : string.Empty;
@@ -447,6 +451,12 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             return;
         }
 
+        if (IsReadOnly)
+        {
+            SetNotification($"{DisplayName}与游戏程序相关，目前仅支持查看，未{editDescription}");
+            return;
+        }
+
         var preparedChanges = new List<PreparedPropertyChange>();
         foreach (var change in requestedChanges)
         {
@@ -539,6 +549,10 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     {
         ArgumentNullException.ThrowIfNull(importedItems);
         ArgumentException.ThrowIfNullOrWhiteSpace(description);
+        if (IsReadOnly)
+        {
+            throw new InvalidOperationException($"{DisplayName} 为只读配置，不能导入。");
+        }
 
         var previousItems = GetItemsIncludingNullRecords();
         var previousEntryState = Document.EntryState;
@@ -604,6 +618,11 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     {
         ArgumentNullException.ThrowIfNull(initialValues);
         ArgumentException.ThrowIfNullOrWhiteSpace(editDescription);
+        if (IsReadOnly)
+        {
+            throw new InvalidOperationException($"{DisplayName} 为只读配置，不能新增或删除记录。");
+        }
+
         if (!CanMutateRecordStructure)
         {
             throw new InvalidOperationException("请先初始化缺失或为 null 的条目，并处理列表中的 null 记录。");
@@ -671,6 +690,11 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     {
         ArgumentNullException.ThrowIfNull(records);
         ArgumentException.ThrowIfNullOrWhiteSpace(editDescription);
+        if (IsReadOnly)
+        {
+            throw new InvalidOperationException($"{DisplayName} 为只读配置，不能新增或删除记录。");
+        }
+
         if (!CanMutateRecordStructure)
         {
             throw new InvalidOperationException("请先初始化缺失或为 null 的条目，并处理列表中的 null 记录。");
@@ -908,7 +932,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     }
 
     private bool CanApplyBatchEdit() =>
-        _selectedRecords.Count > 1 && SelectedBatchField is not null;
+        !IsReadOnly && _selectedRecords.Count > 1 && SelectedBatchField is not null;
 
     private void ApplyBatchEdit()
     {
@@ -1025,7 +1049,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
     private LinkedRecordsChange AddBiographiesForNewPersons(IReadOnlyList<ConfigRecordViewModel> records)
     {
         var persons = records.Select(record => record.Item).OfType<PersonConfig>().ToArray();
-        if (persons.Length == 0 || FindRelatedDocument(BiographiesKey) is not { } biographies)
+        if (persons.Length == 0 || FindRelatedDocument(BiographiesKey) is not { } biographies || biographies.IsReadOnly)
         {
             return LinkedRecordsChange.None;
         }
@@ -1099,7 +1123,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
         return records.Count == 0
             ? []
             : keys.Select(FindRelatedDocument).OfType<ConfigDocumentViewModel>()
-                .Where(document => !document.HasNullRecords).ToArray();
+                .Where(document => !document.HasNullRecords && !document.IsReadOnly).ToArray();
     }
 
     // Deleting persons also deletes their biographies, family records and relations, and clears them from
@@ -1542,7 +1566,7 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
 
     private void InitializeEntry()
     {
-        if (!CanInitializeEntry)
+        if (!CanInitializeEntry || IsReadOnly)
         {
             return;
         }

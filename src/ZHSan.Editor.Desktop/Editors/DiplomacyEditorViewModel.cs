@@ -42,10 +42,12 @@ public sealed class DiplomacyEditorViewModel : ObservableObject, IDisposable
     public string RowStatus => SelectedFaction is null
         ? ""
         : $"同盟 {Rows.Count(row => row.IsAlliance)} · 敌对 {Rows.Count(row => row.Relation < 0)} · 停战 {Rows.Count(row => row.Truce > 0)} · 未建立记录 {Rows.Count(row => !row.HasRecord)}";
-    public bool CanEdit => !_context.Document.HasNullRecords;
+    public bool CanEdit => !_context.Document.HasNullRecords && !_context.Document.IsReadOnly;
     public string Hint => CanEdit
         ? $"关系值 ≥ {AllianceThreshold} 为同盟（GlobalVariables.FriendlyDiplomacyThreshold），小于 0 为敌对；停战天数每天减 1，大于 0 时不会互相攻击。没有记录的势力对按 0 处理，修改后自动新建记录。"
-        : "外交关系包含 null 记录，请先在通用编辑器中处理。";
+        : _context.Document.IsReadOnly
+            ? "外交关系与游戏程序相关，目前仅支持查看。"
+            : "外交关系包含 null 记录，请先在通用编辑器中处理。";
 
     public string SearchText
     {

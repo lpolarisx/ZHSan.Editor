@@ -4,7 +4,12 @@
     <ApplicationIcon>Assets\editor-icon.ico</ApplicationIcon>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
+  <!-- -p:ReadOnlyConfigs=true builds a version in which the configurations listed in ReadOnlyConfigs.json are view-only. -->
+  <PropertyGroup Condition="'$(ReadOnlyConfigs)' == 'true'">
+    <DefineConstants>$(DefineConstants);READONLY_CONFIGS</DefineConstants>
+  </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="ReadOnlyConfigs.json" LogicalName="ZHSan.Editor.Desktop.ReadOnlyConfigs.json" />
     <AvaloniaResource Include="Assets\editor-icon.png" />
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Controls.DataGrid" />

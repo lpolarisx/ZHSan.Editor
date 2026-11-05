@@ -366,7 +366,9 @@ public sealed class FacilityKindLevelEditorViewModel : ObservableObject, IDispos
         StatusMessage = $"已新增等级 {nextLevel}";
     }
 
-    private bool CanAddLevel() => SelectedKind is { IsMissing: false };
+    public bool IsReadOnly => _context.Document.IsReadOnly;
+
+    private bool CanAddLevel() => !IsReadOnly && SelectedKind is { IsMissing: false };
 
     private void SetSelectedInt(string propertyName, decimal? value, string description)
     {

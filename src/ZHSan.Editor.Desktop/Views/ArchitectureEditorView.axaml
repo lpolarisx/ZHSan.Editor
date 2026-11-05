@@ -154,7 +154,7 @@
         </Grid>
       </Border>
       <ScrollViewer Grid.Row="1">
-        <StackPanel Margin="16" Spacing="13">
+        <StackPanel Margin="16" Spacing="13" IsEnabled="{Binding !IsReadOnly}">
           <TextBlock Text="选择左侧建筑，编辑属性。修改会进入撤销记录，使用主窗口的保存按钮写入文件。建筑归属哪个势力在“势力”中编辑。" TextWrapping="Wrap" Opacity="0.6" FontSize="12" />
           <TextBlock Text="当前没有记录。" IsVisible="{Binding !HasSelection}" />
           <ContentControl Content="{Binding BasicGroup}" IsVisible="{Binding HasSelection}" />
