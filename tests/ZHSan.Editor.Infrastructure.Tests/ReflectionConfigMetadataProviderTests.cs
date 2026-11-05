@@ -58,7 +58,7 @@ public sealed class ReflectionConfigMetadataProviderTests
             property => property.Name == nameof(TechniqueConfig.Kind));
 
         Assert.Equal("techniques", preId.Reference?.TargetConfigKey);
-        Assert.Equal(0, preId.Reference?.EmptyValue);
+        Assert.Equal(-1, preId.Reference?.EmptyValue);
         Assert.Equal("title-kinds", kindId.Reference?.TargetConfigKey);
         Assert.False(kindId.Reference?.IsOptional);
         Assert.Equal("military-kinds", levelUps.Reference?.TargetConfigKey);

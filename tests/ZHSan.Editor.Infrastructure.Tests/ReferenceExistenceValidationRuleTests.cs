@@ -16,7 +16,7 @@ public sealed class ReferenceExistenceValidationRuleTests
         {
             Id = 1,
             Name = "技术",
-            PreID = 0,
+            PreID = -1,
             PostID = 404,
             InfluencesString = "7 409",
         };

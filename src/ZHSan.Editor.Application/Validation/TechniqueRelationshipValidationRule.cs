@@ -9,6 +9,9 @@ public sealed class TechniqueRelationshipValidationRule : ICrossTableValidationR
     private const string PreIdProperty = "PreID";
     private const string PostIdProperty = "PostID";
 
+    // The game writes -1 when a technique has no predecessor / successor; ID 0 is a real technique.
+    private const int NoTechniqueId = -1;
+
     public IEnumerable<ValidationIssue> Validate(CrossTableValidationContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -65,7 +68,7 @@ public sealed class TechniqueRelationshipValidationRule : ICrossTableValidationR
         IReadOnlyDictionary<int, TechniqueRecord> records,
         ICollection<ValidationIssue> issues)
     {
-        if (record.PreId == 0 || record.PreId == id || !records.TryGetValue(record.PreId, out var predecessor))
+        if (record.PreId == NoTechniqueId || record.PreId == id || !records.TryGetValue(record.PreId, out var predecessor))
         {
             return;
         }
@@ -76,6 +79,11 @@ public sealed class TechniqueRelationshipValidationRule : ICrossTableValidationR
                 id,
                 PreIdProperty,
                 $"前置科技 ID {record.PreId} 的 {PostIdProperty} 应为 {id}，当前为 {predecessor.PostId}。"));
+            // Also report on the referenced record so both ends of a one-sided link are visible.
+            issues.Add(CreateIssue(
+                record.PreId,
+                PostIdProperty,
+                $"科技 ID {id} 把本科技设为前置，但本科技的 {PostIdProperty} 为 {predecessor.PostId}。"));
         }
     }
 
@@ -85,7 +93,7 @@ public sealed class TechniqueRelationshipValidationRule : ICrossTableValidationR
         IReadOnlyDictionary<int, TechniqueRecord> records,
         ICollection<ValidationIssue> issues)
     {
-        if (record.PostId == 0 || record.PostId == id || !records.TryGetValue(record.PostId, out var successor))
+        if (record.PostId == NoTechniqueId || record.PostId == id || !records.TryGetValue(record.PostId, out var successor))
         {
             return;
         }
@@ -96,6 +104,10 @@ public sealed class TechniqueRelationshipValidationRule : ICrossTableValidationR
                 id,
                 PostIdProperty,
                 $"后置科技 ID {record.PostId} 的 {PreIdProperty} 应为 {id}，当前为 {successor.PreId}。"));
+            issues.Add(CreateIssue(
+                record.PostId,
+                PreIdProperty,
+                $"科技 ID {id} 把本科技设为后置，但本科技的 {PreIdProperty} 为 {successor.PreId}。"));
         }
     }
 
@@ -139,12 +151,12 @@ public sealed class TechniqueRelationshipValidationRule : ICrossTableValidationR
         var edges = new List<RelationshipEdge>();
         foreach (var (id, record) in records.OrderBy(pair => pair.Key))
         {
-            if (record.PreId != 0 && record.PreId != id && records.ContainsKey(record.PreId))
+            if (record.PreId != NoTechniqueId && record.PreId != id && records.ContainsKey(record.PreId))
             {
                 edges.Add(new RelationshipEdge(id, record.PreId, id, PreIdProperty));
             }
 
-            if (record.PostId != 0 && record.PostId != id && records.ContainsKey(record.PostId))
+            if (record.PostId != NoTechniqueId && record.PostId != id && records.ContainsKey(record.PostId))
             {
                 edges.Add(new RelationshipEdge(record.PostId, id, id, PostIdProperty));
             }

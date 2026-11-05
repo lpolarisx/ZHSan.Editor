@@ -179,6 +179,23 @@ public sealed class ConfigDocumentViewModelTests
     }
 
     [Fact]
+    public void AddRecord_StartsTechniqueWithoutPredecessorOrSuccessor()
+    {
+        var document = new ConfigDocument
+        {
+            Definition = new ConfigDefinition("techniques", "科技", "测试", "Techniques.json", typeof(TechniqueConfig)),
+            Items = [new TechniqueConfig { Id = 0, Name = "科技", PreID = -1, PostID = -1 }]
+        };
+        var viewModel = new ConfigDocumentViewModel(document, new ReflectionConfigMetadataProvider(), _ => { });
+
+        viewModel.AddCommand.Execute(null);
+
+        var added = Assert.IsType<TechniqueConfig>(document.Items[^1]);
+        Assert.Equal(-1, added.PreID);
+        Assert.Equal(-1, added.PostID);
+    }
+
+    [Fact]
     public void PersonName_DisplaysSurnameAndGivenNameWithoutNullEditing()
     {
         var person = new PersonConfig { Id = 7, SurName = "诸葛", GivenName = "亮" };

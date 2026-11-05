@@ -11,13 +11,13 @@ public sealed class ConfigReferenceIndexTests
     [Fact]
     public void Rebuild_IndexesTargetsScalarAndCollectionReferences()
     {
-        var firstTechnique = new TechniqueConfig { Id = 1, Name = "基础技术" };
+        var firstTechnique = new TechniqueConfig { Id = 1, Name = "基础技术", PreID = -1, PostID = -1 };
         var secondTechnique = new TechniqueConfig
         {
             Id = 2,
             Name = "进阶技术",
             PreID = 1,
-            PostID = 0,
+            PostID = -1,
         };
         var military = new MilitaryKindConfig
         {
@@ -45,7 +45,7 @@ public sealed class ConfigReferenceIndexTests
             reference.TargetId == 1);
         Assert.Equal(2, index.References.Count(reference =>
             reference.Property.Name == nameof(MilitaryKindConfig.LevelUpKindID)));
-        Assert.DoesNotContain(index.References, reference => reference.TargetId == 0);
+        Assert.DoesNotContain(index.References, reference => reference.TargetId == -1);
         Assert.Single(index.GetReferencesTo("techniques", 1));
     }
 

@@ -13,9 +13,9 @@ public sealed class TechniqueRelationshipValidationRuleTests
     public void Validate_AcceptsConsistentAcyclicChain()
     {
         var context = CreateContext(
-            CreateTechnique(1, 0, 2),
+            CreateTechnique(1, -1, 2),
             CreateTechnique(2, 1, 3),
-            CreateTechnique(3, 2, 0));
+            CreateTechnique(3, 2, -1));
 
         Assert.Empty(new TechniqueRelationshipValidationRule().Validate(context));
     }
@@ -24,10 +24,10 @@ public sealed class TechniqueRelationshipValidationRuleTests
     public void Validate_ReportsInconsistentPredecessorAndSuccessor()
     {
         var context = CreateContext(
-            CreateTechnique(1, 0, 2),
-            CreateTechnique(2, 0, 0),
-            CreateTechnique(3, 4, 0),
-            CreateTechnique(4, 0, 0));
+            CreateTechnique(1, -1, 2),
+            CreateTechnique(2, -1, -1),
+            CreateTechnique(3, 4, -1),
+            CreateTechnique(4, -1, -1));
 
         var issues = new TechniqueRelationshipValidationRule().Validate(context).ToArray();
 
@@ -37,6 +37,30 @@ public sealed class TechniqueRelationshipValidationRuleTests
             issue.ItemId == 3 && issue.PropertyName == nameof(TechniqueConfig.PreID));
         Assert.Contains(nameof(TechniqueConfig.PreID), postIssue.Message);
         Assert.Contains(nameof(TechniqueConfig.PostID), preIssue.Message);
+        // The referenced end of each one-sided link is reported as well.
+        Assert.Single(issues, issue =>
+            issue.ItemId == 2 && issue.PropertyName == nameof(TechniqueConfig.PreID));
+        Assert.Single(issues, issue =>
+            issue.ItemId == 4 && issue.PropertyName == nameof(TechniqueConfig.PostID));
+        Assert.Equal(4, issues.Length);
+    }
+
+    [Fact]
+    public void Validate_ReportsBranchingPredecessorOnSharedTechnique()
+    {
+        var context = CreateContext(
+            CreateTechnique(1, -1, 2),
+            CreateTechnique(2, 1, -1),
+            CreateTechnique(3, 1, -1));
+
+        var issues = new TechniqueRelationshipValidationRule().Validate(context).ToArray();
+
+        Assert.Equal(2, issues.Length);
+        Assert.Single(issues, issue =>
+            issue.ItemId == 3 && issue.PropertyName == nameof(TechniqueConfig.PreID));
+        var sharedIssue = Assert.Single(issues, issue =>
+            issue.ItemId == 1 && issue.PropertyName == nameof(TechniqueConfig.PostID));
+        Assert.Contains("科技 ID 3", sharedIssue.Message);
     }
 
     [Fact]

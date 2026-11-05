@@ -774,6 +774,12 @@ public sealed class MainWindowProjectLifecycleTests
                 ?? throw new InvalidOperationException($"无法创建 {definition.ItemType.Name}");
             definition.ItemType.GetProperty("Id")?.SetValue(item, id);
             definition.ItemType.GetProperty("Name")?.SetValue(item, definition.DisplayName);
+            if (item is TechniqueConfig technique)
+            {
+                technique.PreID = -1;
+                technique.PostID = -1;
+            }
+
             return item;
         }
 

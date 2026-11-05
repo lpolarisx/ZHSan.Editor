@@ -12,21 +12,27 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
     private const double NodeHeight = 100;
     private const double ColumnSpacing = 240;
     private const double RowSpacing = 150;
+    private const double CanvasPadding = 30;
+
+    // The game writes -1 when a technique has no predecessor / successor; ID 0 is a real technique.
+    internal const int NoTechniqueId = -1;
     private readonly ConfigEditorContext _context;
     private TechniqueTreeNodeViewModel? _selectedNode;
     private string _searchText = string.Empty;
     private string _statusMessage = string.Empty;
     private double _zoom = 1;
+    private int _originColumn;
+    private int _originRow;
     private bool _isSynchronizingSelection;
     private bool _isDisposed;
 
     public TechniqueTreeEditorViewModel(ConfigEditorContext context)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
-        MoveLeftCommand = new RelayCommand(() => MoveSelected(-1, 0), CanMoveLeft);
-        MoveRightCommand = new RelayCommand(() => MoveSelected(1, 0), HasSelectedNode);
-        MoveUpCommand = new RelayCommand(() => MoveSelected(0, -1), CanMoveUp);
-        MoveDownCommand = new RelayCommand(() => MoveSelected(0, 1), HasSelectedNode);
+        MoveLeftCommand = new RelayCommand(() => MoveSelectedBy(-1, 0), CanMoveLeft);
+        MoveRightCommand = new RelayCommand(() => MoveSelectedBy(1, 0), HasSelectedNode);
+        MoveUpCommand = new RelayCommand(() => MoveSelectedBy(0, -1), CanMoveUp);
+        MoveDownCommand = new RelayCommand(() => MoveSelectedBy(0, 1), HasSelectedNode);
         ClearSearchCommand = new RelayCommand(
             () => SearchText = string.Empty,
             () => SearchText.Length > 0);
@@ -55,7 +61,7 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
     public string Summary => $"{NodeCount} 个科技 · {EdgeCount} 条关系 · {IssueCount} 个问题";
     public bool HasSelection => SelectedNode is not null;
     public bool CanEditRelationships => SelectedNode is not null &&
-        SelectedNode.Id != 0 &&
+        SelectedNode.Id != NoTechniqueId &&
         Nodes.Count(node => node.Id == SelectedNode.Id) == 1;
 
     public string SearchText
@@ -171,7 +177,7 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
 
     public TechniqueReferenceOptionViewModel? SelectedPredecessor
     {
-        get => FindCurrentOption(PredecessorOptions, SelectedNode?.Technique.PreID ?? 0);
+        get => FindCurrentOption(PredecessorOptions, SelectedNode?.Technique.PreID ?? NoTechniqueId);
         set
         {
             if (value is not null)
@@ -183,7 +189,7 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
 
     public TechniqueReferenceOptionViewModel? SelectedSuccessor
     {
-        get => FindCurrentOption(SuccessorOptions, SelectedNode?.Technique.PostID ?? 0);
+        get => FindCurrentOption(SuccessorOptions, SelectedNode?.Technique.PostID ?? NoTechniqueId);
         set
         {
             if (value is not null)
@@ -211,8 +217,8 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
         var techniques = records
             .Select(record => (Record: record, Technique: (TechniqueConfig)record.Item))
             .ToArray();
-        var minColumn = techniques.Length == 0 ? 0 : techniques.Min(item => item.Technique.DisplayCol);
-        var minRow = techniques.Length == 0 ? 0 : techniques.Min(item => item.Technique.DisplayRow);
+        _originColumn = techniques.Length == 0 ? 0 : Math.Max(0, techniques.Min(item => item.Technique.DisplayCol));
+        _originRow = techniques.Length == 0 ? 0 : Math.Max(0, techniques.Min(item => item.Technique.DisplayRow));
         var coordinateCounts = new Dictionary<(int Column, int Row), int>();
 
         foreach (var (record, technique) in techniques)
@@ -223,8 +229,8 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
             Nodes.Add(new TechniqueTreeNodeViewModel(
                 record,
                 technique,
-                30 + ((technique.DisplayCol - minColumn) * ColumnSpacing) + (collisionIndex * 12),
-                30 + ((technique.DisplayRow - minRow) * RowSpacing) + (collisionIndex * 12)));
+                CellX(technique.DisplayCol) + (collisionIndex * 12),
+                CellY(technique.DisplayRow) + (collisionIndex * 12)));
         }
 
         var groupsById = Nodes.GroupBy(node => node.Id).ToDictionary(group => group.Key, group => group.ToArray());
@@ -281,8 +287,9 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
             node.SetSearchMatch(SearchText);
         }
 
-        CanvasWidth = Math.Max(800, Nodes.Select(node => node.X + NodeWidth + 40).DefaultIfEmpty(800).Max());
-        CanvasHeight = Math.Max(500, Nodes.Select(node => node.Y + NodeHeight + 40).DefaultIfEmpty(500).Max());
+        // Leave one spare column / row so nodes can be dragged past the current edge.
+        CanvasWidth = Math.Max(800, Nodes.Select(node => node.X + NodeWidth + ColumnSpacing).DefaultIfEmpty(800).Max());
+        CanvasHeight = Math.Max(500, Nodes.Select(node => node.Y + NodeHeight + RowSpacing).DefaultIfEmpty(500).Max());
         OnPropertyChanged(nameof(CanvasWidth));
         OnPropertyChanged(nameof(CanvasHeight));
         OnPropertyChanged(nameof(NodeCount));
@@ -345,7 +352,7 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
         }
 
         _context.SetPropertyValues(changes, $"设置科技 #{SelectedNode.Id} 的前置关系");
-        StatusMessage = predecessorId == 0 ? "已清除前置科技" : $"已设置前置科技 #{predecessorId}";
+        StatusMessage = predecessorId == NoTechniqueId ? "已清除前置科技" : $"已设置前置科技 #{predecessorId}";
     }
 
     private void SetSuccessor(int successorId)
@@ -375,7 +382,7 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
         }
 
         _context.SetPropertyValues(changes, $"设置科技 #{SelectedNode.Id} 的后置关系");
-        StatusMessage = successorId == 0 ? "已清除后置科技" : $"已设置后置科技 #{successorId}";
+        StatusMessage = successorId == NoTechniqueId ? "已清除后置科技" : $"已设置后置科技 #{successorId}";
     }
 
     private IReadOnlyList<ConfigEditorPropertyChange>? BuildPredecessorChanges(
@@ -383,7 +390,7 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
         int predecessorId)
     {
         var unique = GetUniqueNodes();
-        if (predecessorId != 0 && !unique.TryGetValue(predecessorId, out _))
+        if (predecessorId != NoTechniqueId && !unique.TryGetValue(predecessorId, out _))
         {
             StatusMessage = $"找不到唯一的前置科技 #{predecessorId}";
             return null;
@@ -393,16 +400,16 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
         if (unique.TryGetValue(current.Technique.PreID, out var oldPredecessor) &&
             oldPredecessor.Technique.PostID == current.Id)
         {
-            changes.Add(Change(oldPredecessor, nameof(TechniqueConfig.PostID), 0));
+            changes.Add(Change(oldPredecessor, nameof(TechniqueConfig.PostID), NoTechniqueId));
         }
 
-        if (predecessorId != 0)
+        if (predecessorId != NoTechniqueId)
         {
             var predecessor = unique[predecessorId];
             if (unique.TryGetValue(predecessor.Technique.PostID, out var oldSuccessor) &&
                 oldSuccessor.Id != current.Id && oldSuccessor.Technique.PreID == predecessor.Id)
             {
-                changes.Add(Change(oldSuccessor, nameof(TechniqueConfig.PreID), 0));
+                changes.Add(Change(oldSuccessor, nameof(TechniqueConfig.PreID), NoTechniqueId));
             }
 
             changes.Add(Change(predecessor, nameof(TechniqueConfig.PostID), current.Id));
@@ -417,7 +424,7 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
         int successorId)
     {
         var unique = GetUniqueNodes();
-        if (successorId != 0 && !unique.TryGetValue(successorId, out _))
+        if (successorId != NoTechniqueId && !unique.TryGetValue(successorId, out _))
         {
             StatusMessage = $"找不到唯一的后置科技 #{successorId}";
             return null;
@@ -427,16 +434,16 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
         if (unique.TryGetValue(current.Technique.PostID, out var oldSuccessor) &&
             oldSuccessor.Technique.PreID == current.Id)
         {
-            changes.Add(Change(oldSuccessor, nameof(TechniqueConfig.PreID), 0));
+            changes.Add(Change(oldSuccessor, nameof(TechniqueConfig.PreID), NoTechniqueId));
         }
 
-        if (successorId != 0)
+        if (successorId != NoTechniqueId)
         {
             var successor = unique[successorId];
             if (unique.TryGetValue(successor.Technique.PreID, out var oldPredecessor) &&
                 oldPredecessor.Id != current.Id && oldPredecessor.Technique.PostID == successor.Id)
             {
-                changes.Add(Change(oldPredecessor, nameof(TechniqueConfig.PostID), 0));
+                changes.Add(Change(oldPredecessor, nameof(TechniqueConfig.PostID), NoTechniqueId));
             }
 
             changes.Add(Change(successor, nameof(TechniqueConfig.PreID), current.Id));
@@ -482,12 +489,12 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
         var edges = new HashSet<(int FromId, int ToId)>();
         foreach (var state in unique.Values)
         {
-            if (state.PreId != 0 && state.PreId != state.Id && unique.ContainsKey(state.PreId))
+            if (state.PreId != NoTechniqueId && state.PreId != state.Id && unique.ContainsKey(state.PreId))
             {
                 edges.Add((state.PreId, state.Id));
             }
 
-            if (state.PostId != 0 && state.PostId != state.Id && unique.ContainsKey(state.PostId))
+            if (state.PostId != NoTechniqueId && state.PostId != state.Id && unique.ContainsKey(state.PostId))
             {
                 edges.Add((state.Id, state.PostId));
             }
@@ -496,32 +503,89 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
         return FindCycleIds(unique.Keys, edges);
     }
 
-    private void MoveSelected(int columnDelta, int rowDelta)
+    internal TechniqueTreeNodeViewModel? HitTest(double x, double y) =>
+        Nodes.LastOrDefault(node =>
+            x >= node.X && x <= node.X + NodeWidth &&
+            y >= node.Y && y <= node.Y + NodeHeight);
+
+    public (int Column, int Row) CellAt(double nodeX, double nodeY) => (
+        Math.Max(0, _originColumn + (int)Math.Round((nodeX - CanvasPadding) / ColumnSpacing)),
+        Math.Max(0, _originRow + (int)Math.Round((nodeY - CanvasPadding) / RowSpacing)));
+
+    public double CellX(int column) => CanvasPadding + ((column - _originColumn) * ColumnSpacing);
+
+    public double CellY(int row) => CanvasPadding + ((row - _originRow) * RowSpacing);
+
+    // Dropping onto another technique's cell swaps the two positions in one undo step.
+    public void MoveNodeTo(TechniqueTreeNodeViewModel node, int column, int row)
     {
-        if (SelectedNode is null)
+        ArgumentNullException.ThrowIfNull(node);
+        column = Math.Max(0, column);
+        row = Math.Max(0, row);
+        var oldColumn = node.Technique.DisplayCol;
+        var oldRow = node.Technique.DisplayRow;
+        if (oldColumn == column && oldRow == row)
         {
             return;
         }
 
-        var changes = new List<ConfigEditorPropertyChange>();
-        if (columnDelta != 0)
+        var occupants = Nodes
+            .Where(other => !ReferenceEquals(other, node) &&
+                other.Technique.DisplayCol == column && other.Technique.DisplayRow == row)
+            .ToArray();
+        var changes = new List<ConfigEditorPropertyChange>
         {
-            changes.Add(Change(
-                SelectedNode,
-                nameof(TechniqueConfig.DisplayCol),
-                Math.Max(0, SelectedNode.Technique.DisplayCol + columnDelta)));
+            Change(node, nameof(TechniqueConfig.DisplayCol), column),
+            Change(node, nameof(TechniqueConfig.DisplayRow), row),
+        };
+        if (occupants.Length == 1)
+        {
+            changes.Add(Change(occupants[0], nameof(TechniqueConfig.DisplayCol), oldColumn));
+            changes.Add(Change(occupants[0], nameof(TechniqueConfig.DisplayRow), oldRow));
         }
 
-        if (rowDelta != 0)
+        _context.SetPropertyValues(changes, occupants.Length == 1
+            ? $"交换科技 #{node.Id} 与 #{occupants[0].Id} 的位置"
+            : $"移动科技 #{node.Id} 节点");
+        StatusMessage = occupants.Length == 1
+            ? $"已与科技 #{occupants[0].Id} 交换位置"
+            : $"已移动到 列 {column} · 行 {row}";
+    }
+
+    public void LinkNodes(TechniqueTreeNodeViewModel from, TechniqueTreeNodeViewModel to)
+    {
+        ArgumentNullException.ThrowIfNull(from);
+        ArgumentNullException.ThrowIfNull(to);
+        if (ReferenceEquals(from, to))
         {
-            changes.Add(Change(
-                SelectedNode,
-                nameof(TechniqueConfig.DisplayRow),
-                Math.Max(0, SelectedNode.Technique.DisplayRow + rowDelta)));
+            return;
         }
 
-        _context.SetPropertyValues(changes, $"移动科技 #{SelectedNode.Id} 节点");
-        StatusMessage = "已移动科技节点";
+        SelectedNode = from;
+        SetSuccessor(to.Id);
+    }
+
+    public void ClearPredecessor(TechniqueTreeNodeViewModel node)
+    {
+        SelectedNode = node;
+        SetPredecessor(NoTechniqueId);
+    }
+
+    public void ClearSuccessor(TechniqueTreeNodeViewModel node)
+    {
+        SelectedNode = node;
+        SetSuccessor(NoTechniqueId);
+    }
+
+    internal void MoveSelectedBy(int columnDelta, int rowDelta)
+    {
+        if (SelectedNode is not null)
+        {
+            MoveNodeTo(
+                SelectedNode,
+                SelectedNode.Technique.DisplayCol + columnDelta,
+                SelectedNode.Technique.DisplayRow + rowDelta);
+        }
     }
 
     private void SetSelectedProperty(string propertyName, object value, string description)
@@ -554,7 +618,7 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
     {
         PredecessorOptions.Clear();
         SuccessorOptions.Clear();
-        var none = new TechniqueReferenceOptionViewModel(0, "（无）", false);
+        var none = new TechniqueReferenceOptionViewModel(NoTechniqueId, "（无）", false);
         PredecessorOptions.Add(none);
         SuccessorOptions.Add(none);
         if (SelectedNode is null)
@@ -584,7 +648,7 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
         ICollection<TechniqueReferenceOptionViewModel> options,
         int currentId)
     {
-        if (currentId != 0 && options.All(option => option.Id != currentId))
+        if (currentId != NoTechniqueId && options.All(option => option.Id != currentId))
         {
             options.Add(new TechniqueReferenceOptionViewModel(
                 currentId,
@@ -612,11 +676,16 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
             node.AddIssue("显示行列不能为负数。");
         }
 
-        if (node.Technique.PreID == node.Id && node.Id != 0)
+        if (node.Id == NoTechniqueId)
+        {
+            node.AddIssue($"ID {NoTechniqueId} 表示“无科技”，不能用作科技 ID。");
+        }
+
+        if (node.Technique.PreID == node.Id)
         {
             node.AddIssue("前置科技不能引用自身。");
         }
-        else if (node.Technique.PreID != 0)
+        else if (node.Technique.PreID != NoTechniqueId)
         {
             if (!uniqueById.TryGetValue(node.Technique.PreID, out var predecessor))
             {
@@ -629,15 +698,17 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
                 if (problem)
                 {
                     node.AddIssue($"前置科技 #{predecessor.Id} 的后置 ID 不是当前科技。");
+                    // Flag the referenced side too, otherwise it reads as healthy when selected.
+                    predecessor.AddIssue($"科技 #{node.Id} 把当前科技设为前置，但当前科技的后置不是 #{node.Id}。");
                 }
             }
         }
 
-        if (node.Technique.PostID == node.Id && node.Id != 0)
+        if (node.Technique.PostID == node.Id)
         {
             node.AddIssue("后置科技不能引用自身。");
         }
-        else if (node.Technique.PostID != 0)
+        else if (node.Technique.PostID != NoTechniqueId)
         {
             if (!uniqueById.TryGetValue(node.Technique.PostID, out var successor))
             {
@@ -650,6 +721,7 @@ public sealed class TechniqueTreeEditorViewModel : ObservableObject, IDisposable
                 if (problem)
                 {
                     node.AddIssue($"后置科技 #{successor.Id} 的前置 ID 不是当前科技。");
+                    successor.AddIssue($"科技 #{node.Id} 把当前科技设为后置，但当前科技的前置不是 #{node.Id}。");
                 }
             }
         }
@@ -812,7 +884,7 @@ public sealed class TechniqueTreeNodeViewModel : ObservableObject
         SetProperty(ref _isSearchMatch, matches, nameof(IsSearchMatch));
     }
 
-    private static string FormatId(int id) => id == 0 ? "无" : $"#{id}";
+    private static string FormatId(int id) => id == TechniqueTreeEditorViewModel.NoTechniqueId ? "无" : $"#{id}";
 }
 
 public sealed record TechniqueTreeEdgeViewModel(

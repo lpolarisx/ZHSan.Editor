@@ -33,10 +33,11 @@ internal static class GameDataPropertyReferenceMetadata
                 new("military-kinds"),
             [(typeof(MilitaryKindConfig), nameof(MilitaryKindConfig.MorphToKindId))] =
                 new("military-kinds", emptyValue: 0),
+            // The game writes -1 when a technique has no predecessor / successor; ID 0 is a real technique.
             [(typeof(TechniqueConfig), nameof(TechniqueConfig.PreID))] =
-                new("techniques", emptyValue: 0),
+                new("techniques", emptyValue: -1),
             [(typeof(TechniqueConfig), nameof(TechniqueConfig.PostID))] =
-                new("techniques", emptyValue: 0),
+                new("techniques", emptyValue: -1),
             [(typeof(TitleConfig), nameof(TitleConfig.KindId))] =
                 new("title-kinds"),
             [(typeof(TreasureCreationSettingConfig), nameof(TreasureCreationSettingConfig.EligibleInfluenceIDs))] =
