@@ -150,6 +150,48 @@ public sealed class GameDataArchiveRepositoryTests
         }
     }
     [Fact]
+    public async Task LoadAndSave_ArchitectureListStrings_DefaultToEmpty()
+    {
+        var directory = Directory.CreateTempSubdirectory("zhsan-architecture-strings-").FullName;
+        var archivePath = Path.Combine(directory, "Scenario.dat");
+        try
+        {
+            using (var zip = ZipFile.Open(archivePath, ZipArchiveMode.Create))
+            {
+                await WriteEntryAsync(zip, "Architectures.json",
+                    "[{\"Id\":1,\"Name\":\"原建筑\",\"ResourceKindsString\":null,\"PersonsString\":\"7\"}]");
+            }
+
+            var definitions = new[]
+            {
+                new ConfigDefinition("architectures", "建筑", "世界", "Architectures.json",
+                    typeof(ArchitectureConfig), ConfigScope.Scenario)
+            };
+            var repository = new GameDataArchiveRepository();
+            var project = await repository.LoadAsync(archivePath, definitions);
+            var architecture = (ArchitectureConfig)project.Documents.Single().Items.Single();
+
+            Assert.Equal("", architecture.ResourceKindsString);
+            Assert.Equal("", architecture.AILandLinksString);
+            Assert.Equal("7", architecture.PersonsString);
+            Assert.Null(architecture.OldFactionName);
+
+            architecture.CharacteristicsString = null!;
+            project.Documents.Single().IsDirty = true;
+            await repository.SaveAsync(project);
+
+            using var saved = GameDataArchive.Open(archivePath);
+            var savedArchitecture = saved.Load<List<ArchitectureConfig>>("Architectures.json")!.Single();
+            Assert.Equal("", savedArchitecture.CharacteristicsString);
+            Assert.Equal("", savedArchitecture.ResourceKindsString);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
     public async Task LoadAsync_MixedScopeDefinitions_IsRejectedBeforeOpeningArchive()
     {
         var definitions = new[]

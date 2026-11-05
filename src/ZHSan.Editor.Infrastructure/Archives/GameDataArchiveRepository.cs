@@ -4,6 +4,7 @@ using GameDatas;
 using ZHSan.Editor.Application.Abstractions;
 using ZHSan.Editor.Domain.Configuration;
 using ZHSan.Editor.Domain.Documents;
+using ZHSan.Editor.Infrastructure.Configuration;
 
 namespace ZHSan.Editor.Infrastructure.Archives;
 
@@ -414,6 +415,7 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
             }
             else
             {
+                GameDataStringDefaults.Apply(item);
                 items.Add(item);
             }
         }
@@ -434,8 +436,11 @@ public sealed class GameDataArchiveRepository : IGameDataArchiveRepository
             exception.Message,
             exception);
 
-    private static void SaveItems<T>(GameDataArchive archive, string entryName, IList<object> items) =>
+    private static void SaveItems<T>(GameDataArchive archive, string entryName, IList<object> items)
+    {
+        foreach (var item in items) GameDataStringDefaults.Apply(item);
         GameDataArchiveEntries.Save(archive, entryName, items.Cast<T>().ToList());
+    }
 
     private static IList<object> BuildSerializableItems(ConfigDocument document)
     {

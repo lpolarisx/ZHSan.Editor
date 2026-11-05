@@ -618,6 +618,8 @@ public sealed class ConfigDocumentViewModel : ObservableObject, IDisposable
             Document.Definition.ItemType.GetProperty(definition.Name)?.SetValue(item, definition.Reference!.EmptyValue);
         }
 
+        GameDataStringDefaults.Apply(item);
+
         foreach (var (propertyName, value) in initialValues)
         {
             var definition = _properties.FirstOrDefault(property => property.Name == propertyName)
