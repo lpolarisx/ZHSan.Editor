@@ -83,10 +83,10 @@
         <TextBlock Text="{Binding Label}" Classes="field-label" />
         <Panel Width="{Binding InputWidth}">
           <TextBox Text="{Binding TextValue, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" IsVisible="{Binding IsText}" />
-          <NumericUpDown Value="{Binding NumericValue, Mode=TwoWay}" Classes="compact integer"
+          <NumericUpDown Value="{Binding NumericValue, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="compact integer"
                          IsVisible="{Binding IsNumber}" />
-          <NumericUpDown Value="{Binding NumericValue, Mode=TwoWay}" Classes="compact" Increment="0.1"
-                         FormatString="0.####" IsVisible="{Binding IsDecimal}" />
+          <NumericUpDown Value="{Binding NumericValue, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="compact" Increment="0.1"
+                         FormatString="0.####" views:IntegerInput.CommitOnEnter="True" IsVisible="{Binding IsDecimal}" />
           <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
                     IsVisible="{Binding IsEnum}" HorizontalAlignment="Stretch" />
           <ComboBox ItemsSource="{Binding ChoiceOptions}" SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"

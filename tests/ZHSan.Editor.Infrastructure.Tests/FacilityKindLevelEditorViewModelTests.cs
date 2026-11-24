@@ -174,6 +174,76 @@ public sealed class FacilityKindLevelEditorViewModelTests
         Assert.Equal(4, level.ConcubineCapacity);
     }
 
+    [Fact]
+    public void EditingNumericFields_KeepsSelectionAndListItemsInPlaceWithoutDroppingFocus()
+    {
+        var first = CreateLevel(1, 1, 1);
+        var second = CreateLevel(2, 1, 2);
+        var (document, editor) = CreateEditor(
+            [new FacilityKindConfig { Id = 1, Name = "市场" }],
+            first,
+            second);
+
+        var originalKind = editor.SelectedKind;
+        var originalLevel = editor.SelectedLevel;
+        Assert.NotNull(originalKind);
+        Assert.NotNull(originalLevel);
+
+        var hasSelectionDropped = false;
+        var levelsCleared = false;
+        var kindsCleared = false;
+        var changedLevelProps = new List<string>();
+        editor.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(FacilityKindLevelEditorViewModel.HasLevelSelection) &&
+                !editor.HasLevelSelection)
+            {
+                hasSelectionDropped = true;
+            }
+        };
+        editor.Levels.CollectionChanged += (_, args) =>
+        {
+            if (args.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset)
+            {
+                levelsCleared = true;
+            }
+        };
+        editor.KindOptions.CollectionChanged += (_, args) =>
+        {
+            if (args.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset)
+            {
+                kindsCleared = true;
+            }
+        };
+        originalLevel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is not null)
+            {
+                changedLevelProps.Add(args.PropertyName);
+            }
+        };
+
+        editor.SelectedPointCost = 250;
+        editor.SelectedFundCost = 1200;
+        document.RefreshReferenceOptions();
+
+        Assert.False(hasSelectionDropped);
+        Assert.False(levelsCleared);
+        Assert.False(kindsCleared);
+        Assert.Same(originalKind, editor.SelectedKind);
+        Assert.Same(originalLevel, editor.SelectedLevel);
+        Assert.Equal(250, editor.SelectedPointCost);
+        Assert.Equal(1200, editor.SelectedFundCost);
+        Assert.Contains("点数 250 · 资金 1200", originalLevel.CostSummary);
+        Assert.Contains(nameof(FacilityLevelViewModel.CostSummary), changedLevelProps);
+
+        document.UndoCommand.Execute(null);
+
+        Assert.Same(originalLevel, editor.SelectedLevel);
+        Assert.Equal(0, editor.SelectedFundCost);
+        Assert.Equal(250, editor.SelectedPointCost);
+    }
+
     private static (ConfigDocumentViewModel Document, FacilityKindLevelEditorViewModel Editor) CreateEditor(
         FacilityKindConfig[] kinds,
         params FacilityKindLevelConfig[] levels)

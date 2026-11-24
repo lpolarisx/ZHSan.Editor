@@ -66,19 +66,19 @@
             </Grid>
 
             <TextBlock Text="名称" FontWeight="SemiBold" />
-            <TextBox Text="{Binding SelectedName, Mode=TwoWay}" />
+            <TextBox Text="{Binding SelectedName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
 
             <TextBlock Text="说明" FontWeight="SemiBold" />
-            <TextBox Text="{Binding SelectedDescription, Mode=TwoWay}"
+            <TextBox Text="{Binding SelectedDescription, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                      AcceptsReturn="True" MinHeight="64" TextWrapping="Wrap" />
 
             <Grid ColumnDefinitions="Auto,8,*,16,Auto,8,*">
               <TextBlock Text="显示列" FontWeight="SemiBold" VerticalAlignment="Center" />
               <NumericUpDown Grid.Column="2" Classes="compact integer" Minimum="0" Maximum="1000"
-                             Value="{Binding SelectedDisplayColumn, Mode=TwoWay}" />
+                             Value="{Binding SelectedDisplayColumn, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
               <TextBlock Grid.Column="4" Text="显示行" FontWeight="SemiBold" VerticalAlignment="Center" />
               <NumericUpDown Grid.Column="6" Classes="compact integer" Minimum="0" Maximum="1000"
-                             Value="{Binding SelectedDisplayRow, Mode=TwoWay}" />
+                             Value="{Binding SelectedDisplayRow, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
             </Grid>
 
             <Separator Margin="0,4" />

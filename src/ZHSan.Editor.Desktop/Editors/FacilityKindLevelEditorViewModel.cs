@@ -14,6 +14,7 @@ public sealed class FacilityKindLevelEditorViewModel : ObservableObject, IDispos
     private FacilityLevelViewModel? _selectedLevel;
     private string _statusMessage = string.Empty;
     private bool _isSynchronizingSelection;
+    private bool _isRebuilding;
     private bool _isDisposed;
 
     public FacilityKindLevelEditorViewModel(ConfigEditorContext context)
@@ -55,7 +56,7 @@ public sealed class FacilityKindLevelEditorViewModel : ObservableObject, IDispos
         get => _selectedKind;
         set
         {
-            if (ReferenceEquals(_selectedKind, value))
+            if (_isRebuilding || ReferenceEquals(_selectedKind, value))
             {
                 return;
             }
@@ -73,7 +74,7 @@ public sealed class FacilityKindLevelEditorViewModel : ObservableObject, IDispos
         get => _selectedLevel;
         set
         {
-            if (ReferenceEquals(_selectedLevel, value))
+            if (_isRebuilding || ReferenceEquals(_selectedLevel, value))
             {
                 return;
             }
@@ -97,7 +98,7 @@ public sealed class FacilityKindLevelEditorViewModel : ObservableObject, IDispos
             : KindOptions.FirstOrDefault(option => option.Id == SelectedLevel.Config.KindId);
         set
         {
-            if (value is not null && !value.IsMissing)
+            if (!_isRebuilding && value is not null && !value.IsMissing)
             {
                 SetSelectedInt(nameof(FacilityKindLevelConfig.KindId), value.Id, "调整设施所属种类");
             }
@@ -170,47 +171,78 @@ public sealed class FacilityKindLevelEditorViewModel : ObservableObject, IDispos
         var previousKindId = SelectedKind?.Id;
         var configs = GetConfigs();
         var targets = _context.GetReferenceTargets(FacilityKindsKey);
+        var existingKinds = KindOptions.ToDictionary(option => option.Id);
+        var nextKinds = new List<FacilityKindOptionViewModel>();
 
-        KindOptions.Clear();
         foreach (var targetGroup in targets.GroupBy(target => target.Id).OrderBy(group => group.Key))
         {
             var target = targetGroup.First();
             var duplicate = targetGroup.Count() > 1;
-            KindOptions.Add(new FacilityKindOptionViewModel(
-                target.Id,
-                duplicate
-                    ? $"#{target.Id} · {target.DisplayName} [种类 ID 重复]"
-                    : $"#{target.Id} · {target.DisplayName}",
-                duplicate,
-                configs.Count(item => item.Config.KindId == target.Id)));
+            var label = duplicate
+                ? $"#{target.Id} · {target.DisplayName} [种类 ID 重复]"
+                : $"#{target.Id} · {target.DisplayName}";
+            var levelCount = configs.Count(item => item.Config.KindId == target.Id);
+            nextKinds.Add(ReuseOrCreateKind(existingKinds, target.Id, label, duplicate, levelCount));
         }
 
         foreach (var missingKindId in configs.Select(item => item.Config.KindId)
                      .Distinct()
-                     .Where(id => KindOptions.All(option => option.Id != id))
+                     .Where(id => nextKinds.All(option => option.Id != id))
                      .Order())
         {
-            KindOptions.Add(new FacilityKindOptionViewModel(
-                missingKindId,
-                $"#{missingKindId} · [设施种类不存在]",
-                true,
-                configs.Count(item => item.Config.KindId == missingKindId)));
+            var label = $"#{missingKindId} · [设施种类不存在]";
+            var levelCount = configs.Count(item => item.Config.KindId == missingKindId);
+            nextKinds.Add(ReuseOrCreateKind(existingKinds, missingKindId, label, true, levelCount));
         }
 
-        var selectedConfig = selectedRecord?.Item as FacilityKindLevelConfig;
-        var desiredKindId = selectedConfig?.KindId ?? previousKindId;
-        _selectedKind = desiredKindId.HasValue
-            ? KindOptions.FirstOrDefault(option => option.Id == desiredKindId.Value)
-            : null;
-        _selectedKind ??= KindOptions.FirstOrDefault();
-        OnPropertyChanged(nameof(SelectedKind));
-        OnPropertyChanged(nameof(HasKindSelection));
+        var wasRebuilding = _isRebuilding;
+        _isRebuilding = true;
+        try
+        {
+            // Update in place so editing a field does not clear the lists, toggle HasLevelSelection,
+            // and drop keyboard focus from the active input box.
+            FilteredList.Update(KindOptions, nextKinds);
+            var selectedConfig = selectedRecord?.Item as FacilityKindLevelConfig;
+            var desiredKindId = selectedConfig?.KindId ?? previousKindId;
+            var nextKind = desiredKindId.HasValue
+                ? KindOptions.FirstOrDefault(option => option.Id == desiredKindId.Value)
+                : null;
+            nextKind ??= KindOptions.FirstOrDefault();
+            var kindChanged = !ReferenceEquals(_selectedKind, nextKind);
+            _selectedKind = nextKind;
+            if (kindChanged)
+            {
+                OnPropertyChanged(nameof(SelectedKind));
+                OnPropertyChanged(nameof(HasKindSelection));
+            }
+        }
+        finally
+        {
+            _isRebuilding = wasRebuilding;
+        }
+
         RebuildLevels(selectedRecord);
         OnPropertyChanged(nameof(KindCount));
         OnPropertyChanged(nameof(LevelCount));
         OnPropertyChanged(nameof(IssueCount));
         OnPropertyChanged(nameof(Summary));
         ((RelayCommand)AddLevelCommand).RaiseCanExecuteChanged();
+    }
+
+    private static FacilityKindOptionViewModel ReuseOrCreateKind(
+        Dictionary<int, FacilityKindOptionViewModel> existingKinds,
+        int id,
+        string label,
+        bool isMissing,
+        int levelCount)
+    {
+        if (existingKinds.TryGetValue(id, out var existing))
+        {
+            existing.Refresh(label, isMissing, levelCount);
+            return existing;
+        }
+
+        return new FacilityKindOptionViewModel(id, label, isMissing, levelCount);
     }
 
     public void Dispose()
@@ -246,9 +278,19 @@ public sealed class FacilityKindLevelEditorViewModel : ObservableObject, IDispos
     private void RebuildLevels(ConfigRecordViewModel? selectedRecord = null)
     {
         selectedRecord ??= SelectedLevel?.Record;
-        Levels.Clear();
         if (SelectedKind is null)
         {
+            var wasRebuildingEmpty = _isRebuilding;
+            _isRebuilding = true;
+            try
+            {
+                Levels.Clear();
+            }
+            finally
+            {
+                _isRebuilding = wasRebuildingEmpty;
+            }
+
             SetSelectedLevel(null);
             RefreshCountsAndStatus();
             return;
@@ -273,6 +315,12 @@ public sealed class FacilityKindLevelEditorViewModel : ObservableObject, IDispos
             .Distinct()
             .ToHashSet();
 
+        var existingLevels = new Dictionary<ConfigRecordViewModel, FacilityLevelViewModel>(ReferenceEqualityComparer.Instance);
+        foreach (var level in Levels)
+        {
+            existingLevels[level.Record] = level;
+        }
+        var nextLevels = new List<FacilityLevelViewModel>(selectedKindConfigs.Length);
         foreach (var (record, config) in selectedKindConfigs)
         {
             var issues = new List<string>();
@@ -298,18 +346,46 @@ public sealed class FacilityKindLevelEditorViewModel : ObservableObject, IDispos
                 issues.Add("等级序列不连续，存在缺失的前置等级。");
             }
 
-            Levels.Add(new FacilityLevelViewModel(record, config, issues));
+            if (existingLevels.TryGetValue(record, out var existing))
+            {
+                existing.Refresh(issues);
+                nextLevels.Add(existing);
+            }
+            else
+            {
+                nextLevels.Add(new FacilityLevelViewModel(record, config, issues));
+            }
         }
 
-        SetSelectedLevel(Levels.FirstOrDefault(level => ReferenceEquals(level.Record, selectedRecord))
-            ?? Levels.FirstOrDefault());
+        var nextSelection = nextLevels.FirstOrDefault(level => ReferenceEquals(level.Record, selectedRecord))
+            ?? nextLevels.FirstOrDefault();
+
+        var wasRebuilding = _isRebuilding;
+        _isRebuilding = true;
+        try
+        {
+            FilteredList.Update(Levels, nextLevels);
+        }
+        finally
+        {
+            _isRebuilding = wasRebuilding;
+        }
+
+        SetSelectedLevel(nextSelection);
         RefreshCountsAndStatus();
     }
 
     private void SetSelectedLevel(FacilityLevelViewModel? level)
     {
         _isSynchronizingSelection = true;
-        SelectedLevel = level;
+        var changed = !ReferenceEquals(_selectedLevel, level);
+        _selectedLevel = level;
+        if (changed)
+        {
+            OnPropertyChanged(nameof(SelectedLevel));
+        }
+
+        RefreshSelectedLevelProperties();
         _isSynchronizingSelection = false;
         _context.SelectedRecord = level?.Record;
     }
@@ -454,28 +530,61 @@ public sealed class FacilityKindLevelEditorViewModel : ObservableObject, IDispos
     }
 }
 
-public sealed record FacilityKindOptionViewModel(
-    int Id,
-    string Label,
-    bool IsMissing,
-    int LevelCount)
+public sealed class FacilityKindOptionViewModel(
+    int id,
+    string label,
+    bool isMissing,
+    int levelCount) : ObservableObject
 {
+    private string _label = label;
+    private bool _isMissing = isMissing;
+    private int _levelCount = levelCount;
+
+    public int Id { get; } = id;
+    public string Label => _label;
+    public bool IsMissing => _isMissing;
+    public int LevelCount => _levelCount;
     public string CountLabel => $"{LevelCount} 级";
+
+    internal void Refresh(string label, bool isMissing, int levelCount)
+    {
+        SetProperty(ref _label, label, nameof(Label));
+        SetProperty(ref _isMissing, isMissing, nameof(IsMissing));
+        if (SetProperty(ref _levelCount, levelCount, nameof(LevelCount)))
+        {
+            OnPropertyChanged(nameof(CountLabel));
+        }
+    }
 }
 
 public sealed class FacilityLevelViewModel(
     ConfigRecordViewModel record,
     FacilityKindLevelConfig config,
-    IReadOnlyList<string> issues)
+    IReadOnlyList<string> issues) : ObservableObject
 {
+    private IReadOnlyList<string> _issues = issues;
+
     public ConfigRecordViewModel Record { get; } = record;
     public FacilityKindLevelConfig Config { get; } = config;
-    public IReadOnlyList<string> Issues { get; } = issues;
+    public IReadOnlyList<string> Issues => _issues;
     public int Id => Config.Id;
     public int Level => Config.Level;
-    public bool HasIssues => Issues.Count > 0;
+    public bool HasIssues => _issues.Count > 0;
     public string Title => $"等级 {Level}";
     public string CostSummary => $"点数 {Config.PointCost} · 资金 {Config.FundCost} · 维护 {Config.MaintenanceCost}";
     public string BuildSummary => $"占地 {Config.PositionOccupied} · 工期 {Config.Days} 天 · 耐久 {Config.Endurance}";
-    public string ToolTip => HasIssues ? string.Join(Environment.NewLine, Issues) : $"记录 #{Id}";
+    public string ToolTip => HasIssues ? string.Join(Environment.NewLine, _issues) : $"记录 #{Id}";
+
+    internal void Refresh(IReadOnlyList<string> issues)
+    {
+        _issues = issues;
+        OnPropertyChanged(nameof(Issues));
+        OnPropertyChanged(nameof(Id));
+        OnPropertyChanged(nameof(Level));
+        OnPropertyChanged(nameof(HasIssues));
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(CostSummary));
+        OnPropertyChanged(nameof(BuildSummary));
+        OnPropertyChanged(nameof(ToolTip));
+    }
 }

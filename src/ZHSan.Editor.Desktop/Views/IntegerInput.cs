@@ -17,15 +17,42 @@ public static class IntegerInput
     public static readonly AttachedProperty<bool> IsEnabledProperty =
         AvaloniaProperty.RegisterAttached<NumericUpDown, bool>("IsEnabled", typeof(IntegerInput));
 
+    public static readonly AttachedProperty<bool> CommitOnEnterProperty =
+        AvaloniaProperty.RegisterAttached<NumericUpDown, bool>("CommitOnEnter", typeof(IntegerInput));
+
     private const string InvalidClass = "invalid-input";
 
     static IntegerInput()
     {
         IsEnabledProperty.Changed.AddClassHandler<NumericUpDown>(OnIsEnabledChanged);
+        CommitOnEnterProperty.Changed.AddClassHandler<NumericUpDown>(OnCommitOnEnterChanged);
     }
 
     public static bool GetIsEnabled(NumericUpDown element) => element.GetValue(IsEnabledProperty);
     public static void SetIsEnabled(NumericUpDown element, bool value) => element.SetValue(IsEnabledProperty, value);
+
+    public static bool GetCommitOnEnter(NumericUpDown element) => element.GetValue(CommitOnEnterProperty);
+    public static void SetCommitOnEnter(NumericUpDown element, bool value) => element.SetValue(CommitOnEnterProperty, value);
+
+    private static void OnCommitOnEnterChanged(NumericUpDown box, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is true)
+        {
+            box.AddHandler(InputElement.KeyDownEvent, OnCommitEnterKeyDown, RoutingStrategies.Tunnel);
+        }
+        else
+        {
+            box.RemoveHandler(InputElement.KeyDownEvent, OnCommitEnterKeyDown);
+        }
+    }
+
+    private static void OnCommitEnterKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && sender is NumericUpDown box && !GetIsEnabled(box))
+        {
+            BindingOperations.GetBindingExpressionBase(box, NumericUpDown.ValueProperty)?.UpdateSource();
+        }
+    }
 
     private static void OnIsEnabledChanged(NumericUpDown box, AvaloniaPropertyChangedEventArgs e)
     {

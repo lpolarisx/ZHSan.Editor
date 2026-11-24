@@ -85,7 +85,7 @@
                   <Panel Width="{Binding InputWidth}">
                     <TextBox Text="{Binding TextValue, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                              IsVisible="{Binding IsText}" />
-                    <NumericUpDown Value="{Binding NumericValue, Mode=TwoWay}"
+                    <NumericUpDown Value="{Binding NumericValue, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                    Classes="compact" IsVisible="{Binding IsNumber}"
                                    Classes.out-of-range="{Binding IsOutOfRange}"
                                    ToolTip.Tip="{Binding RangeTip}" />
@@ -237,10 +237,10 @@
                       <Grid RowDefinitions="18,32,32" RowSpacing="8">
                         <TextBlock Text="{Binding Label}" FontSize="12" Opacity="0.72"
                                    HorizontalAlignment="Center" VerticalAlignment="Bottom" />
-                        <NumericUpDown Grid.Row="1" Value="{Binding Ability.NumericValue, Mode=TwoWay}"
+                        <NumericUpDown Grid.Row="1" Value="{Binding Ability.NumericValue, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                        Classes="compact" Classes.out-of-range="{Binding Ability.IsOutOfRange}"
                                        ToolTip.Tip="{Binding Ability.RangeTip}" />
-                        <NumericUpDown Grid.Row="2" Value="{Binding Experience.NumericValue, Mode=TwoWay}"
+                        <NumericUpDown Grid.Row="2" Value="{Binding Experience.NumericValue, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                        Classes="compact" />
                       </Grid>
                     </DataTemplate>

@@ -138,39 +138,47 @@
                   </StackPanel>
                   <StackPanel Classes="cell">
                     <TextBlock Text="等级" Classes="field-label" />
-                    <NumericUpDown Value="{Binding SelectedLevelNumber, Mode=TwoWay}" Classes="compact integer" Width="100"
+                    <NumericUpDown Value="{Binding SelectedLevelNumber, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="compact integer" Width="100"
                                    Minimum="1" Maximum="2147483647" />
-                  </StackPanel>                  <StackPanel Classes="cell">
+                  </StackPanel>
+                  <StackPanel Classes="cell">
                     <TextBlock Text="占地" Classes="field-label" />
-                    <NumericUpDown Value="{Binding SelectedPositionOccupied, Mode=TwoWay}" Classes="compact integer" Width="100"
+                    <NumericUpDown Value="{Binding SelectedPositionOccupied, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="compact integer" Width="100"
                                    Minimum="0" Maximum="2147483647" />
-                  </StackPanel>                  <StackPanel Classes="cell">
+                  </StackPanel>
+                  <StackPanel Classes="cell">
                     <TextBlock Text="耐久" Classes="field-label" />
-                    <NumericUpDown Value="{Binding SelectedEndurance, Mode=TwoWay}" Classes="compact integer" Width="100"
+                    <NumericUpDown Value="{Binding SelectedEndurance, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="compact integer" Width="100"
                                    Minimum="0" Maximum="2147483647" />
-                  </StackPanel>                  <StackPanel Classes="cell">
+                  </StackPanel>
+                  <StackPanel Classes="cell">
                     <TextBlock Text="点数成本" Classes="field-label" />
-                    <NumericUpDown Value="{Binding SelectedPointCost, Mode=TwoWay}" Classes="compact integer" Width="100"
+                    <NumericUpDown Value="{Binding SelectedPointCost, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="compact integer" Width="100"
                                    Minimum="0" Maximum="2147483647" />
-                  </StackPanel>                  <StackPanel Classes="cell">
+                  </StackPanel>
+                  <StackPanel Classes="cell">
                     <TextBlock Text="资金成本" Classes="field-label" />
-                    <NumericUpDown Value="{Binding SelectedFundCost, Mode=TwoWay}" Classes="compact integer" Width="100"
+                    <NumericUpDown Value="{Binding SelectedFundCost, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="compact integer" Width="100"
                                    Minimum="0" Maximum="2147483647" />
-                  </StackPanel>                  <StackPanel Classes="cell">
+                  </StackPanel>
+                  <StackPanel Classes="cell">
                     <TextBlock Text="维护成本" Classes="field-label" />
-                    <NumericUpDown Value="{Binding SelectedMaintenanceCost, Mode=TwoWay}" Classes="compact integer" Width="100"
+                    <NumericUpDown Value="{Binding SelectedMaintenanceCost, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="compact integer" Width="100"
                                    Minimum="0" Maximum="2147483647" />
-                  </StackPanel>                  <StackPanel Classes="cell">
+                  </StackPanel>
+                  <StackPanel Classes="cell">
                     <TextBlock Text="建设天数" Classes="field-label" />
-                    <NumericUpDown Value="{Binding SelectedDays, Mode=TwoWay}" Classes="compact integer" Width="100"
+                    <NumericUpDown Value="{Binding SelectedDays, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="compact integer" Width="100"
                                    Minimum="0" Maximum="2147483647" />
-                  </StackPanel>                  <StackPanel Classes="cell" ToolTip.Tip="所在建筑的技术值达到此数才能兴建">
+                  </StackPanel>
+                  <StackPanel Classes="cell" ToolTip.Tip="所在建筑的技术值达到此数才能兴建">
                     <TextBlock Text="所需技术" Classes="field-label" />
-                    <NumericUpDown Value="{Binding SelectedTechnologyNeeded, Mode=TwoWay}" Classes="compact integer" Width="100"
+                    <NumericUpDown Value="{Binding SelectedTechnologyNeeded, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="compact integer" Width="100"
                                    Minimum="0" Maximum="2147483647" />
-                  </StackPanel>                  <StackPanel Classes="cell">
+                  </StackPanel>
+                  <StackPanel Classes="cell">
                     <TextBlock Text="容纳妃子数" Classes="field-label" />
-                    <NumericUpDown Value="{Binding SelectedConcubineCapacity, Mode=TwoWay}" Classes="compact integer" Width="100"
+                    <NumericUpDown Value="{Binding SelectedConcubineCapacity, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="compact integer" Width="100"
                                    Minimum="0" Maximum="2147483647" />
                   </StackPanel>                </WrapPanel>
 

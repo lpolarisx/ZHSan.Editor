@@ -69,7 +69,7 @@
                   <Panel Width="{Binding InputWidth}">
                     <TextBox Text="{Binding TextValue, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                              IsVisible="{Binding IsText}" />
-                    <NumericUpDown Value="{Binding NumericValue, Mode=TwoWay}"
+                    <NumericUpDown Value="{Binding NumericValue, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                    Classes="compact" IsVisible="{Binding IsNumber}" />
                     <ComboBox ItemsSource="{Binding ChoiceOptions}"
                               SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
