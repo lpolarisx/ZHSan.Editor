@@ -111,6 +111,12 @@ public sealed class FacilityKindLevelEditorViewModel : ObservableObject, IDispos
         set => SetSelectedInt(nameof(FacilityKindLevelConfig.Level), value, "修改设施等级");
     }
 
+    public string SelectedName
+    {
+        get => SelectedLevel?.Config.Name ?? string.Empty;
+        set => SetSelectedString(nameof(FacilityKindLevelConfig.Name), value, "修改独立名称");
+    }
+
     public decimal? SelectedPositionOccupied
     {
         get => SelectedLevel?.Config.PositionOccupied;
@@ -469,12 +475,33 @@ public sealed class FacilityKindLevelEditorViewModel : ObservableObject, IDispos
         StatusMessage = $"已{description}";
     }
 
+    private void SetSelectedString(string propertyName, string? value, string description)
+    {
+        if (SelectedLevel is null)
+        {
+            return;
+        }
+
+        var normalized = value ?? string.Empty;
+        var current = propertyName == nameof(FacilityKindLevelConfig.Name)
+            ? SelectedLevel.Config.Name ?? string.Empty
+            : string.Empty;
+        if (string.Equals(current, normalized, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _context.SetPropertyValue(SelectedLevel.Record, propertyName, normalized, description);
+        StatusMessage = $"已{description}";
+    }
+
     private void RefreshSelectedLevelProperties()
     {
         OnPropertyChanged(nameof(HasLevelSelection));
         OnPropertyChanged(nameof(SelectedId));
         OnPropertyChanged(nameof(SelectedKindForLevel));
         OnPropertyChanged(nameof(SelectedLevelNumber));
+        OnPropertyChanged(nameof(SelectedName));
         OnPropertyChanged(nameof(SelectedPositionOccupied));
         OnPropertyChanged(nameof(SelectedPointCost));
         OnPropertyChanged(nameof(SelectedFundCost));
@@ -569,8 +596,11 @@ public sealed class FacilityLevelViewModel(
     public IReadOnlyList<string> Issues => _issues;
     public int Id => Config.Id;
     public int Level => Config.Level;
+    public string Name => Config.Name ?? string.Empty;
     public bool HasIssues => _issues.Count > 0;
-    public string Title => $"等级 {Level}";
+    public string Title => string.IsNullOrWhiteSpace(Config.Name)
+        ? $"等级 {Level}"
+        : $"等级 {Level} · {Config.Name.Trim()}";
     public string CostSummary => $"点数 {Config.PointCost} · 资金 {Config.FundCost} · 维护 {Config.MaintenanceCost}";
     public string BuildSummary => $"占地 {Config.PositionOccupied} · 工期 {Config.Days} 天 · 耐久 {Config.Endurance}";
     public string ToolTip => HasIssues ? string.Join(Environment.NewLine, _issues) : $"记录 #{Id}";
@@ -581,6 +611,7 @@ public sealed class FacilityLevelViewModel(
         OnPropertyChanged(nameof(Issues));
         OnPropertyChanged(nameof(Id));
         OnPropertyChanged(nameof(Level));
+        OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(HasIssues));
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(CostSummary));

@@ -93,7 +93,8 @@
                       BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
                       ToolTip.Tip="{Binding ToolTip}">
                 <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto">
-                  <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold"
+                             TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
                   <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
                     <TextBlock Text="⚠" Foreground="#E5484D" IsVisible="{Binding HasIssues}" />
                     <TextBlock Text="{Binding Id, StringFormat='记录 #{0}'}" FontSize="11" Opacity="0.58" />
@@ -140,6 +141,11 @@
                     <TextBlock Text="等级" Classes="field-label" />
                     <NumericUpDown Value="{Binding SelectedLevelNumber, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="compact integer" Width="100"
                                    Minimum="1" Maximum="2147483647" />
+                  </StackPanel>
+                  <StackPanel Classes="cell" ToolTip.Tip="留空时沿用设施种类的名称">
+                    <TextBlock Text="独立名称" Classes="field-label" />
+                    <TextBox Text="{Binding SelectedName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             PlaceholderText="留空沿用种类名" Width="180" />
                   </StackPanel>
                   <StackPanel Classes="cell">
                     <TextBlock Text="占地" Classes="field-label" />

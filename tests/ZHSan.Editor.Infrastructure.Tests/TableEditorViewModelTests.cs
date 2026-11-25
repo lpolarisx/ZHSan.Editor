@@ -331,13 +331,21 @@ public sealed class TableEditorViewModelTests
         using (relations) Assert.Equal("刘备 ↔ 关羽", relationEditor.SelectedTitle);
 
         var facility = new FacilityConfig { Id = 5, LevelId = 2, Endurance = 100 };
-        var (facilities, facilityEditor) = Open("facilities", [facility],
-            Common("facility-kind-levels", new FacilityKindLevelConfig { Id = 2, KindId = 9, Level = 2 }),
+        var namedFacility = new FacilityConfig { Id = 6, LevelId = 3, Endurance = 200 };
+        var (facilities, facilityEditor) = Open("facilities", [facility, namedFacility],
+            Common("facility-kind-levels",
+                new FacilityKindLevelConfig { Id = 2, KindId = 9, Level = 2 },
+                new FacilityKindLevelConfig { Id = 3, KindId = 9, Level = 3, Name = "良田" }),
             Common("facility-kinds", new FacilityKindConfig { Id = 9, Name = "农田" }));
         using (facilities)
         {
             Assert.Equal("农田 Lv2", facilityEditor.SelectedTitle);
             Assert.Equal("2 农田 Lv2", facilityEditor.Sections[0].Group.Fields.Single(field => field.Label == "设施等级")
+                .SelectedChoice?.Label);
+
+            facilityEditor.SelectedRecord = facilityEditor.Records[1];
+            Assert.Equal("良田 Lv3", facilityEditor.SelectedTitle);
+            Assert.Equal("3 良田 Lv3", facilityEditor.Sections[0].Group.Fields.Single(field => field.Label == "设施等级")
                 .SelectedChoice?.Label);
         }
 

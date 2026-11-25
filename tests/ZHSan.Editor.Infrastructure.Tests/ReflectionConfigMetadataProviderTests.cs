@@ -37,6 +37,11 @@ public sealed class ReflectionConfigMetadataProviderTests
         Assert.Equal(0, chance.Validation.Minimum);
         Assert.Equal(100, chance.Validation.Maximum);
         Assert.False(combativity.Validation.HasNumericRange);
+
+        var facilityLevelName = Assert.Single(
+            provider.GetProperties(typeof(FacilityKindLevelConfig)),
+            property => property.Name == nameof(FacilityKindLevelConfig.Name));
+        Assert.False(facilityLevelName.Validation.IsRequired);
     }
 
     [Fact]

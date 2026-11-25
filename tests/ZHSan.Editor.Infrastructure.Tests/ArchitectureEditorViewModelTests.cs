@@ -115,4 +115,61 @@ public sealed class ArchitectureEditorViewModelTests
         Assert.Equal("9", luoyang.NoFactionPersonsString);
         Assert.Equal("16", xuchang.PersonsString);
     }
+
+    [Fact]
+    public void Architecture_FacilityChipUsesIndependentLevelNameWhenSet()
+    {
+        var metadata = new ReflectionConfigMetadataProvider();
+        var registry = new GameDataConfigRegistry();
+        var luoyang = new ArchitectureConfig { Id = 5, Name = "洛阳", FacilitiesString = "10 11" };
+        var architectures = new ConfigDocument { Definition = Scenario("architectures"), Items = [luoyang] };
+        var scenario = new EditorProject
+        {
+            Scope = ConfigScope.Scenario,
+            ArchivePath = "scenario.dat",
+            Documents =
+            [
+                architectures,
+                new ConfigDocument
+                {
+                    Definition = Scenario("facilities"),
+                    Items =
+                    [
+                        new FacilityConfig { Id = 10, LevelId = 1 },
+                        new FacilityConfig { Id = 11, LevelId = 2 }
+                    ]
+                }
+            ]
+        };
+        var common = new EditorProject
+        {
+            Scope = ConfigScope.Common,
+            ArchivePath = "CommonData.dat",
+            Documents =
+            [
+                new ConfigDocument
+                {
+                    Definition = registry.Find("facility-kinds")!,
+                    Items = [new FacilityKindConfig { Id = 9, Name = "市场" }]
+                },
+                new ConfigDocument
+                {
+                    Definition = registry.Find("facility-kind-levels")!,
+                    Items =
+                    [
+                        new FacilityKindLevelConfig { Id = 1, KindId = 9, Level = 1 },
+                        new FacilityKindLevelConfig { Id = 2, KindId = 9, Level = 2, Name = "大市场" }
+                    ]
+                }
+            ]
+        };
+        var references = new ConfigReferenceIndex(metadata);
+        references.Rebuild([common, scenario]);
+        using var document = new ConfigDocumentViewModel(architectures, metadata, _ => { }, referenceIndex: references,
+            editorProviderRegistry: new ConfigEditorProviderRegistry([new ArchitectureEditorProvider()]));
+        var editor = Assert.IsType<ArchitectureEditorViewModel>(document.SpecializedEditor?.Content);
+        var facilities = editor.FeatureLists.Single(list => list.Label == "设施");
+
+        Assert.Equal(["10 市场 Lv1", "11 大市场 Lv2"], facilities.Items.Select(item => item.Label));
+    }
 }

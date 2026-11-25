@@ -25,12 +25,14 @@ internal static class GameDataPropertyValidationMetadata
         (typeof(PersonGeneratorTypeConfig), nameof(PersonGeneratorTypeConfig.GenerationChance)),
     ];
 
-    // Records the game never names, so an empty Name is normal.
+    // Records the game never names (or where Name is optional, e.g. a facility level overriding its kind's name),
+    // so an empty Name is normal.
     private static readonly HashSet<Type> NamelessItemTypes =
     [
         typeof(BiographyAdjectiveConfig),
         typeof(CaptiveConfig),
         typeof(FacilityConfig),
+        typeof(FacilityKindLevelConfig),
         typeof(InformationKindConfig),
         typeof(PersonGeneratorSettingConfig),
         typeof(PersonRelationConfig),

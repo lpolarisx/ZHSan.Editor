@@ -244,6 +244,48 @@ public sealed class FacilityKindLevelEditorViewModelTests
         Assert.Equal(250, editor.SelectedPointCost);
     }
 
+    [Fact]
+    public void SelectedName_EditsIndependentLevelNameUpdatesTitleAndSupportsUndo()
+    {
+        var level = CreateLevel(1, 1, 1);
+        var (document, editor) = CreateEditor([new FacilityKindConfig { Id = 1, Name = "市场" }], level);
+        var originalLevel = editor.SelectedLevel;
+        Assert.NotNull(originalLevel);
+
+        Assert.Equal(string.Empty, editor.SelectedName);
+        Assert.Equal("等级 1", originalLevel.Title);
+
+        // Blurring an untouched empty name box on a null-backed record should not dirty the document.
+        editor.SelectedName = string.Empty;
+        Assert.False(document.CanUndo);
+        Assert.Null(level.Name);
+
+        editor.SelectedName = "大市场";
+
+        Assert.Same(originalLevel, editor.SelectedLevel);
+        Assert.Equal("大市场", level.Name);
+        Assert.Equal("大市场", editor.SelectedName);
+        Assert.Equal("大市场", originalLevel.Name);
+        Assert.Equal("等级 1 · 大市场", originalLevel.Title);
+        Assert.True(document.CanUndo);
+
+        editor.SelectedName = string.Empty;
+
+        Assert.Equal(string.Empty, level.Name);
+        Assert.Equal("等级 1", originalLevel.Title);
+
+        document.UndoCommand.Execute(null);
+
+        Assert.Equal("大市场", level.Name);
+        Assert.Equal("等级 1 · 大市场", originalLevel.Title);
+
+        document.UndoCommand.Execute(null);
+
+        Assert.Null(level.Name);
+        Assert.Equal(string.Empty, editor.SelectedName);
+        Assert.Equal("等级 1", originalLevel.Title);
+    }
+
     private static (ConfigDocumentViewModel Document, FacilityKindLevelEditorViewModel Editor) CreateEditor(
         FacilityKindConfig[] kinds,
         params FacilityKindLevelConfig[] levels)

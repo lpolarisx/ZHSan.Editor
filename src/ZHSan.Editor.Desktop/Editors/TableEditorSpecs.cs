@@ -450,9 +450,9 @@ public static class TableEditorSpecs
         }
     ];
 
-    // A facility level has no name: it is its kind's name and level number.
+    // A facility level uses its own name when set; otherwise its kind's name, with the level number.
     private static string FacilityLevelName(object item, TableRecordLookup lookup) => item is FacilityKindLevelConfig level
-        ? $"{lookup.Name("facility-kinds", level.KindId)} Lv{level.Level}"
+        ? $"{(string.IsNullOrWhiteSpace(level.Name) ? lookup.Name("facility-kinds", level.KindId) : level.Name.Trim())} Lv{level.Level}"
         : "";
 
     private static TableSectionSpec Generation(string conditions, string chance) =>

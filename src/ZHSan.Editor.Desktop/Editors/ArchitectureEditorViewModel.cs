@@ -126,7 +126,8 @@ public sealed class ArchitectureEditorViewModel : RecordListEditorViewModel<Arch
     protected override string ChipLabel(string targetKey, ConfigReferenceTarget target) => target.Item switch
     {
         FacilityConfig facility when Targets("facility-kind-levels").FirstOrDefault(level => level.Id == facility.LevelId)
-            ?.Item is FacilityKindLevelConfig level => $"{target.Id} {KindName(level.KindId)} Lv{level.Level}",
+            ?.Item is FacilityKindLevelConfig level =>
+            $"{target.Id} {(string.IsNullOrWhiteSpace(level.Name) ? KindName(level.KindId) : level.Name.Trim())} Lv{level.Level}",
         CaptiveConfig captive => $"{target.Id} {GetChipLabel("persons", captive.CaptivePersonId)}",
         _ => base.ChipLabel(targetKey, target)
     };
